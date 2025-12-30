@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+}
+
+:root {
+  --color-primary: #FFD700;
+  --color-background: #000000;
+  --color-secondary: #1A1A1A;
+  --color-text: #FFFFFF;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --color-primary: #FFD700; /* Keep Gold */
+  --color-background: #FFFFFF;
+  --color-secondary: #F3F4F6; /* Gray-100 */
+  --color-text: #000000;
+  color-scheme: light;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+/* Utilities using the variables */
+.bg-primary { background-color: var(--color-primary); }
+.text-primary { color: var(--color-primary); }
+.border-primary { border-color: var(--color-primary); }
+
+.bg-black { background-color: var(--color-background); } /* Remap bg-black to variable for theme switching */
+.text-white { color: var(--color-text); } /* Remap text-white to variable */
+
+.bg-secondary { background-color: var(--color-secondary); }
+
+/* Custom utility for inverted text in light mode (e.g. buttons) */
+[data-theme="light"] .text-black-in-light { color: #000000; }
