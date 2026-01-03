@@ -1,22 +1,33 @@
+@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', sans-serif;
+  --font-sans: 'Courier Prime', 'Courier New', monospace;
 }
 
 :root {
-  --color-primary: #FFD700;
-  --color-background: #000000;
-  --color-secondary: #1A1A1A;
-  --color-text: #FFFFFF;
+  /* Default Dark Mode (Polished Navy) */
+  --color-primary: #60A5FA; /* Blue-400 - Calm Focus Blue */
+  --color-background: #0F172A; /* Slate-900 - Deep Navy */
+  --color-secondary: #1E293B; /* Slate-800 - Lighter Navy for cards */
+  --color-text: #F8FAFC; /* Slate-50 - Crisp White */
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --color-primary: #FFD700; /* Keep Gold */
-  --color-background: #FFFFFF;
-  --color-secondary: #F3F4F6; /* Gray-100 */
-  --color-text: #000000;
+  --color-primary: #3B82F6; /* Blue-500 */
+  --color-background: #F1F5F9; /* Slate-100 - Soft Gray */
+  --color-secondary: #FFFFFF; /* White */
+  --color-text: #0F172A; /* Slate-900 */
+  color-scheme: light;
+}
+
+[data-theme="gold"] {
+  /* Bright/Light Gold Theme (Champagne/Luxury) */
+  --color-primary: #D97706; /* Amber-600 - Rich Deep Gold */
+  --color-background: #FFFBEB; /* Amber-50 - Very Light Cream/Gold background */
+  --color-secondary: #FFFFFF; /* White - Clean card background */
+  --color-text: #451A03; /* Amber-950 - Dark Brown/Black Text for contrast */
   color-scheme: light;
 }
 
@@ -44,3 +55,16 @@ body {
 
 /* Custom utility for inverted text in light mode (e.g. buttons) */
 [data-theme="light"] .text-black-in-light { color: #000000; }
+[data-theme="gold"] .text-black-in-light { color: #000000; }
+
+/* Special Gold Gradient for Gold Theme elements */
+[data-theme="gold"] .bg-gradient-to-tr {
+  background-image: linear-gradient(to top right, #F59E0B, #FCD34D);
+}
+
+[data-theme="gold"] .bg-primary {
+    background-image: linear-gradient(135deg, #F59E0B 0%, #FCD34D 50%, #FDE68A 100%);
+    color: #451A03; /* Dark text on bright gold button */
+    text-shadow: none;
+    font-weight: 700;
+}

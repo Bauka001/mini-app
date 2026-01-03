@@ -1,14 +1,27 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
+import { useStore } from './store/useStore';
+import { useEffect } from 'react';
+
+// Static imports to prevent lazy loading errors
 import Home from './pages/Home';
-import NotificationsPage from './pages/Notifications';
 import ShopPage from './pages/Shop';
 import SettingsPage from './pages/Settings';
+import ProfilePage from './pages/Profile';
+import LeaderboardPage from './pages/Leaderboard';
+import GuildsPage from './pages/Guilds';
+import BattlePage from './pages/Battle';
+import DailyWorkoutPage from './pages/DailyWorkout';
+import AirdropPage from './pages/Airdrop';
+
+// Games
 import SchulteGame from './pages/games/SchulteGame';
 import MathGame from './pages/games/MathGame';
 import StroopGame from './pages/games/StroopGame';
-import { useStore } from './store/useStore';
-import { useEffect } from 'react';
+import MemoryGame from './pages/games/MemoryGame';
+import OddOneOutGame from './pages/games/OddOneOutGame';
+import PairsGame from './pages/games/PairsGame';
+import ReactionGame from './pages/games/ReactionGame';
 
 function App() {
   const { theme } = useStore();
@@ -22,16 +35,25 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Home />} />
-          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="community" element={<GuildsPage />} />
+          <Route path="leaderboard" element={<LeaderboardPage />} />
           <Route path="shop" element={<ShopPage />} />
+          <Route path="airdrop" element={<AirdropPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
         
-        {/* Games should be outside the main layout (no bottom nav) or inside? Usually full screen */}
-        {/* Let's put them outside for full immersion */}
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/daily-workout" element={<DailyWorkoutPage />} />
+        <Route path="/battle" element={<BattlePage />} />
+        
+        {/* Games */}
         <Route path="/game/schulte" element={<SchulteGame />} />
         <Route path="/game/math" element={<MathGame />} />
         <Route path="/game/stroop" element={<StroopGame />} />
+        <Route path="/game/memory" element={<MemoryGame />} />
+        <Route path="/game/odd-one" element={<OddOneOutGame />} />
+        <Route path="/game/pairs" element={<PairsGame />} />
+        <Route path="/game/reaction" element={<ReactionGame />} />
       </Routes>
     </Router>
   );

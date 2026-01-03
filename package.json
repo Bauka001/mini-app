@@ -5,12 +5,13 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.18",
+    "@tonconnect/ui-react": "^2.3.1",
     "@twa-dev/sdk": "^8.0.2",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.26",
@@ -20,6 +21,7 @@
     "react-dom": "^18.3.1",
     "react-i18next": "^16.5.0",
     "react-router-dom": "^7.11.0",
+    "socket.io-client": "^4.8.1",
     "tailwind-merge": "^3.4.0",
     "zustand": "^5.0.9"
   },

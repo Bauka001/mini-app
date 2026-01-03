@@ -22,16 +22,34 @@ export const MathGame = () => {
   );
 };
 
-const MathBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }) => {
+export const MathBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }) => {
   const { activeSkin } = useStore();
   const [question, setQuestion] = useState<{ text: string, answer: number, options: number[] } | null>(null);
   const [questionsAnswered, setQuestionsAnswered] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [startTime] = useState(Date.now());
+  const [timeLeft, setTimeLeft] = useState(60); // 60s hard limit
   const [isWrong, setIsWrong] = useState(false);
   const skinClass = SKIN_STYLES[activeSkin] || SKIN_STYLES.default;
 
+  useEffect(() => {
+    generateQuestion();
+    
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 0.1) {
+          clearInterval(timer);
+          onEnd(`Failed (Time)`, 0);
+          return 0;
+        }
+        return prev - 0.1;
+      });
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, []);
+
   const generateQuestion = () => {
+    // ... existing logic ...
     const ops = ['+', '-', '*'];
     const op = ops[Math.floor(Math.random() * ops.length)];
     let a, b, ans;
@@ -61,15 +79,11 @@ const MathBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void })
     }
 
     setQuestion({
-      text: `${a} ${op} ${b} = ?`,
+      text: `${a} ${op} ${b}`,
       answer: ans,
       options: Array.from(options).sort(() => Math.random() - 0.5)
     });
   };
-
-  useEffect(() => {
-    generateQuestion();
-  }, []);
 
   const handleAnswer = (val: number) => {
     let isCorrect = false;
@@ -85,10 +99,9 @@ const MathBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void })
     setQuestionsAnswered(nextCount);
 
     if (nextCount >= 10) {
-      // Game Over
-      const timeSpent = ((Date.now() - startTime) / 1000).toFixed(1);
+      const timeSpent = (60 - timeLeft).toFixed(1);
       const finalCorrect = isCorrect ? correctCount + 1 : correctCount;
-      const coins = finalCorrect * 2; // 2 coins per correct answer
+      const coins = finalCorrect * 2; 
       onEnd(`${finalCorrect}/10 (${timeSpent}s)`, coins);
     } else {
       generateQuestion();
@@ -98,17 +111,30 @@ const MathBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void })
   if (!question) return null;
 
   return (
-    <div className="h-full flex flex-col items-center justify-between p-6 pb-20">
-      <div className="w-full flex justify-between text-xl font-bold">
-        <div className="text-primary">Correct: {correctCount}/10</div>
-        <div className="text-white">Q: {questionsAnswered + 1}/10</div>
+    <div className="h-full flex flex-col items-center justify-between p-6 pb-20 relative">
+      <div className="w-full flex justify-between text-lg font-bold">
+        <div className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/5 text-primary shadow-lg">
+          Correct: {correctCount}/10
+        </div>
+        <div className={clsx(
+           "px-4 py-2 rounded-full backdrop-blur-md border border-white/5 shadow-lg transition-colors",
+           timeLeft < 10 ? "bg-red-500/20 text-red-500 animate-pulse" : "bg-white/10 text-white"
+        )}>
+          {timeLeft.toFixed(1)}s
+        </div>
+        <div className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/5 text-white shadow-lg">
+          Q: {questionsAnswered + 1}/10
+        </div>
       </div>
 
       <div className={clsx(
-        "flex-1 flex items-center justify-center w-full transition-colors duration-300 rounded-2xl mb-8",
-        isWrong ? "bg-red-900/20" : ""
+        "flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 rounded-3xl mb-8 border border-white/5 relative overflow-hidden",
+        isWrong ? "bg-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.4)]" : "bg-white/5 backdrop-blur-xl shadow-2xl"
       )}>
-        <h2 className="text-6xl font-black tracking-wider">{question.text}</h2>
+        <h2 className="text-7xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 drop-shadow-2xl">
+          {question.text}
+        </h2>
+        <div className="mt-4 text-2xl text-gray-400 font-bold">= ?</div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
@@ -117,11 +143,12 @@ const MathBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void })
             key={idx}
             onClick={() => handleAnswer(opt)}
             className={clsx(
-              "text-3xl font-bold py-8 rounded-2xl active:scale-95 transition-transform",
+              "text-4xl font-bold py-8 rounded-2xl active:scale-95 transition-all duration-200 shadow-lg relative overflow-hidden group",
               skinClass
             )}
           >
-            {opt}
+             <span className="relative z-10">{opt}</span>
+             <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
           </button>
         ))}
       </div>

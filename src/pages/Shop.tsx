@@ -1,9 +1,85 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Star, Crown, Zap, Coins, Layout } from 'lucide-react';
+import { Check, Star, Crown, Zap, Coins, Layout, Copy, X, ExternalLink, Gift, Box } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store/useStore';
 import WebApp from '@twa-dev/sdk';
+import { ChestModal } from '../components/ChestModal';
+
+const PaymentModal = ({ 
+  isOpen, 
+  onClose, 
+  planTitle, 
+  price 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  planTitle: string; 
+  price: string; 
+}) => {
+  const { t } = useTranslation();
+  
+  if (!isOpen) return null;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText("87071781436");
+    WebApp.HapticFeedback.notificationOccurred('success');
+    alert(t('copied') || "Copied!");
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-gray-900 border border-gray-800 rounded-2xl p-6 w-full max-w-sm relative shadow-2xl">
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white"
+        >
+          <X size={24} />
+        </button>
+
+        <h3 className="text-xl font-bold mb-2 text-center">{t('payment_method') || "Payment Method"}</h3>
+        <p className="text-center text-gray-400 mb-6">Kaspi Gold</p>
+
+        <div className="bg-gray-800 rounded-xl p-4 mb-6 text-center">
+          <p className="text-sm text-gray-400 mb-1">{t('amount_to_pay') || "Amount to pay"}</p>
+          <div className="text-2xl font-bold text-primary mb-4">{price}</div>
+          
+          <div className="flex items-center justify-between bg-gray-900 rounded-lg p-3 border border-gray-700">
+            <span className="font-mono text-lg font-bold">8 707 178 14 36</span>
+            <button 
+              onClick={handleCopy}
+              className="p-2 hover:bg-gray-800 rounded-lg text-primary transition-colors"
+            >
+              <Copy size={20} />
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-2 text-center">Yerassyl U.</p>
+        </div>
+
+        <div className="space-y-3">
+          <a 
+            href="https://kaspi.kz" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="w-full py-3 rounded-xl font-bold bg-[#f14635] text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+          >
+            {t('open_kaspi') || "Open Kaspi"} <ExternalLink size={18} />
+          </a>
+          
+          <button
+            onClick={() => {
+              WebApp.openTelegramLink('https://t.me/yerassyl_u'); // Replace with actual admin username if different
+              onClose();
+            }}
+            className="w-full py-3 rounded-xl font-bold bg-blue-500 text-white flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+          >
+            {t('send_receipt') || "Send Receipt"} <ExternalLink size={18} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const PlanCard = ({ 
   title, 
@@ -21,7 +97,9 @@ const PlanCard = ({
   icon: any, 
   color: string,
   onBuy: () => void 
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <div className={clsx(
     "relative p-6 rounded-2xl border mb-4 transition-all active:scale-95 bg-secondary overflow-hidden",
     recommended ? "border-primary shadow-[0_0_20px_rgba(255,215,0,0.15)]" : "border-gray-800"
@@ -69,6 +147,7 @@ const PlanCard = ({
     <div className="absolute -bottom-10 -right-10 w-32 h-32 rounded-full bg-gradient-to-br from-white/5 to-transparent pointer-events-none" />
   </div>
 );
+};
 
 const SkinCard = ({ 
   name, 
@@ -126,19 +205,47 @@ const SkinCard = ({
           {t('buy')}
         </button>
       )}
+      
+      <PaymentModal
+        isOpen={!!paymentModal}
+        onClose={() => setPaymentModal(null)}
+        planTitle={paymentModal?.title || ''}
+        price={paymentModal?.price || ''}
+      />
     </div>
   );
 };
 
 const ShopPage = () => {
   const { t } = useTranslation();
-  const { coins, inventory, activeSkin, buySkin, equipSkin, upgradePlan } = useStore();
-  const [activeTab, setActiveTab] = useState<'plans' | 'skins'>('plans');
+  const { coins, inventory, activeSkin, buySkin, equipSkin, upgradePlan, spendCoins } = useStore();
+  const [activeTab, setActiveTab] = useState<'plans' | 'skins' | 'chests'>('plans');
+  const [paymentModal, setPaymentModal] = useState<{title: string, price: string} | null>(null);
+  const [showChest, setShowChest] = useState(false);
+
+  const handleBuyChest = (cost: number) => {
+    if (spendCoins(cost)) {
+      setShowChest(true);
+    } else {
+      WebApp.HapticFeedback.notificationOccurred('error');
+      alert(t('not_enough_coins'));
+    }
+  };
 
   const handleBuyPlan = (plan: 'silver' | 'gold' | 'premium') => {
     WebApp.HapticFeedback.notificationOccurred('success');
-    upgradePlan(plan, plan === 'silver' ? 9999 : (plan === 'gold' ? 40 : 50));
-    alert(`Successfully upgraded to ${plan.toUpperCase()}!`);
+    
+    if (plan === 'silver') {
+      upgradePlan(plan, 9999);
+      alert(t('plan_activated') || `Successfully upgraded to ${plan.toUpperCase()}!`);
+    } else {
+      // For paid plans, open the payment modal
+      const price = plan === 'gold' ? "$4.99" : "$9.99";
+      setPaymentModal({
+        title: plan.toUpperCase(),
+        price: price
+      });
+    }
   };
 
   const handleBuySkin = (id: string, cost: number) => {
@@ -157,7 +264,7 @@ const ShopPage = () => {
   };
 
   return (
-    <div className="p-4 pb-24">
+    <div className="p-4">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-3xl font-bold text-primary">{t('shop')}</h1>
         <div className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-full border border-primary/30">
@@ -186,6 +293,16 @@ const ShopPage = () => {
         >
           <Layout size={16} />
           {t('skins')}
+        </button>
+        <button
+          onClick={() => setActiveTab('chests')}
+          className={clsx(
+            "flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
+            activeTab === 'chests' ? "bg-gray-700 text-white shadow-sm" : "text-gray-400 hover:text-white"
+          )}
+        >
+          <Box size={16} />
+          Chests
         </button>
       </div>
 
@@ -232,7 +349,7 @@ const ShopPage = () => {
             onBuy={() => handleBuyPlan('premium')}
           />
         </div>
-      ) : (
+      ) : activeTab === 'skins' ? (
         <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <SkinCard
             id="default"
@@ -275,15 +392,58 @@ const ShopPage = () => {
             onEquip={() => handleEquipSkin('matrix')}
           />
         </div>
+      ) : (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-4">
+           {/* Standard Chest */}
+           <div className="p-6 rounded-2xl border border-gray-700 bg-secondary flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                 <div className="text-4xl">🎁</div>
+                 <div>
+                   <h3 className="text-xl font-bold text-white">Standard Chest</h3>
+                   <p className="text-sm text-gray-400">Contains 50-150 Coins</p>
+                 </div>
+              </div>
+              <button 
+                onClick={() => handleBuyChest(100)}
+                className="px-6 py-2 bg-primary text-black font-bold rounded-xl flex items-center gap-2 hover:scale-105 transition-transform"
+              >
+                <Coins size={16} /> 100
+              </button>
+           </div>
+
+           {/* Rare Chest */}
+           <div className="p-6 rounded-2xl border border-blue-500/30 bg-blue-900/10 flex items-center justify-between shadow-[0_0_20px_rgba(59,130,246,0.1)]">
+              <div className="flex items-center gap-4">
+                 <div className="text-4xl">💎</div>
+                 <div>
+                   <h3 className="text-xl font-bold text-white">Rare Chest</h3>
+                   <p className="text-sm text-gray-400">Chance for $FEC & Gems</p>
+                 </div>
+              </div>
+              <button 
+                onClick={() => handleBuyChest(300)}
+                className="px-6 py-2 bg-blue-500 text-white font-bold rounded-xl flex items-center gap-2 hover:scale-105 transition-transform"
+              >
+                <Coins size={16} /> 300
+              </button>
+           </div>
+        </div>
       )}
+      
+      <PaymentModal
+        isOpen={!!paymentModal}
+        onClose={() => setPaymentModal(null)}
+        planTitle={paymentModal?.title || ''}
+        price={paymentModal?.price || ''}
+      />
+
+      <ChestModal 
+        isOpen={showChest} 
+        onClose={() => setShowChest(false)} 
+        gameTitle="Shop Purchase" 
+      />
     </div>
   );
 };
-
-// Helper for translation in component
-function t(key: string) {
-  // This is a placeholder since we use the hook inside components
-  return key; 
-}
 
 export default ShopPage;
