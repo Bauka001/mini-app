@@ -121,7 +121,7 @@ export const SettingsContent = () => {
     WebApp.HapticFeedback.selectionChanged();
   };
 
-  const handleThemeChange = (newTheme: 'dark' | 'light' | 'gold') => {
+  const handleThemeChange = (newTheme: 'dark' | 'light' | 'gold' | 'blue') => {
     setTheme(newTheme);
     WebApp.HapticFeedback.selectionChanged();
   };
@@ -218,6 +218,15 @@ export const SettingsContent = () => {
                 )}
               >
                 Gold
+              </button>
+              <button
+                onClick={() => handleThemeChange('blue')}
+                className={clsx(
+                  "px-3 py-1 rounded-lg text-xs font-bold uppercase transition-colors",
+                  theme === 'blue' ? "bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.5)]" : "bg-gray-800/50 text-blue-500/50"
+                )}
+              >
+                Blue
               </button>
           </div>
         </SettingItem>

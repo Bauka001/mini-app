@@ -23,10 +23,12 @@ const MOCK_MESSAGES: Message[] = [
 
 const CommunityPage = () => {
   const { t } = useTranslation();
-  const { user } = useStore();
+  const { user, theme } = useStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  const isLight = theme === 'light';
 
   // Load initial messages (simulate fetching from server)
   useEffect(() => {
@@ -79,15 +81,18 @@ const CommunityPage = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-black pb-24">
+    <div className={clsx("h-full flex flex-col pb-24", isLight ? "bg-[#f2f3f5]" : "bg-black")}>
       {/* Header */}
-      <header className="p-4 pt-8 bg-secondary/80 backdrop-blur-md border-b border-white/5 sticky top-0 z-10 flex items-center gap-3">
-        <div className="p-2 bg-primary/10 rounded-full text-primary">
+      <header className={clsx(
+        "p-4 pt-8 backdrop-blur-md border-b sticky top-0 z-10 flex items-center gap-3",
+        isLight ? "bg-white/80 border-gray-200" : "bg-secondary/80 border-white/5"
+      )}>
+        <div className={clsx("p-2 rounded-full", isLight ? "bg-[#f14635]/10 text-[#f14635]" : "bg-primary/10 text-primary")}>
           <MessageCircle size={24} />
         </div>
         <div>
-          <h1 className="text-xl font-bold text-white">{t('community_chat', 'Community Chat')}</h1>
-          <p className="text-xs text-gray-400">{t('online_users', '1,243 online')}</p>
+          <h1 className={clsx("text-xl font-bold", isLight ? "text-gray-900" : "text-white")}>{t('community_chat', 'Community Chat')}</h1>
+          <p className={clsx("text-xs", isLight ? "text-gray-500" : "text-gray-400")}>{t('online_users', '1,243 online')}</p>
         </div>
       </header>
 
@@ -102,11 +107,14 @@ const CommunityPage = () => {
             )}
           >
             {/* Avatar */}
-            <div className="flex-shrink-0 w-8 h-8 rounded-full overflow-hidden bg-gray-700 border border-white/10">
+            <div className={clsx(
+              "flex-shrink-0 w-8 h-8 rounded-full overflow-hidden border",
+              isLight ? "bg-gray-200 border-gray-300" : "bg-gray-700 border-white/10"
+            )}>
               {msg.photoUrl ? (
                 <img src={msg.photoUrl} alt={msg.username} className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                <div className={clsx("w-full h-full flex items-center justify-center", isLight ? "text-gray-500" : "text-gray-400")}>
                   <User size={16} />
                 </div>
               )}
@@ -117,18 +125,18 @@ const CommunityPage = () => {
               "flex flex-col",
               msg.isMe ? "items-end" : "items-start"
             )}>
-              <span className="text-[10px] text-gray-500 mb-1 px-1">
+              <span className={clsx("text-[10px] mb-1 px-1", isLight ? "text-gray-500" : "text-gray-500")}>
                 {msg.username}
               </span>
               <div className={clsx(
-                "px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-md",
+                "px-4 py-2 rounded-2xl text-sm leading-relaxed shadow-sm",
                 msg.isMe 
-                  ? "bg-primary text-black rounded-tr-none" 
-                  : "bg-secondary border border-white/10 text-white rounded-tl-none"
+                  ? (isLight ? "bg-[#f14635] text-white rounded-tr-none" : "bg-primary text-black rounded-tr-none")
+                  : (isLight ? "bg-white border border-gray-200 text-gray-800 rounded-tl-none" : "bg-secondary border border-white/10 text-white rounded-tl-none")
               )}>
                 {msg.text}
               </div>
-              <span className="text-[9px] text-gray-600 mt-1 px-1">
+              <span className={clsx("text-[9px] mt-1 px-1", isLight ? "text-gray-400" : "text-gray-600")}>
                 {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
             </div>
@@ -138,7 +146,10 @@ const CommunityPage = () => {
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-black/80 backdrop-blur-md border-t border-white/10 fixed bottom-[80px] left-0 right-0 w-full">
+      <div className={clsx(
+        "p-4 backdrop-blur-md border-t fixed bottom-[80px] left-0 right-0 w-full",
+        isLight ? "bg-white/80 border-gray-200" : "bg-black/80 border-white/10"
+      )}>
         <div className="flex gap-2">
           <input
             type="text"
@@ -146,12 +157,20 @@ const CommunityPage = () => {
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={t('type_message', 'Type a message...')}
-            className="flex-1 bg-secondary text-white rounded-full px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary/50 border border-white/5 placeholder-gray-500"
+            className={clsx(
+              "flex-1 rounded-full px-4 py-3 focus:outline-none focus:ring-2 border",
+              isLight 
+                ? "bg-gray-100 text-gray-900 border-gray-200 placeholder-gray-400 focus:ring-[#f14635]/50" 
+                : "bg-secondary text-white border-white/5 placeholder-gray-500 focus:ring-primary/50"
+            )}
           />
           <button
             onClick={handleSend}
             disabled={!inputText.trim()}
-            className="w-12 h-12 rounded-full bg-primary text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 shadow-lg shadow-primary/20"
+            className={clsx(
+              "w-12 h-12 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 shadow-lg",
+              isLight ? "bg-[#f14635] text-white shadow-red-500/20" : "bg-primary text-black shadow-primary/20"
+            )}
           >
             <Send size={20} className={inputText.trim() ? "ml-1" : ""} />
           </button>

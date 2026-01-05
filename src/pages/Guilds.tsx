@@ -87,8 +87,10 @@ const EMBLEMS = ['🛡️', '⚔️', '👑', '🐉', '🦁', '🦅', '🐺', '�
 
 export const GuildsPage = () => {
   const navigate = useNavigate();
-  const { user } = useStore();
+  const { user, theme } = useStore();
   const [activeTab, setActiveTab] = useState<'global' | 'list' | 'my_guild'>('list');
+  const isLight = theme === 'light';
+  const isBlue = theme === 'blue';
   
   // Data State (Local only for demo)
   const [guilds, setGuilds] = useState<Guild[]>(MOCK_GUILDS);
@@ -247,29 +249,47 @@ export const GuildsPage = () => {
   );
 
   return (
-    <div className="min-h-screen bg-black text-white relative">
+    <div className={clsx(
+      "min-h-screen relative",
+      isLight ? "bg-[#f2f3f5] text-gray-900" : isBlue ? "bg-gradient-to-br from-blue-700 via-indigo-800 to-purple-900 text-white" : "bg-black text-white"
+    )}>
       {/* Background Ambient */}
-      <div className="fixed top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-gray-900 via-black to-black -z-10" />
+      <div className={clsx(
+        "fixed top-0 left-0 w-full h-full -z-10",
+        isLight ? "bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-white via-[#f2f3f5] to-[#e6e7ea]" :
+        isBlue ? "bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-600/20 via-indigo-700/20 to-purple-800/20" :
+        "bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-gray-900 via-black to-black"
+      )} />
 
       {/* Header */}
-      <div className="p-4 pt-8 bg-black/80 backdrop-blur-xl sticky top-0 z-20 border-b border-white/5">
+      <div className={clsx(
+        "p-4 pt-8 backdrop-blur-xl sticky top-0 z-20 border-b",
+        isLight ? "bg-white/80 border-gray-200" : isBlue ? "bg-blue-900/40 border-blue-400/30" : "bg-black/80 border-white/5"
+      )}>
         <div className="flex justify-between items-center mb-4">
-            <h1 className="text-3xl font-black text-white flex items-center gap-3">
-            <Shield className="text-primary" size={32} />
+            <h1 className={clsx("text-3xl font-black flex items-center gap-3", isLight ? "text-gray-900" : "text-white")}>
+            <Shield className={clsx(isBlue ? "text-blue-400" : "text-primary")} size={32} />
             Guilds
             </h1>
-            <div className="bg-white/10 px-3 py-1 rounded-full text-xs font-bold text-green-400 flex items-center gap-2">
+            <div className={clsx(
+              "px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2",
+              isLight ? "bg-gray-100 text-green-600" : isBlue ? "bg-blue-500/15 text-green-400 border border-blue-400/30" : "bg-white/10 text-green-400"
+            )}>
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
                 Online: {120 + Math.floor(Math.random() * 50)}
             </div>
         </div>
         
-        <div className="flex bg-white/5 p-1 rounded-xl">
+        <div className={clsx("flex p-1 rounded-xl border",
+          isLight ? "bg-gray-100 border-gray-200" : isBlue ? "bg-blue-900/20 border-blue-400/30" : "bg-white/5 border-white/5"
+        )}>
           <button 
             onClick={() => setActiveTab('global')}
             className={clsx(
               "flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-wide",
-              activeTab === 'global' ? "bg-primary text-black shadow-lg shadow-primary/20" : "text-gray-400 hover:text-white hover:bg-white/5"
+              activeTab === 'global' 
+                ? clsx(isLight ? "bg-white text-black shadow-sm" : isBlue ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" : "bg-primary text-black shadow-lg shadow-primary/20")
+                : clsx(isLight ? "text-gray-500 hover:text-black" : isBlue ? "text-blue-200/70 hover:text-white hover:bg-blue-900/20" : "text-gray-400 hover:text-white hover:bg-white/5")
             )}
           >
             <Globe size={16} /> Global
@@ -278,7 +298,9 @@ export const GuildsPage = () => {
             onClick={() => setActiveTab('list')}
             className={clsx(
               "flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-wide",
-              activeTab === 'list' ? "bg-primary text-black shadow-lg shadow-primary/20" : "text-gray-400 hover:text-white hover:bg-white/5"
+              activeTab === 'list' 
+                ? clsx(isLight ? "bg-white text-black shadow-sm" : isBlue ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" : "bg-primary text-black shadow-lg shadow-primary/20")
+                : clsx(isLight ? "text-gray-500 hover:text-black" : isBlue ? "text-blue-200/70 hover:text-white hover:bg-blue-900/20" : "text-gray-400 hover:text-white hover:bg-white/5")
             )}
           >
             <Search size={16} /> Find
@@ -287,7 +309,9 @@ export const GuildsPage = () => {
             onClick={() => setActiveTab('my_guild')}
             className={clsx(
               "flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-wide",
-              activeTab === 'my_guild' ? "bg-primary text-black shadow-lg shadow-primary/20" : "text-gray-400 hover:text-white hover:bg-white/5"
+              activeTab === 'my_guild' 
+                ? clsx(isLight ? "bg-white text-black shadow-sm" : isBlue ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" : "bg-primary text-black shadow-lg shadow-primary/20")
+                : clsx(isLight ? "text-gray-500 hover:text-black" : isBlue ? "text-blue-200/70 hover:text-white hover:bg-blue-900/20" : "text-gray-400 hover:text-white hover:bg-white/5")
             )}
           >
             <Shield size={16} /> My Guild
@@ -300,8 +324,14 @@ export const GuildsPage = () => {
         
         {/* GLOBAL CHAT TAB */}
         {activeTab === 'global' && (
-          <div className="flex-1 bg-white/5 rounded-3xl border border-white/5 overflow-hidden flex flex-col shadow-2xl">
-            <div className="p-4 bg-white/5 border-b border-white/5 font-bold text-sm flex items-center gap-2 text-primary">
+          <div className={clsx(
+            "flex-1 rounded-3xl overflow-hidden flex flex-col shadow-2xl border",
+            isLight ? "bg-white border-gray-200" : isBlue ? "bg-blue-900/20 border-blue-400/30" : "bg-white/5 border-white/5"
+          )}>
+            <div className={clsx(
+              "p-4 font-bold text-sm flex items-center gap-2 border-b",
+              isLight ? "bg-gray-100 border-gray-200 text-blue-600" : isBlue ? "bg-blue-900/30 border-blue-400/30 text-blue-300" : "bg-white/5 border-white/5 text-primary"
+            )}>
               <Globe size={18} />
               Global Community
             </div>
@@ -310,34 +340,50 @@ export const GuildsPage = () => {
                {globalMessages.map((msg) => (
                  <div key={msg.id} className={clsx("flex flex-col items-start animate-in fade-in slide-in-from-bottom-2", msg.isBot ? "items-center w-full" : "")}>
                    {msg.isBot ? (
-                     <div className="bg-primary/10 border border-primary/30 px-4 py-1.5 rounded-full text-[10px] text-primary font-bold my-2 text-center uppercase tracking-wider">
-                       {msg.text}
-                     </div>
-                   ) : (
-                     <>
-                       <div className="flex items-baseline gap-2 mb-1 pl-1">
-                         <span className="text-xs font-bold text-blue-400">{msg.sender}</span>
-                         <span className="text-[10px] text-gray-500">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                       </div>
-                       <div className="bg-white/10 px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm break-words max-w-[85%] shadow-sm">
-                         {msg.text}
-                       </div>
-                     </>
-                   )}
-                 </div>
-               ))}
-               <div ref={globalMessagesEndRef} />
+                    <div className={clsx(
+                      "px-4 py-1.5 rounded-full text-[10px] font-bold my-2 text-center uppercase tracking-wider border",
+                      isBlue ? "bg-blue-500/10 border-blue-400/40 text-blue-300" : "bg-primary/10 border-primary/30 text-primary"
+                    )}>
+                      {msg.text}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-baseline gap-2 mb-1 pl-1">
+                        <span className={clsx("text-xs font-bold", isBlue ? "text-blue-300" : "text-blue-400")}>{msg.sender}</span>
+                        <span className={clsx("text-[10px]", isLight ? "text-gray-500" : "text-gray-500")}>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      </div>
+                      <div className={clsx(
+                        "px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm break-words max-w-[85%] shadow-sm",
+                        isLight ? "bg-gray-100" : isBlue ? "bg-blue-900/30 border border-blue-400/20" : "bg-white/10"
+                      )}>
+                        {msg.text}
+                      </div>
+                    </>
+                  )}
+                </div>
+              ))}
+              <div ref={globalMessagesEndRef} />
             </div>
 
-            <form onSubmit={sendGlobalMessage} className="p-3 bg-black/40 border-t border-white/5 flex gap-2 backdrop-blur-md">
+            <form onSubmit={sendGlobalMessage} className={clsx(
+              "p-3 border-t flex gap-2 backdrop-blur-md",
+              isLight ? "bg-white/60 border-gray-200" : isBlue ? "bg-blue-900/30 border-blue-400/20" : "bg-black/40 border-white/5"
+            )}>
               <input 
                 type="text" 
                 value={globalChatMessage}
                 onChange={(e) => setGlobalChatMessage(e.target.value)}
                 placeholder="Message global chat..."
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-primary focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                className={clsx(
+                  "flex-1 rounded-xl px-4 py-3 text-sm outline-none transition-all",
+                  isLight ? "bg-white border border-gray-200 focus:border-blue-500" : isBlue ? "bg-blue-900/20 border border-blue-400/30 focus:border-blue-500" : "bg-white/5 border border-white/10 focus:border-primary focus:bg-white/10",
+                  "placeholder:text-gray-600"
+                )}
               />
-              <button type="submit" className="p-3 bg-primary text-black rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20">
+              <button type="submit" className={clsx(
+                "p-3 rounded-xl hover:scale-105 active:scale-95 transition-all",
+                isBlue ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" : "bg-primary text-black shadow-lg shadow-primary/20"
+              )}>
                 <Send size={20} />
               </button>
             </form>
@@ -350,18 +396,24 @@ export const GuildsPage = () => {
             <div className="sticky top-0 z-10 pb-2">
               <div className="flex gap-2 mb-4">
                 <div className="flex-1 relative group">
-                  <Search className="absolute left-3 top-3.5 text-gray-500 group-focus-within:text-primary transition-colors" size={18} />
+                  <Search className={clsx("absolute left-3 top-3.5 transition-colors", isLight ? "text-gray-500 group-focus-within:text-blue-600" : isBlue ? "text-blue-300 group-focus-within:text-blue-400" : "text-gray-500 group-focus-within:text-primary")} size={18} />
                   <input 
                     type="text" 
                     placeholder="Search guilds..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-2xl pl-10 pr-4 py-3 text-sm focus:border-primary focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                    className={clsx(
+                      "w-full rounded-2xl pl-10 pr-4 py-3 text-sm outline-none transition-all placeholder:text-gray-600",
+                      isLight ? "bg-white border border-gray-200 focus:border-blue-500" : isBlue ? "bg-blue-900/20 border border-blue-400/30 focus:border-blue-500" : "bg-white/5 border border-white/10 focus:border-primary focus:bg-white/10"
+                    )}
                   />
                 </div>
                 <button 
                   onClick={() => setIsCreating(true)}
-                  className="bg-primary text-black px-5 rounded-2xl font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20"
+                  className={clsx(
+                    "px-5 rounded-2xl font-bold hover:scale-105 active:scale-95 transition-all",
+                    isBlue ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" : "bg-primary text-black shadow-lg shadow-primary/20"
+                  )}
                 >
                   <Plus size={24} />
                 </button>
@@ -369,10 +421,13 @@ export const GuildsPage = () => {
             </div>
 
             {isCreating && (
-              <div className="bg-white/10 p-5 rounded-3xl border border-white/10 animate-in fade-in slide-in-from-top-4 mb-4 shadow-2xl">
+              <div className={clsx(
+                "p-5 rounded-3xl animate-in fade-in slide-in-from-top-4 mb-4 shadow-2xl border",
+                isLight ? "bg-white border-gray-200" : isBlue ? "bg-blue-900/20 border-blue-400/30" : "bg-white/10 border-white/10"
+              )}>
                 <h3 className="font-bold mb-4 text-lg">Create New Guild</h3>
                 
-                <label className="text-xs text-gray-400 font-bold ml-1 mb-1 block uppercase">Choose Emblem</label>
+                <label className={clsx("text-xs font-bold ml-1 mb-1 block uppercase", isLight ? "text-gray-500" : "text-gray-400")}>Choose Emblem</label>
                 <div className="flex gap-2 mb-4 overflow-x-auto pb-2 no-scrollbar">
                   {EMBLEMS.map(e => (
                     <button
@@ -380,7 +435,9 @@ export const GuildsPage = () => {
                       onClick={() => setSelectedEmblem(e)}
                       className={clsx(
                         "min-w-[48px] h-12 flex items-center justify-center rounded-xl text-2xl border-2 transition-all",
-                        selectedEmblem === e ? "bg-primary border-primary scale-110 shadow-lg" : "bg-black/20 border-transparent hover:bg-white/10"
+                        selectedEmblem === e 
+                          ? clsx(isBlue ? "bg-blue-500 border-blue-500 text-white scale-110 shadow-lg shadow-blue-500/30" : "bg-primary border-primary scale-110 shadow-lg") 
+                          : clsx(isLight ? "bg-gray-100 border-transparent hover:bg-gray-200" : isBlue ? "bg-blue-900/20 border-transparent hover:bg-blue-900/30" : "bg-black/20 border-transparent hover:bg-white/10")
                       )}
                     >
                       {e}
@@ -394,28 +451,40 @@ export const GuildsPage = () => {
                     placeholder="Guild Name" 
                     value={newGuildName}
                     onChange={(e) => setNewGuildName(e.target.value)}
-                    className="w-full bg-black/30 p-4 rounded-xl border border-white/10 text-white focus:border-primary outline-none transition-colors"
+                    className={clsx(
+                      "w-full p-4 rounded-xl border outline-none transition-colors",
+                      isLight ? "bg-white border-gray-200 focus:border-blue-500" : isBlue ? "bg-blue-900/20 border-blue-400/30 text-white focus:border-blue-500" : "bg-black/30 border-white/10 text-white focus:border-primary"
+                    )}
                     />
                     <input 
                     type="text" 
                     placeholder="Motto / Description" 
                     value={newGuildDesc}
                     onChange={(e) => setNewGuildDesc(e.target.value)}
-                    className="w-full bg-black/30 p-4 rounded-xl border border-white/10 text-white focus:border-primary outline-none transition-colors text-sm"
+                    className={clsx(
+                      "w-full p-4 rounded-xl border outline-none transition-colors text-sm",
+                      isLight ? "bg-white border-gray-200 focus:border-blue-500" : isBlue ? "bg-blue-900/20 border-blue-400/30 text-white focus:border-blue-500" : "bg-black/30 border-white/10 text-white focus:border-primary"
+                    )}
                     />
                 </div>
                 
                 <div className="flex gap-3">
                   <button 
                     onClick={() => setIsCreating(false)}
-                    className="flex-1 py-3 bg-white/5 rounded-xl text-sm font-bold hover:bg-white/10 transition-colors"
+                    className={clsx(
+                      "flex-1 py-3 rounded-xl text-sm font-bold transition-colors",
+                      isLight ? "bg-gray-100 hover:bg-gray-200" : isBlue ? "bg-blue-900/20 hover:bg-blue-900/30" : "bg-white/5 hover:bg-white/10"
+                    )}
                   >
                     Cancel
                   </button>
                   <button 
                     onClick={createGuild}
                     disabled={!newGuildName.trim()}
-                    className="flex-1 py-3 bg-primary text-black rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-all"
+                    className={clsx(
+                      "flex-1 py-3 rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-50 transition-all",
+                      isBlue ? "bg-blue-500 text-white" : "bg-primary text-black"
+                    )}
                   >
                     Create Guild
                   </button>
@@ -430,19 +499,29 @@ export const GuildsPage = () => {
                </div>
             ) : (
                filteredGuilds.map(guild => (
-                 <div key={guild.id} className="bg-white/5 p-4 rounded-3xl border border-white/5 flex justify-between items-center hover:bg-white/10 active:scale-[0.99] transition-all group shadow-lg">
+                 <div key={guild.id} className={clsx(
+                   "p-4 rounded-3xl flex justify-between items-center active:scale-[0.99] transition-all group shadow-lg border",
+                   isLight ? "bg-white border-gray-200 hover:bg-gray-100" : isBlue ? "bg-blue-900/20 border-blue-400/30 hover:bg-blue-900/30" : "bg-white/5 border-white/5 hover:bg-white/10"
+                 )}>
                    <div className="flex items-center gap-4">
-                     <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gray-800 to-black flex items-center justify-center text-3xl border border-white/10 shadow-inner group-hover:scale-110 transition-transform">
+                     <div className={clsx(
+                       "w-14 h-14 rounded-2xl flex items-center justify-center text-3xl border shadow-inner group-hover:scale-110 transition-transform",
+                       isLight ? "bg-gradient-to-br from-gray-200 to-gray-300 border-gray-300" : isBlue ? "bg-gradient-to-br from-blue-800 to-indigo-900 border-blue-400/30" : "bg-gradient-to-br from-gray-800 to-black border-white/10"
+                     )}>
                        {guild.emblem || '🛡️'}
                      </div>
                      <div>
-                       <h3 className="font-bold text-white leading-tight text-lg">{guild.name}</h3>
-                       <p className="text-xs text-gray-400 italic mb-1.5 line-clamp-1">{guild.description}</p>
+                       <h3 className={clsx("font-bold leading-tight text-lg", isLight ? "text-gray-900" : "text-white")}>{guild.name}</h3>
+                       <p className={clsx("text-xs italic mb-1.5 line-clamp-1", isLight ? "text-gray-500" : "text-gray-400")}>{guild.description}</p>
                        <div className="flex gap-3">
-                         <span className="text-xs text-gray-400 flex items-center gap-1.5 font-mono bg-black/20 px-2 py-0.5 rounded-md">
+                         <span className={clsx("text-xs flex items-center gap-1.5 font-mono px-2 py-0.5 rounded-md",
+                           isLight ? "text-gray-600 bg-gray-200" : isBlue ? "text-blue-200 bg-blue-900/20" : "text-gray-400 bg-black/20"
+                         )}>
                            <Users size={12} /> {guild.members.length}
                          </span>
-                         <span className="text-xs text-yellow-500 flex items-center gap-1.5 font-mono bg-yellow-500/10 px-2 py-0.5 rounded-md">
+                         <span className={clsx("text-xs flex items-center gap-1.5 font-mono px-2 py-0.5 rounded-md",
+                           isLight ? "text-yellow-600 bg-yellow-500/10" : "text-yellow-500 bg-yellow-500/10"
+                         )}>
                            <Crown size={12} /> {guild.totalScore}
                          </span>
                        </div>
@@ -450,7 +529,10 @@ export const GuildsPage = () => {
                    </div>
                    <button 
                      onClick={() => joinGuild(guild.id)}
-                     className="px-5 py-2.5 bg-white/10 hover:bg-primary hover:text-black rounded-xl text-xs font-bold transition-all uppercase tracking-wider"
+                     className={clsx(
+                       "px-5 py-2.5 rounded-xl text-xs font-bold transition-all uppercase tracking-wider",
+                       isLight ? "bg-gray-100 hover:bg-gray-200" : isBlue ? "bg-blue-900/20 text-white hover:bg-blue-500" : "bg-white/10 hover:bg-primary hover:text-black"
+                     )}
                    >
                      Join
                    </button>
@@ -466,21 +548,29 @@ export const GuildsPage = () => {
         {activeTab === 'my_guild' && (
           !myGuild ? (
             <div className="flex flex-col items-center justify-center h-full text-center pb-20 animate-in zoom-in">
-              <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/10">
+              <div className={clsx("w-24 h-24 rounded-full flex items-center justify-center mb-6 border",
+                isLight ? "bg-gray-100 border-gray-300" : isBlue ? "bg-blue-900/20 border-blue-400/30" : "bg-white/5 border-white/10"
+              )}>
                  <Shield size={48} className="text-gray-600" />
               </div>
-              <h3 className="text-2xl font-black text-white mb-2">No Guild Yet</h3>
-              <p className="text-gray-400 mb-8 max-w-[200px]">Join a guild to chat with friends and compete in wars!</p>
+              <h3 className={clsx("text-2xl font-black mb-2", isLight ? "text-gray-900" : "text-white")}>No Guild Yet</h3>
+              <p className={clsx("mb-8 max-w-[200px]", isLight ? "text-gray-500" : "text-gray-400")}>Join a guild to chat with friends and compete in wars!</p>
               <button 
                 onClick={() => setActiveTab('list')}
-                className="px-8 py-4 bg-primary text-black font-bold rounded-2xl shadow-lg shadow-primary/20 hover:scale-105 transition-transform"
+                className={clsx(
+                  "px-8 py-4 font-bold rounded-2xl hover:scale-105 transition-transform shadow-lg",
+                  isBlue ? "bg-blue-500 text-white shadow-blue-500/30" : "bg-primary text-black shadow-primary/20"
+                )}
               >
                 Find a Guild
               </button>
             </div>
           ) : (
             <div className="h-full flex flex-col animate-in fade-in">
-              <div className="bg-gradient-to-br from-gray-800 to-black p-5 rounded-3xl border border-white/10 mb-4 relative overflow-hidden shadow-2xl">
+              <div className={clsx(
+                "p-5 rounded-3xl mb-4 relative overflow-hidden shadow-2xl border",
+                isLight ? "bg-gradient-to-br from-gray-100 to-white border-gray-200" : isBlue ? "bg-gradient-to-br from-blue-800 to-indigo-900 border-blue-400/30" : "bg-gradient-to-br from-gray-800 to-black border-white/10"
+              )}>
                  <div className="absolute top-0 right-0 p-3 z-10">
                    <button onClick={leaveGuild} className="text-red-500/70 hover:text-red-500 p-2 hover:bg-red-500/10 rounded-xl transition-all">
                      <LogOut size={20} />
@@ -488,21 +578,30 @@ export const GuildsPage = () => {
                  </div>
                  
                  <div className="flex flex-col items-center mb-5 relative z-0">
-                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center text-5xl border border-white/10 mb-3 shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                   <div className={clsx(
+                     "w-20 h-20 rounded-2xl flex items-center justify-center text-5xl mb-3 border shadow-[0_0_30px_rgba(255,255,255,0.1)]",
+                     isBlue ? "bg-gradient-to-br from-blue-500/20 to-purple-500/20 border-blue-400/30" : "bg-gradient-to-br from-primary/20 to-purple-500/20 border-white/10"
+                   )}>
                      {myGuild.emblem}
                    </div>
-                   <h2 className="text-3xl font-black text-white mb-1">{myGuild.name}</h2>
-                   <p className="text-sm text-gray-400 italic">"{myGuild.description}"</p>
+                   <h2 className={clsx("text-3xl font-black mb-1", isLight ? "text-gray-900" : "text-white")}>{myGuild.name}</h2>
+                   <p className={clsx("text-sm italic", isLight ? "text-gray-500" : "text-gray-400")}>"{myGuild.description}"</p>
                  </div>
 
                  <div className="flex -space-x-3 overflow-hidden mb-2 justify-center py-2">
                     {myGuild.members.slice(0, 5).map((m, i) => (
-                      <div key={i} className="w-10 h-10 rounded-full bg-gray-700 border-2 border-black flex items-center justify-center text-xs font-bold text-white shadow-lg relative z-10" title={m.name}>
+                      <div key={i} className={clsx(
+                        "w-10 h-10 rounded-full border-2 flex items-center justify-center text-xs font-bold text-white shadow-lg relative z-10",
+                        isLight ? "bg-gray-400 border-white" : isBlue ? "bg-blue-800 border-black" : "bg-gray-700 border-black"
+                      )} title={m.name}>
                         {m.name[0]}
                       </div>
                     ))}
                     {myGuild.members.length > 5 && (
-                      <div className="w-10 h-10 rounded-full bg-gray-800 border-2 border-black flex items-center justify-center text-xs text-gray-400 font-bold relative z-0">
+                      <div className={clsx(
+                        "w-10 h-10 rounded-full border-2 flex items-center justify-center text-xs font-bold relative z-0",
+                        isLight ? "bg-gray-300 border-white text-gray-600" : isBlue ? "bg-blue-900 border-black text-blue-200" : "bg-gray-800 border-black text-gray-400"
+                      )}>
                         +{myGuild.members.length - 5}
                       </div>
                     )}
@@ -510,29 +609,41 @@ export const GuildsPage = () => {
               </div>
 
               {/* Chat Area */}
-              <div className="flex-1 bg-white/5 rounded-3xl border border-white/5 overflow-hidden flex flex-col shadow-2xl">
-                <div className="p-4 bg-white/5 border-b border-white/5 font-bold text-sm flex items-center gap-2 text-gray-300">
+              <div className={clsx(
+                "flex-1 rounded-3xl overflow-hidden flex flex-col shadow-2xl border",
+                isLight ? "bg-white border-gray-200" : isBlue ? "bg-blue-900/20 border-blue-400/30" : "bg-white/5 border-white/5"
+              )}>
+                <div className={clsx(
+                  "p-4 font-bold text-sm flex items-center gap-2 border-b",
+                  isLight ? "bg-gray-100 border-gray-200 text-gray-700" : isBlue ? "bg-blue-900/30 border-blue-400/30 text-blue-300" : "bg-white/5 border-white/5 text-gray-300"
+                )}>
                   <MessageSquare size={18} />
                   Guild Chat
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
                    {myGuild.messages.length === 0 && (
-                     <div className="text-center text-gray-500 text-sm mt-10">No messages yet. Say hi!</div>
+                     <div className={clsx("text-center text-sm mt-10", isLight ? "text-gray-500" : "text-gray-500")}>No messages yet. Say hi!</div>
                    )}
                    {myGuild.messages.map((msg) => (
                      <div key={msg.id} className={clsx("flex flex-col items-start animate-in fade-in slide-in-from-bottom-2", msg.isBot ? "items-center w-full" : "")}>
                         {msg.isBot ? (
-                         <div className="bg-primary/10 border border-primary/30 px-4 py-1.5 rounded-full text-[10px] text-primary font-bold my-2 text-center uppercase tracking-wider">
+                         <div className={clsx(
+                           "px-4 py-1.5 rounded-full text-[10px] font-bold my-2 text-center uppercase tracking-wider border",
+                           isBlue ? "bg-blue-500/10 border-blue-400/40 text-blue-300" : "bg-primary/10 border-primary/30 text-primary"
+                         )}>
                            {msg.text}
                          </div>
                        ) : (
                          <>
                            <div className="flex items-baseline gap-2 mb-1 pl-1">
-                             <span className="text-xs font-bold text-primary">{msg.sender}</span>
-                             <span className="text-[10px] text-gray-500">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                             <span className={clsx("text-xs font-bold", isBlue ? "text-blue-300" : "text-primary")}>{msg.sender}</span>
+                             <span className={clsx("text-[10px]", isLight ? "text-gray-500" : "text-gray-500")}>{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                            </div>
-                           <div className="bg-white/10 px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm break-words max-w-[85%] shadow-sm">
+                           <div className={clsx(
+                             "px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm break-words max-w-[85%] shadow-sm",
+                             isLight ? "bg-gray-100" : isBlue ? "bg-blue-900/30 border border-blue-400/20" : "bg-white/10"
+                           )}>
                              {msg.text}
                            </div>
                          </>
@@ -542,15 +653,25 @@ export const GuildsPage = () => {
                    <div ref={messagesEndRef} />
                 </div>
 
-                <form onSubmit={sendGuildMessage} className="p-3 bg-black/40 border-t border-white/5 flex gap-2 backdrop-blur-md">
+                <form onSubmit={sendGuildMessage} className={clsx(
+                  "p-3 border-t flex gap-2 backdrop-blur-md",
+                  isLight ? "bg-white/60 border-gray-200" : isBlue ? "bg-blue-900/30 border-blue-400/20" : "bg-black/40 border-white/5"
+                )}>
                   <input 
                     type="text" 
                     value={chatMessage}
                     onChange={(e) => setChatMessage(e.target.value)}
                     placeholder="Type a message..."
-                    className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-primary focus:bg-white/10 outline-none transition-all placeholder:text-gray-600"
+                    className={clsx(
+                      "flex-1 rounded-xl px-4 py-3 text-sm outline-none transition-all",
+                      isLight ? "bg-white border border-gray-200 focus:border-blue-500" : isBlue ? "bg-blue-900/20 border border-blue-400/30 focus:border-blue-500" : "bg-white/5 border border-white/10 focus:border-primary focus:bg-white/10",
+                      "placeholder:text-gray-600"
+                    )}
                   />
-                  <button type="submit" className="p-3 bg-primary text-black rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20">
+                  <button type="submit" className={clsx(
+                    "p-3 rounded-xl hover:scale-105 active:scale-95 transition-all",
+                    isBlue ? "bg-blue-500 text-white shadow-lg shadow-blue-500/30" : "bg-primary text-black shadow-lg shadow-primary/20"
+                  )}>
                     <Send size={20} />
                   </button>
                 </form>

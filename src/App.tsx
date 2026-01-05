@@ -21,7 +21,7 @@ import StroopGame from './pages/games/StroopGame';
 import MemoryGame from './pages/games/MemoryGame';
 import OddOneOutGame from './pages/games/OddOneOutGame';
 import PairsGame from './pages/games/PairsGame';
-import ReactionGame from './pages/games/ReactionGame';
+import TetrisGame from './pages/games/TetrisGame';
 
 function App() {
   const { theme } = useStore();
@@ -53,7 +53,7 @@ function App() {
         <Route path="/game/memory" element={<MemoryGame />} />
         <Route path="/game/odd-one" element={<OddOneOutGame />} />
         <Route path="/game/pairs" element={<PairsGame />} />
-        <Route path="/game/reaction" element={<ReactionGame />} />
+        <Route path="/game/tetris" element={<TetrisGame />} />
       </Routes>
     </Router>
   );

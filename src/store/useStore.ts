@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware';
 import { getTelegramUser, MOCK_USER } from '../utils/telegram';
 
 export type Language = 'en' | 'ru' | 'kz';
-export type Theme = 'dark' | 'light' | 'gold';
+export type Theme = 'dark' | 'light' | 'gold' | 'blue';
 
 interface GameResult {
   gameId: string;
@@ -89,6 +89,7 @@ interface UserState {
   watchAd: (reward: number) => void;
   claimSocialReward: (taskId: string) => void;
   addFec: (amount: number) => void;
+  addCoins: (amount: number) => void;
   spendCoins: (amount: number) => boolean;
   claimLevelReward: (level: number) => void;
 }
@@ -302,6 +303,9 @@ export const useStore = create<UserState>()(
 
       addFec: (amount) => set((state) => ({
         fecBalance: (state.fecBalance || 0) + amount
+      })),
+      addCoins: (amount) => set((state) => ({
+        coins: (state.coins || 0) + amount
       })),
 
       spendCoins: (amount) => {

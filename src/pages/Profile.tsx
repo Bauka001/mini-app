@@ -1,25 +1,10 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Camera, Edit2, Activity, Brain, Zap, Eye, Calculator, History, Trophy, Calendar, Gift } from 'lucide-react';
+import { ArrowLeft, Camera, Edit2, Trophy, Gift } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStore';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
-
-const StatBar = ({ label, value, icon: Icon, color }: { label: string, value: number, icon: any, color: string }) => (
-  <div className="mb-3">
-    <div className="flex justify-between items-center mb-1">
-      <div className="flex items-center gap-2">
-        <Icon size={14} className={color} />
-        <span className="text-xs font-bold text-gray-400 uppercase">{label}</span>
-      </div>
-      <span className="text-xs font-bold text-white">{value}%</span>
-    </div>
-    <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden">
-      <div className={clsx("h-full rounded-full transition-all duration-1000", color.replace('text-', 'bg-'))} style={{ width: `${value}%` }} />
-    </div>
-  </div>
-);
 
 const ProfilePage = () => {
   const { t } = useTranslation();
@@ -30,25 +15,6 @@ const ProfilePage = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [firstName, setFirstName] = useState(user.firstName);
   const [username, setUsername] = useState(user.username || '');
-
-  // Calculate Stats
-  const calculateCategoryScore = (gameIds: string[]) => {
-    const games = history.filter(h => gameIds.includes(h.gameId));
-    if (games.length === 0) return 0;
-    return Math.min(100, Math.floor(games.length * 5 + 20)); 
-  };
-
-  const memoryScore = calculateCategoryScore(['memory', 'sequence']);
-  const attentionScore = calculateCategoryScore(['schulte', 'stroop']);
-  const logicScore = calculateCategoryScore(['math']);
-  const perceptionScore = calculateCategoryScore(['odd_one_out']);
-  const totalGames = history.length;
-  const avgScore = history.length > 0 
-    ? Math.floor(history.reduce((acc, curr) => acc + (typeof curr.score === 'number' ? curr.score : 0), 0) / history.length) 
-    : 0;
-
-  // Recent Activity (Last 5 games)
-  const recentGames = [...history].reverse().slice(0, 5);
 
   const handleSave = () => {
     updateUserProfile({
