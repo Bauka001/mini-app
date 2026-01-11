@@ -1,7 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { useStore } from './store/useStore';
-import { useEffect } from 'react';
 
 // Static imports to prevent lazy loading errors
 import Home from './pages/Home';
@@ -24,12 +23,6 @@ import PairsGame from './pages/games/PairsGame';
 import TetrisGame from './pages/games/TetrisGame';
 
 function App() {
-  const { theme } = useStore();
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-  }, [theme]);
-
   return (
     <Router>
       <Routes>
