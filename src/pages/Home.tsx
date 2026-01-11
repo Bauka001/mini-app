@@ -2,14 +2,16 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Play, Brain, Calculator, Type, Grid, Trophy, Target, Bell, 
+  Play, Brain, Calculator, Type, Grid, Trophy, Bell, 
   CheckCircle, Video, Coins, Zap, Eye, Copy, Swords, Info, 
-  Settings, Gift, Menu, User, ChevronRight, ShoppingCart, 
+  Settings, Gift, MessageCircle, User, ChevronRight, ShoppingCart, 
   Wallet, BarChart2, HelpCircle, Map
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { clsx } from 'clsx';
 import { showAd } from '../utils/ads';
+import ChatModal from '../components/ChatModal';
+import AdModal from '../components/AdModal';
 
 const GameGridItem = ({ 
   title, 
@@ -76,7 +78,18 @@ const Home = () => {
     theme
   } = useStore();
 
-  const [showMenu, setShowMenu] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [showAdModal, setShowAdModal] = useState(false);
+
+  const handleWatchAd = () => {
+    console.log('Watch Ad clicked');
+    setShowAdModal(true);
+  };
+
+  const handleAdComplete = () => {
+    console.log('Ad completed');
+    watchAd(50);
+  };
 
   const getBackgroundClass = () => {
     switch (theme) {
@@ -109,8 +122,9 @@ const Home = () => {
         "px-4 py-3 flex justify-between items-center sticky top-0 z-50 border-b backdrop-blur-xl",
         isLight ? "bg-white border-gray-200" : "bg-white/5 border-white/10"
       )}>
-        <button onClick={() => setShowMenu(!showMenu)}>
-          <Menu size={24} className={isLight ? "text-[#f14635]" : "text-white"} />
+        <button onClick={() => setShowChat(true)} className="relative">
+          <MessageCircle size={24} className={isLight ? "text-[#f14635]" : "text-white"} />
+          <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
         </button>
         <h1 className={clsx("text-xl font-bold tracking-tight", isLight ? "text-[#f14635]" : "text-white")}>Focus App</h1>
         <button onClick={() => navigate('/profile')}>
@@ -145,7 +159,7 @@ const Home = () => {
           </button>
 
           {/* Ad Story */}
-          <button onClick={() => { watchAd(50); alert("Ad watched! +50 Coins"); }} className="flex flex-col items-center gap-1 min-w-[70px]">
+          <button onClick={handleWatchAd} className="flex flex-col items-center gap-1 min-w-[70px]">
             <div className={clsx("w-16 h-16 rounded-full border-2 p-0.5", isLight ? "border-red-500 bg-white" : "border-pink-500")}>
                <div className="w-full h-full rounded-full overflow-hidden relative">
                  <img src="https://images.unsplash.com/photo-1563986768494-4dee2763ff3f?w=150&q=80" alt="Ad" className={clsx("w-full h-full object-cover", !isLight && "opacity-80")} />
@@ -236,6 +250,14 @@ const Home = () => {
         <p>© 2026 Focus App. All rights reserved.</p>
         <p className="mt-1">Version 1.2.0</p>
       </div>
+
+      <ChatModal isOpen={showChat} onClose={() => setShowChat(false)} />
+      <AdModal 
+        isOpen={showAdModal} 
+        onClose={() => setShowAdModal(false)} 
+        onComplete={handleAdComplete}
+        reward={50}
+      />
     </div>
   );
 };

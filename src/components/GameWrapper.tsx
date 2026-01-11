@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, RotateCcw, Coins } from 'lucide-react';
+import { ArrowLeft, Play, RotateCcw, Coins, Share2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStore';
 import { soundManager } from '../utils/soundManager';
@@ -28,6 +28,38 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
     soundManager.setEnabled(soundEnabled);
   }, [soundEnabled]);
 
+  const handleShare = () => {
+    soundManager.playClick();
+    
+    const shareData = {
+      title: `${title} - Focus App`,
+      text: `Менде ${title} ойынын ойнадым! 🎮\nҰпай: ${lastScore} | Level: ${getGameLevel()} | Coins: +${lastCoins}`,
+      url: window.location.href
+    };
+
+    try {
+      if (window.Telegram && window.Telegram.WebApp) {
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.switchInlineQuery(`game=${title.toLowerCase()}&score=${lastScore || 0}&coins=${lastCoins}`);
+      } else {
+        navigator.share(shareData);
+      }
+    } catch (error) {
+      console.error('Share error:', error);
+      alert('Шығару сәтті!');
+    }
+  };
+
+  const getGameLevel = () => {
+    if (title === 'Tetris') return 'Expert';
+    if (title === 'Schulte') return 'Speed';
+    if (title === 'Stroop') return 'Memory';
+    if (title === 'Math') return 'Logic';
+    if (title === 'Typing') return 'Typing';
+    return 'Beginner';
+  };
+
   const handleStart = () => {
     soundManager.playClick();
     setGameState('playing');
@@ -39,7 +71,7 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
     
     if (earnedCoins > 0) {
       soundManager.playWin();
-      setShowChest(true); // Show chest if user won
+      setShowChest(true);
     } else {
       soundManager.playSuccess();
       setGameState('finished');
@@ -68,7 +100,6 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
   if (gameState === 'instruction') {
     return (
       <div className="flex flex-col h-screen bg-black text-white p-6 relative overflow-hidden">
-        {/* Background Ambient Glows */}
         <div className="absolute top-[-20%] right-[-20%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
         
         <button onClick={handleBack} className="relative z-10 mb-6 w-fit p-2 rounded-full hover:bg-white/10 transition-colors">
@@ -105,7 +136,7 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center">
           <h1 className="text-4xl font-bold text-white mb-8">{t('game_over', 'Game Over')}</h1>
           
-          <div className="bg-secondary/80 backdrop-blur-xl p-8 rounded-3xl mb-8 w-full max-w-sm border border-white/10 relative overflow-hidden shadow-2xl">
+          <div className="bg-secondary/80 backdrop-blur-xl p-8 rounded-3xl mb-8 w-full max-w-sm border border-white/10 shadow-2xl">
             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-primary to-transparent opacity-50"></div>
             
             <h2 className="text-2xl font-bold mb-2 text-gray-400">{t('result', 'Result')}</h2>
@@ -131,6 +162,13 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
               {t('play_again', 'Play Again')}
             </button>
             <button
+              onClick={handleShare}
+              className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold py-4 px-8 rounded-full text-lg hover:scale-105 transition-transform flex items-center justify-center gap-2 shadow-lg"
+            >
+              <Share2 size={20} />
+              Шығару
+            </button>
+            <button
               onClick={handleBack}
               className="bg-transparent text-white font-bold py-4 px-8 rounded-full text-lg border border-white/20 hover:bg-white/10 transition-colors"
             >
@@ -144,7 +182,6 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
 
   return (
     <div className="h-screen bg-black text-white flex flex-col relative">
-       {/* In-game background glow */}
       <div className="absolute top-[-50%] left-[-50%] w-[1000px] h-[1000px] bg-primary/5 rounded-full blur-[150px] pointer-events-none" />
       
       <div className="relative z-10 p-4 flex items-center justify-between bg-secondary/30 backdrop-blur-md border-b border-white/5">
