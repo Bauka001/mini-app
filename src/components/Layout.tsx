@@ -1,19 +1,17 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Home, ShoppingBag, Shield, Gift } from 'lucide-react';
+import { Home, ShoppingBag, Gift } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStore';
 
 export const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
   const { theme } = useStore();
 
   const navItems = [
     { path: '/', icon: Home, label: 'home' }, 
     { path: '/airdrop', icon: Gift, label: 'Airdrop' },
-    { path: '/community', icon: Shield, label: 'guilds' },
+    { path: '/community', icon: ShoppingBag, label: 'guilds' },
     { path: '/shop', icon: ShoppingBag, label: 'shop' },
   ];
 
@@ -59,7 +57,7 @@ export const Layout = () => {
                 )}
               >
                 <item.icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-                {isActive && <span className="text-[10px] font-bold mt-0.5 leading-none">{t(item.label)}</span>}
+                {isActive && <span className="text-[10px] font-bold mt-0.5 leading-none">{item.label}</span>}
               </button>
             );
           })}
