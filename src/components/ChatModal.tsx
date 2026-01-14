@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, User, X, MessageCircle, Plus, Users, Brain, Bitcoin, MessageSquare } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { clsx } from 'clsx';
+import { initSocket, onGlobalMessage, onGlobalHistory, sendGlobalMessage, disconnectSocket, joinGlobalChat, offGlobalMessage, offGlobalHistory, ChatMessage } from '../client/socket';
 
 interface Message {
   id: string;
@@ -22,24 +23,6 @@ interface ChatGroup {
   messages: Message[];
 }
 
-const GLOBAL_MESSAGES: Message[] = [
-  { id: '1', userId: 999, username: 'FocusBot', text: 'Global chatқа қош келдіңіз! 🌍', timestamp: Date.now() - 100000, isMe: false },
-  { id: '2', userId: 101, username: 'Айнур', text: 'Schulte рекордымды жеңе аласыз ба? 15с! 🚀', timestamp: Date.now() - 50000, isMe: false },
-  { id: '3', userId: 102, username: 'Ержан', text: 'Neon скинін алдым, керемет көрінеді!', timestamp: Date.now() - 20000, isMe: false },
-];
-
-const SMART_MESSAGES: Message[] = [
-  { id: '1', userId: 999, username: 'SmartBot', text: 'Ақылдылар тобына қош келдіңіз! 🧠', timestamp: Date.now() - 120000, isMe: false },
-  { id: '2', userId: 201, username: 'Данияр', text: 'Кімге математикада көмек керек?', timestamp: Date.now() - 60000, isMe: false },
-  { id: '3', userId: 202, username: 'Мадина', text: 'Сынап ойынының құпияларын білемін!', timestamp: Date.now() - 30000, isMe: false },
-];
-
-const CRYPTO_MESSAGES: Message[] = [
-  { id: '1', userId: 999, username: 'CryptoBot', text: 'Крипто мастерлер чатына қош келдіңіз! 💎', timestamp: Date.now() - 150000, isMe: false },
-  { id: '2', userId: 301, username: 'Аслан', text: '$FEC бағасы өсуде! 📈', timestamp: Date.now() - 80000, isMe: false },
-  { id: '3', userId: 302, username: 'Сәуле', text: 'Ауырдып алып көрдіңдер бе?', timestamp: Date.now() - 40000, isMe: false },
-];
-
 const INITIAL_GROUPS: ChatGroup[] = [
   {
     id: 'global',
@@ -47,7 +30,7 @@ const INITIAL_GROUPS: ChatGroup[] = [
     icon: MessageSquare,
     color: 'text-blue-400',
     onlineCount: 1243,
-    messages: GLOBAL_MESSAGES,
+    messages: [],
   },
   {
     id: 'smart',
@@ -55,7 +38,7 @@ const INITIAL_GROUPS: ChatGroup[] = [
     icon: Brain,
     color: 'text-purple-400',
     onlineCount: 456,
-    messages: SMART_MESSAGES,
+    messages: [],
   },
   {
     id: 'crypto',
@@ -63,7 +46,7 @@ const INITIAL_GROUPS: ChatGroup[] = [
     icon: Bitcoin,
     color: 'text-yellow-400',
     onlineCount: 789,
-    messages: CRYPTO_MESSAGES,
+    messages: [],
   },
 ];
 
@@ -87,27 +70,84 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
   const messages = selectedGroup?.messages || [];
 
   useEffect(() => {
+    if (isOpen && selectedGroupId === 'global') {
+      const socket = initSocket();
+
+      const handleMessage = (serverMessage: ChatMessage) => {
+        const message: Message = {
+          id: serverMessage.id,
+          userId: serverMessage.userId || 0,
+          username: serverMessage.sender,
+          text: serverMessage.text,
+          timestamp: new Date(serverMessage.timestamp).getTime(),
+          photoUrl: serverMessage.photoUrl,
+          isMe: serverMessage.userId === user.id,
+        };
+
+        setGroups(prev => prev.map(group =>
+          group.id === 'global'
+            ? { ...group, messages: [...group.messages, message] }
+            : group
+        ));
+      };
+
+      const handleHistory = (serverMessages: ChatMessage[]) => {
+        const messages: Message[] = serverMessages.map(m => ({
+          id: m.id,
+          userId: m.userId || 0,
+          username: m.sender,
+          text: m.text,
+          timestamp: new Date(m.timestamp).getTime(),
+          photoUrl: m.photoUrl,
+          isMe: m.userId === user.id,
+        }));
+
+        setGroups(prev => prev.map(group =>
+          group.id === 'global'
+            ? { ...group, messages }
+            : group
+        ));
+      };
+
+      joinGlobalChat(user.firstName || 'Қолданушы', user.id, user.photoUrl);
+
+      onGlobalMessage(handleMessage);
+      onGlobalHistory(handleHistory);
+
+      return () => {
+        offGlobalMessage(handleMessage);
+        offGlobalHistory(handleHistory);
+      };
+    }
+  }, [isOpen, selectedGroupId, user.id, user.firstName, user.photoUrl]);
+
+  useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedGroupId]);
 
   const handleSend = () => {
     if (!inputText.trim() || !selectedGroup) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      userId: user.id,
-      username: user.firstName || 'Қолданушы',
-      text: inputText.trim(),
-      timestamp: Date.now(),
-      photoUrl: user.photoUrl,
-      isMe: true,
-    };
+    if (selectedGroupId === 'global') {
+      sendGlobalMessage(inputText.trim(), user.firstName || 'Қолданушы', user.id, user.photoUrl);
+    } else {
+      const newMessage: Message = {
+        id: Date.now().toString(),
+        userId: user.id,
+        username: user.firstName || 'Қолданушы',
+        text: inputText.trim(),
+        timestamp: Date.now(),
+        photoUrl: user.photoUrl,
+        isMe: true,
+      };
 
-    setGroups(prev => prev.map(group => 
-      group.id === selectedGroupId 
-        ? { ...group, messages: [...group.messages, newMessage] }
-        : group
-    ));
+      setGroups(prev => prev.map(group => 
+        group.id === selectedGroupId 
+          ? { ...group, messages: [...group.messages, newMessage] }
+          : group
+      ));
+    }
+
     setInputText('');
   };
 

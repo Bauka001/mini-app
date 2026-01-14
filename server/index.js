@@ -193,16 +193,18 @@ io.on('connection', (socket) => {
   });
 
   // --- GLOBAL CHAT EVENTS ---
-  socket.on('join_global_chat', () => {
+  socket.on('join_global_chat', ({ userName, userId, photoUrl }) => {
     socket.emit('global_history', globalMessages);
   });
 
-  socket.on('global_message', ({ message, userName }) => {
+  socket.on('global_message', ({ message, userName, userId, photoUrl }) => {
     const msg = {
       id: Date.now(),
       sender: userName,
       text: message,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      userId,
+      photoUrl
     };
     globalMessages.push(msg);
     if (globalMessages.length > 100) globalMessages.shift();
@@ -210,6 +212,19 @@ io.on('connection', (socket) => {
     
     // Check for bot response - Removed from Global Chat as requested
     // handleBotResponse(message);
+  });
+
+  // --- ADMIN CHAT EVENTS ---
+  socket.on('admin_get_global_messages', () => {
+    socket.emit('admin_global_messages', globalMessages);
+  });
+
+  socket.on('admin_delete_message', ({ messageId }) => {
+    const index = globalMessages.findIndex(m => m.id === messageId);
+    if (index !== -1) {
+      globalMessages.splice(index, 1);
+      io.emit('admin_global_messages', globalMessages);
+    }
   });
 
   // --- GUILD EVENTS ---

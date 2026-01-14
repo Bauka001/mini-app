@@ -1,6 +1,10 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Layout } from './components/Layout';
-import { useStore } from './store/useStore';
+import { AdminLayout } from './components/admin/AdminLayout';
+import { AdminDashboard } from './pages/admin/AdminDashboard';
+import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminChat } from './pages/admin/AdminChat';
+import { AdminGames } from './pages/admin/AdminGames';
 
 // Static imports to prevent lazy loading errors
 import Home from './pages/Home';
@@ -47,6 +51,14 @@ function App() {
         <Route path="/game/odd-one" element={<OddOneOutGame />} />
         <Route path="/game/pairs" element={<PairsGame />} />
         <Route path="/game/tetris" element={<TetrisGame />} />
+
+        {/* Admin */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="users" element={<AdminUsers />} />
+          <Route path="chat" element={<AdminChat />} />
+          <Route path="games" element={<AdminGames />} />
+        </Route>
       </Routes>
     </Router>
   );
