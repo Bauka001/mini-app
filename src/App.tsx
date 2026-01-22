@@ -25,6 +25,7 @@ import MemoryGame from './pages/games/MemoryGame';
 import OddOneOutGame from './pages/games/OddOneOutGame';
 import PairsGame from './pages/games/PairsGame';
 import TetrisGame from './pages/games/TetrisGame';
+import Merge2048Game from './pages/games/Merge2048Game';
 
 function App() {
   return (
@@ -51,6 +52,7 @@ function App() {
         <Route path="/game/odd-one" element={<OddOneOutGame />} />
         <Route path="/game/pairs" element={<PairsGame />} />
         <Route path="/game/tetris" element={<TetrisGame />} />
+        <Route path="/game/2048" element={<Merge2048Game />} />
 
         {/* Admin */}
         <Route path="/admin" element={<AdminLayout />}>

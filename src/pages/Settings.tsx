@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useStore, Language } from '../store/useStore';
-import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Instagram, Send, Info, CheckCircle, Gem } from 'lucide-react';
+import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Instagram, Send, Info, CheckCircle, Gem, Share2 } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
 import { useState } from 'react';
@@ -112,7 +112,8 @@ export const SettingsContent = () => {
     theme,
     setTheme,
     socialTasks,
-    claimSocialReward
+    claimSocialReward,
+    user
   } = useStore();
 
   const handleLanguageChange = (lang: Language) => {
@@ -162,12 +163,36 @@ export const SettingsContent = () => {
           </button>
         </SettingItem>
 
-        <SettingItem 
-          icon={Info} 
+        <SettingItem icon={Info} 
           title="Game Info / Guide"
           onClick={() => setShowInfo(true)}
         >
            <button className="text-xs font-bold text-primary">Open</button>
+        </SettingItem>
+
+        <SettingItem icon={Share2} title="Share App">
+          <button 
+            onClick={() => {
+              const shareText = i18n.language === 'kz' 
+                ? 'Focus mini app-те көз миін дамытқандай! Мен деңгейім ' + (user?.level || 1) + ' деңгейде. Сен де ойнай аласың ба? 🧠'
+                : i18n.language === 'ru'
+                ? 'Развивай свой мозг в Focus mini app! Мой уровень ' + (user?.level || 1) + '. А ты готов к вызову? 🧠'
+                : 'Boost your brain with Focus mini app! My level is ' + (user?.level || 1) + '. Are you ready? 🧠';
+              
+              const shareUrl = 'https://t.me/upgrade_0_bot?start=app';
+              
+              if (WebApp.shareText) {
+                WebApp.shareText(shareText, shareUrl);
+              } else {
+                WebApp.openTelegramLink(shareUrl);
+              }
+              
+              WebApp.HapticFeedback.notificationOccurred('success');
+            }}
+            className="text-xs font-bold text-primary"
+          >
+            Share
+          </button>
         </SettingItem>
 
         <SettingItem icon={Globe} title={t('language')}>

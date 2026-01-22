@@ -16,10 +16,10 @@ export const PairsGame = () => {
       title={t('game_pairs', 'Pairs')}
       instructions={t('pairs_desc', 'Find all matching pairs of cards.')}
     >
-      {({ onEnd }) => <PairsBoard onEnd={(score, coins) => {
+      {({ onEnd, isPaused, theme }) => <PairsBoard onEnd={(score, coins) => {
         addGameResult({ gameId: 'pairs', score, coinsEarned: coins });
         onEnd(score, coins);
-      }} />}
+      }} isPaused={isPaused} theme={theme} />}
     </GameWrapper>
   );
 };
@@ -31,7 +31,7 @@ interface Card {
   isMatched: boolean;
 }
 
-const PairsBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }) => {
+const PairsBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: number) => void, isPaused: boolean, theme: string }) => {
   const [cards, setCards] = useState<Card[]>([]);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);
@@ -124,17 +124,20 @@ const PairsBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }
   };
 
   return (
-    <div className="h-full flex flex-col items-center justify-center p-4">
+    <div className={clsx(
+      "h-full flex flex-col items-center justify-center p-4 transition-colors duration-300",
+      theme === 'light' ? 'bg-gray-100' : 'bg-transparent'
+    )}>
       <div className="mb-6 flex justify-between w-full max-w-sm">
         <div className="flex flex-col items-center">
-           <span className="text-xs text-gray-400 font-bold uppercase">Time</span>
-           <span className={clsx("text-2xl font-mono font-bold", timeLeft < 10 ? "text-red-500" : "text-white")}>
+           <span className={clsx("text-xs font-bold uppercase", theme === 'light' ? "text-gray-500" : "text-gray-400")}>Time</span>
+           <span className={clsx("text-2xl font-mono font-bold", timeLeft < 10 ? "text-red-500" : theme === 'light' ? "text-gray-800" : "text-white")}>
              {timeLeft.toFixed(0)}s
            </span>
         </div>
         <div className="flex flex-col items-center">
-           <span className="text-xs text-gray-400 font-bold uppercase">Moves</span>
-           <span className="text-2xl font-mono font-bold text-white">{moves}</span>
+           <span className={clsx("text-xs font-bold uppercase", theme === 'light' ? "text-gray-500" : "text-gray-400")}>Moves</span>
+           <span className={clsx("text-2xl font-mono font-bold", theme === 'light' ? "text-gray-800" : "text-white")}>{moves}</span>
         </div>
       </div>
 
@@ -146,8 +149,12 @@ const PairsBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }
               key={card.id}
               onClick={() => handleCardClick(index)}
               className={clsx(
-                "aspect-square rounded-xl transition-all duration-300 transform perspective-1000 relative",
-                card.isFlipped || card.isMatched ? "rotate-y-180 bg-white" : "bg-white/10 hover:bg-white/20"
+                "aspect-square rounded-xl transition-all duration-300 transform perspective-1000 relative shadow-lg",
+                card.isFlipped || card.isMatched 
+                  ? "rotate-y-180 bg-white" 
+                  : theme === 'light' 
+                    ? "bg-gray-200 hover:bg-gray-300 border border-gray-300" 
+                    : "bg-white/10 hover:bg-white/20 border border-white/5"
               )}
             >
               <div className={clsx(
@@ -161,7 +168,10 @@ const PairsBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }
                 "absolute inset-0 flex items-center justify-center transition-opacity duration-300",
                 card.isFlipped || card.isMatched ? "opacity-0" : "opacity-100"
               )}>
-                 <div className="w-8 h-8 rounded-full border-2 border-white/10" />
+                 <div className={clsx(
+                   "w-8 h-8 rounded-full border-2",
+                   theme === 'light' ? "border-gray-400/20" : "border-white/10"
+                 )} />
               </div>
             </button>
           );

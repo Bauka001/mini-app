@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, RotateCcw, Coins, Share2 } from 'lucide-react';
+import { ArrowLeft, Play, RotateCcw, Coins, Share2, Puzzle, Activity, Brain, Calculator, Keyboard, Zap, Trophy, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStore';
 import { soundManager } from '../utils/soundManager';
 import { ChestModal } from './ChestModal';
+import { motion } from 'framer-motion';
 
 type GameState = 'instruction' | 'playing' | 'finished';
 
@@ -14,6 +15,19 @@ interface GameWrapperProps {
   children: (props: { onEnd: (score: any, coins: number) => void }) => React.ReactNode;
   onExit?: () => void;
 }
+
+const getGameEmblem = (title: string) => {
+  const emblemStyles: Record<string, { icon: React.ReactNode; color: string; glow: string }> = {
+    'Tetris': { icon: <Puzzle size={80} strokeWidth={1.5} />, color: 'from-cyan-400 to-blue-600', glow: 'shadow-cyan-500/50' },
+    'Merge 2048': { icon: <Zap size={80} strokeWidth={1.5} />, color: 'from-yellow-400 to-orange-600', glow: 'shadow-yellow-500/50' },
+    'Memory Matrix': { icon: <Brain size={80} strokeWidth={1.5} />, color: 'from-purple-400 to-pink-600', glow: 'shadow-purple-500/50' },
+    'Stroop Test': { icon: <Activity size={80} strokeWidth={1.5} />, color: 'from-red-400 to-rose-600', glow: 'shadow-red-500/50' },
+    'Math Challenge': { icon: <Calculator size={80} strokeWidth={1.5} />, color: 'from-green-400 to-emerald-600', glow: 'shadow-green-500/50' },
+    'Speed Typing': { icon: <Keyboard size={80} strokeWidth={1.5} />, color: 'from-indigo-400 to-violet-600', glow: 'shadow-indigo-500/50' },
+    'Schulte': { icon: <Star size={80} strokeWidth={1.5} />, color: 'from-amber-400 to-yellow-600', glow: 'shadow-amber-500/50' },
+  };
+  return emblemStyles[title] || { icon: <Trophy size={80} strokeWidth={1.5} />, color: 'from-gray-400 to-gray-600', glow: 'shadow-gray-500/50' };
+};
 
 export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, children, onExit }) => {
   const [gameState, setGameState] = useState<GameState>('instruction');
@@ -98,15 +112,28 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
   };
 
   if (gameState === 'instruction') {
+    const emblem = getGameEmblem(title);
     return (
       <div className="flex flex-col h-screen bg-black text-white p-6 relative overflow-hidden">
         <div className="absolute top-[-20%] right-[-20%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-[-20%] left-[-20%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
         
         <button onClick={handleBack} className="relative z-10 mb-6 w-fit p-2 rounded-full hover:bg-white/10 transition-colors">
           <ArrowLeft size={24} />
         </button>
         
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center">
+          <motion.div 
+            initial={{ scale: 0, rotate: -180 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", duration: 0.8, bounce: 0.5 }}
+            className={`mb-8 p-8 rounded-full bg-gradient-to-br ${emblem.color} shadow-2xl ${emblem.glow}`}
+          >
+            <div className="text-white drop-shadow-lg">
+              {emblem.icon}
+            </div>
+          </motion.div>
+          
           <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400 mb-8 drop-shadow-lg">{title}</h1>
           
           <div className="bg-secondary/80 backdrop-blur-xl p-8 rounded-3xl mb-12 w-full max-w-sm border border-white/10 shadow-2xl">
@@ -118,7 +145,7 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
           
           <button
             onClick={handleStart}
-            className="group bg-gradient-to-r from-primary to-orange-400 text-black font-black py-5 px-16 rounded-full text-xl hover:scale-105 transition-all shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:shadow-[0_0_40px_rgba(255,215,0,0.5)] flex items-center gap-3"
+            className="group bg-gradient-to-r from-primary to-orange-400 text-black font-black py-5 px-16 rounded-full text-xl hover:scale-105 transition-all shadow-lg hover:shadow-xl flex items-center gap-3"
           >
             <Play size={28} fill="currentColor" className="group-hover:translate-x-1 transition-transform" />
             {t('start', 'Start')}

@@ -13,9 +13,12 @@ interface ChestModalProps {
 
 export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
   const { t } = useTranslation();
-  const { addFec, claimDailyReward } = useStore(); // Using claimDailyReward to add coins easily, or create addCoins action
+  const { addFec, claimDailyReward, theme } = useStore(); // Using claimDailyReward to add coins easily, or create addCoins action
   const [chestState, setChestState] = useState<'closed' | 'shaking' | 'opening' | 'opened'>('closed');
   const [reward, setReward] = useState<{ type: 'coins' | 'fec' | 'gem', amount: number } | null>(null);
+
+  const isLight = theme === 'light';
+  const isBlue = theme === 'blue';
 
   useEffect(() => {
     if (isOpen) {
@@ -69,13 +72,19 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
+    <div className={clsx(
+      "fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-300",
+      isLight ? "bg-white/90" : "bg-black/90"
+    )}>
       <div className="flex flex-col items-center max-w-sm w-full">
         
-        <h2 className="text-3xl font-black text-white mb-2 text-center drop-shadow-lg">
+        <h2 className={clsx(
+          "text-3xl font-black mb-2 text-center drop-shadow-lg",
+          isLight ? "text-blue-600" : "text-white"
+        )}>
           {chestState === 'opened' ? "CONGRATULATIONS!" : "VICTORY CHEST"}
         </h2>
-        <p className="text-gray-400 mb-8 text-center">
+        <p className={clsx("mb-8 text-center", isLight ? "text-gray-500" : "text-gray-400")}>
           {chestState === 'opened' ? "You found:" : `Reward for completing ${gameTitle}`}
         </p>
 
@@ -102,13 +111,19 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
           )}>
              {reward && (
                <>
-                 <div className="text-[6rem] mb-4 drop-shadow-[0_0_30px_rgba(255,215,0,0.5)]">
+                 <div className={clsx("text-[6rem] mb-4", !isLight && "drop-shadow-[0_0_30px_rgba(255,215,0,0.5)]")}>
                     {reward.type === 'coins' ? '🪙' : reward.type === 'fec' ? '💎' : '✨'}
                  </div>
-                 <div className="text-4xl font-black text-white flex items-center gap-2 bg-black/50 px-6 py-2 rounded-2xl border border-white/10">
+                 <div className={clsx(
+                   "text-4xl font-black flex items-center gap-2 px-6 py-2 rounded-2xl border",
+                   isLight ? "text-blue-900 bg-blue-50 border-blue-200" : "text-white bg-black/50 border-white/10"
+                 )}>
                    {reward.amount} {reward.type === 'coins' ? 'Coins' : '$FEC'}
                  </div>
-                 <div className="text-yellow-400 font-bold mt-2 text-sm uppercase tracking-wider">
+                 <div className={clsx(
+                   "font-bold mt-2 text-sm uppercase tracking-wider",
+                   isLight ? "text-blue-500" : "text-yellow-400"
+                 )}>
                    {reward.type === 'fec' ? 'Crypto Token!' : 'In-game Currency'}
                  </div>
                </>
@@ -117,13 +132,16 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
         </div>
 
         {chestState === 'closed' && (
-          <p className="text-gray-500 text-sm mt-8 animate-pulse">Tap the chest to open</p>
+          <p className={clsx("text-sm mt-8 animate-pulse", isLight ? "text-gray-400" : "text-gray-500")}>Tap the chest to open</p>
         )}
 
         {chestState === 'opened' && (
           <button 
             onClick={onClose}
-            className="mt-12 w-full py-4 bg-primary text-black font-black text-xl rounded-2xl shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:scale-105 transition-transform"
+            className={clsx(
+              "mt-12 w-full py-4 font-black text-xl rounded-2xl hover:scale-105 transition-transform",
+              isLight ? "bg-blue-600 text-white shadow-lg" : "bg-primary text-black shadow-[0_0_20px_rgba(255,215,0,0.3)]"
+            )}
           >
             CLAIM REWARD
           </button>

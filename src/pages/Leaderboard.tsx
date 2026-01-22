@@ -177,7 +177,7 @@ const LeaderboardPage = () => {
           {/* Current User Fixed at Bottom */}
           {!userInTop5 && (
             <div className="sticky bottom-24 mt-6">
-              <div className="bg-primary/20 backdrop-blur-xl p-4 rounded-2xl flex items-center justify-between border border-primary/50 shadow-[0_0_20px_rgba(255,215,0,0.2)]">
+              <div className="bg-primary/20 backdrop-blur-xl p-4 rounded-2xl flex items-center justify-between border border-primary/50 shadow-lg">
                 <div className="flex items-center gap-4">
                   <span className="text-lg font-bold text-white w-6 text-center">?</span>
                   <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden border-2 border-primary">

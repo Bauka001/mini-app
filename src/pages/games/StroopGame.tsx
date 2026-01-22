@@ -3,7 +3,8 @@ import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { useStore } from '../../store/useStore';
-import { SKIN_STYLES } from '../../utils/skins';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ReviveModal } from '../../components/modals/ReviveModal';
 
 export const StroopGame = () => {
   const { t } = useTranslation();
@@ -14,10 +15,10 @@ export const StroopGame = () => {
       title={t('game_stroop', 'Stroop Test')}
       instructions={t('stroop_desc', 'Select the COLOR of the text, not what the text says. Complete 10 rounds.')}
     >
-      {({ onEnd }) => <StroopBoard onEnd={(score, coins) => {
+      {({ onEnd, isPaused, theme }) => <StroopBoard onEnd={(score, coins) => {
         addGameResult({ gameId: 'stroop', score, coinsEarned: coins });
         onEnd(score, coins);
-      }} />}
+      }} isPaused={isPaused} theme={theme} />}
     </GameWrapper>
   );
 };
@@ -29,13 +30,16 @@ const COLORS = [
   { name: 'Yellow', hex: '#EAB308', value: 'yellow', bg: 'bg-yellow-500' },
 ];
 
-const StroopBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }) => {
+const StroopBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: number) => void, isPaused: boolean, theme: string }) => {
   const { activeSkin } = useStore();
   const [currentRound, setCurrentRound] = useState<{ word: string, color: string, colorValue: string } | null>(null);
   const [roundsPlayed, setRoundsPlayed] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [timeLeft, setTimeLeft] = useState(60); // 60s hard limit
   const [isWrong, setIsWrong] = useState(false);
+  const [gameOver, setGameOver] = useState(false);
+  const [finalScore, setFinalScore] = useState("");
+  const [finalCoins, setFinalCoins] = useState(0);
   
   const skinClass = SKIN_STYLES[activeSkin] || SKIN_STYLES.default;
 
@@ -53,10 +57,12 @@ const StroopBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
   useEffect(() => {
     generateRound();
     const timer = setInterval(() => {
+      if (gameOver || isPaused) return;
+
       setTimeLeft(prev => {
         if (prev <= 0.1) {
           clearInterval(timer);
-          onEnd("Failed (Time)", 0);
+          setGameOver(true);
           return 0;
         }
         return prev - 0.1;
@@ -64,7 +70,7 @@ const StroopBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
     }, 100);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [gameOver, isPaused]);
 
   const handleAnswer = (selectedColorValue: string) => {
     if (!currentRound) return;
@@ -94,25 +100,39 @@ const StroopBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
   if (!currentRound) return null;
 
   return (
-    <div className="h-full flex flex-col items-center justify-between p-6 pb-20 relative">
+    <div className={clsx(
+      "h-full flex flex-col items-center justify-between p-6 pb-20 relative transition-colors duration-300",
+      theme === 'light' ? 'bg-gray-100' : 'bg-transparent'
+    )}>
       <div className="w-full flex justify-between text-lg font-bold">
-        <div className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/5 text-primary shadow-lg">
+        <div className={clsx(
+          "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg",
+          theme === 'light' ? "bg-white border-gray-200 text-primary" : "bg-white/10 border-white/5 text-primary"
+        )}>
           Score: {correctCount}/10
         </div>
         <div className={clsx(
-           "px-4 py-2 rounded-full backdrop-blur-md border border-white/5 shadow-lg transition-colors",
-           timeLeft < 10 ? "bg-red-500/20 text-red-500 animate-pulse" : "bg-white/10 text-white"
+           "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg transition-colors",
+           timeLeft < 10 ? "bg-red-500/20 text-red-500 animate-pulse border-red-500/20" : 
+           theme === 'light' ? "bg-white border-gray-200 text-gray-800" : "bg-white/10 border-white/5 text-white"
         )}>
           {timeLeft.toFixed(1)}s
         </div>
-        <div className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/5 text-white shadow-lg">
+        <div className={clsx(
+          "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg",
+          theme === 'light' ? "bg-white border-gray-200 text-gray-800" : "bg-white/10 border-white/5 text-white"
+        )}>
           Round: {roundsPlayed + 1}/10
         </div>
       </div>
 
       <div className={clsx(
-        "flex-1 flex items-center justify-center w-full transition-all duration-300 rounded-3xl mb-8 border border-white/5 relative overflow-hidden",
-        isWrong ? "bg-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.4)]" : "bg-white/5 backdrop-blur-xl shadow-2xl"
+        "flex-1 flex items-center justify-center w-full transition-all duration-300 rounded-3xl mb-8 border relative overflow-hidden",
+        isWrong 
+          ? "bg-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.4)] border-red-500/20" 
+          : theme === 'light'
+            ? "bg-white border-gray-200 shadow-xl"
+            : "bg-white/5 backdrop-blur-xl shadow-2xl border-white/5"
       )}>
         <h2 
           className="text-7xl font-black tracking-widest uppercase drop-shadow-[0_0_15px_rgba(0,0,0,0.5)] scale-110"
@@ -138,6 +158,16 @@ const StroopBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
           </button>
         ))}
       </div>
+      
+      <AnimatePresence>
+      <ReviveModal 
+        isOpen={gameOver}
+        score={correctCount}
+        gameName="Stroop Test"
+        onRevive={handleRevive}
+        onRestart={handleRestart}
+      />
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { 
   Play, Brain, Calculator, Type, Grid, Trophy, Bell, 
   CheckCircle, Video, Coins, Zap, Eye, Copy, Swords, Info, 
   Settings, Gift, MessageCircle, User, ChevronRight, ShoppingCart, 
-  Wallet, BarChart2, HelpCircle, Map
+  Wallet, BarChart2, HelpCircle, Map, Flame, Grid3x3, Shield, Crown
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { clsx } from 'clsx';
 import { showAd } from '../utils/ads';
 import ChatModal from '../components/ChatModal';
 import AdModal from '../components/AdModal';
+import { DailyRewardModal } from '../components/DailyRewardModal';
+import { useThemeStyles } from '../hooks/useThemeStyles';
 
 const GameGridItem = ({ 
   title, 
@@ -29,9 +32,9 @@ const GameGridItem = ({
     className="flex flex-col items-center gap-2 p-2 active:opacity-70 transition-opacity"
   >
     <div className="w-12 h-12 flex items-center justify-center">
-      <Icon size={32} className={isLight ? "text-[#f14635] drop-shadow-sm" : "text-white drop-shadow-md"} />
+      <Icon size={32} className={isLight ? "text-green-600 drop-shadow-sm" : "text-white drop-shadow-md"} />
     </div>
-    <span className={clsx("text-[11px] font-medium text-center leading-tight", isLight ? "text-gray-700" : "text-white/90")}>{title}</span>
+    <span className={clsx("text-[11px] font-medium text-center leading-tight", isLight ? "text-green-800" : "text-white/90")}>{title}</span>
   </button>
 );
 
@@ -40,31 +43,31 @@ const ListItem = ({
   title, 
   subtitle,
   onClick,
-  isLight
+  styles
 }: { 
   icon: any, 
   title: string, 
   subtitle?: string,
   onClick: () => void,
-  isLight: boolean
+  styles: any
 }) => (
   <button 
     onClick={onClick}
     className={clsx(
       "w-full p-4 flex items-center justify-between border-b last:border-0 transition-colors",
-      isLight ? "bg-white border-gray-100 active:bg-gray-50" : "bg-white/10 border-white/5 active:bg-white/20 backdrop-blur-sm"
+      styles.isLight ? "bg-white border-green-50 active:bg-green-50" : "bg-transparent border-white/5 active:bg-white/5"
     )}
   >
     <div className="flex items-center gap-4">
-      <div className={clsx("w-10 h-10 rounded-xl flex items-center justify-center", isLight ? "bg-[#f14635]/10" : "bg-white/20")}>
-        <Icon size={24} className={isLight ? "text-[#f14635]" : "text-white"} />
+      <div className={clsx("w-10 h-10 rounded-xl flex items-center justify-center", styles.isLight ? "bg-green-100" : "bg-white/20")}>
+        <Icon size={24} className={styles.isLight ? "text-green-600" : "text-white"} />
       </div>
       <div className="text-left">
-        <div className={clsx("font-medium", isLight ? "text-gray-900" : "text-white")}>{title}</div>
-        {subtitle && <div className={clsx("text-xs", isLight ? "text-gray-500" : "text-white/60")}>{subtitle}</div>}
+        <div className={clsx("font-medium", styles.textPrimary)}>{title}</div>
+        {subtitle && <div className={clsx("text-xs", styles.textSecondary)}>{subtitle}</div>}
       </div>
     </div>
-    <ChevronRight size={20} className={isLight ? "text-gray-300" : "text-white/40"} />
+    <ChevronRight size={20} className={styles.textSecondary} />
   </button>
 );
 
@@ -75,11 +78,27 @@ const Home = () => {
     coins,
     fecBalance,
     watchAd,
-    theme
+    plan,
+    dailyRewardStreak,
+    lastDailyRewardDate
   } = useStore();
+
+  const styles = useThemeStyles();
+  const { isLight, isGold, bgClass, headerClass, cardClass, textPrimary, textSecondary, textAccent } = styles;
 
   const [showChat, setShowChat] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
+  const [showDailyReward, setShowDailyReward] = useState(false);
+
+  useEffect(() => {
+    const today = new Date().toISOString().split('T')[0];
+    if (lastDailyRewardDate !== today) {
+      const timer = setTimeout(() => {
+        setShowDailyReward(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [lastDailyRewardDate]);
 
   const handleWatchAd = () => {
     console.log('Watch Ad clicked');
@@ -91,76 +110,53 @@ const Home = () => {
     watchAd(50);
   };
 
-  const getBackgroundClass = () => {
-    switch (theme) {
-      case 'blue':
-        return "bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800";
-      case 'light':
-        return "bg-[#f2f3f5] text-gray-900";
-      case 'gold':
-        return "bg-gradient-to-br from-yellow-900 via-yellow-700 to-yellow-900";
-      case 'dark':
-      default:
-        return "bg-black";
-    }
-  };
-
-  const isLight = theme === 'light';
-
   return (
-    <div className={clsx("min-h-screen pb-20 font-sans transition-colors duration-500", getBackgroundClass(), isLight ? "text-gray-900" : "text-white")}>
-      {/* Background Glows (Only for Dark/Blue themes) */}
-      {!isLight && (
-        <>
-          <div className="fixed top-[-20%] left-[-20%] w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none" />
-          <div className="fixed bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-indigo-600/20 rounded-full blur-[100px] pointer-events-none" />
-        </>
-      )}
+    <div className={clsx("min-h-screen pb-20 font-sans transition-colors duration-500", bgClass)}>
 
       {/* Header */}
       <header className={clsx(
         "px-4 py-3 flex justify-between items-center sticky top-0 z-50 border-b backdrop-blur-xl",
-        isLight ? "bg-white border-gray-200" : "bg-white/5 border-white/10"
+        headerClass
       )}>
         <button onClick={() => setShowChat(true)} className="relative">
-          <MessageCircle size={24} className={isLight ? "text-[#f14635]" : "text-white"} />
+          <MessageCircle size={24} className={textAccent} />
           <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
         </button>
-        <h1 className={clsx("text-xl font-bold tracking-tight", isLight ? "text-[#f14635]" : "text-white")}>Focus App</h1>
+        <h1 className={clsx("text-xl font-bold tracking-tight", textAccent)}>Focus App</h1>
         <button onClick={() => navigate('/profile')}>
-          <User size={24} className={isLight ? "text-[#f14635]" : "text-white"} />
+          <User size={24} className={textAccent} />
         </button>
       </header>
 
       {/* Stories Area */}
       <div className={clsx(
         "p-4 pb-6 border-b backdrop-blur-md",
-        isLight ? "bg-[#fcd535] border-transparent" : "bg-white/5 border-white/5"
+        isLight ? "bg-white/60 border-green-100" : isGold ? "bg-amber-900/10 border-amber-500/20" : "bg-white/5 border-white/5"
       )}>
         <div className="flex overflow-x-auto gap-4 no-scrollbar pb-2">
           {/* Daily Reward Story */}
-          <button className="flex flex-col items-center gap-1 min-w-[70px]">
-            <div className={clsx("w-16 h-16 rounded-full border-2 p-1", isLight ? "border-white bg-white" : "border-yellow-400")}>
-               <div className={clsx("w-full h-full rounded-full flex items-center justify-center", isLight ? "bg-orange-100" : "bg-yellow-400/20 backdrop-blur-md")}>
-                 <Gift size={24} className={isLight ? "text-orange-500" : "text-yellow-400"} />
+          <button onClick={() => setShowDailyReward(true)} className="flex flex-col items-center gap-1 min-w-[70px]">
+            <div className={clsx("w-16 h-16 rounded-full border-2 p-1", isLight ? "border-green-200 bg-white" : "border-blue-400")}>
+               <div className={clsx("w-full h-full rounded-full flex items-center justify-center", isLight ? "bg-green-50" : "bg-blue-400/20 backdrop-blur-md")}>
+                 <Gift size={24} className={isLight ? "text-green-500" : "text-blue-400"} />
                </div>
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", isLight ? "text-black/80" : "text-white/90")}>Daily<br/>Bonus</span>
+            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)}>Daily<br/>Bonus</span>
           </button>
 
           {/* Leaderboard Story */}
           <button onClick={() => navigate('/leaderboard')} className="flex flex-col items-center gap-1 min-w-[70px]">
-            <div className={clsx("w-16 h-16 rounded-full border-2 p-1", isLight ? "border-white bg-white" : "border-blue-400")}>
-               <div className={clsx("w-full h-full rounded-full flex items-center justify-center", isLight ? "bg-blue-100" : "bg-blue-400/20 backdrop-blur-md")}>
-                 <Trophy size={24} className={isLight ? "text-blue-500" : "text-blue-400"} />
+            <div className={clsx("w-16 h-16 rounded-full border-2 p-1", isLight ? "border-green-200 bg-white" : "border-blue-400")}>
+               <div className={clsx("w-full h-full rounded-full flex items-center justify-center", isLight ? "bg-green-50" : "bg-blue-400/20 backdrop-blur-md")}>
+                 <Trophy size={24} className={isLight ? "text-green-500" : "text-blue-400"} />
                </div>
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", isLight ? "text-black/80" : "text-white/90")}>Top<br/>Players</span>
+            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)}>Top<br/>Players</span>
           </button>
 
           {/* Ad Story */}
           <button onClick={handleWatchAd} className="flex flex-col items-center gap-1 min-w-[70px]">
-            <div className={clsx("w-16 h-16 rounded-full border-2 p-0.5", isLight ? "border-red-500 bg-white" : "border-pink-500")}>
+            <div className={clsx("w-16 h-16 rounded-full border-2 p-0.5", isLight ? "border-green-500 bg-white" : "border-pink-500")}>
                <div className="w-full h-full rounded-full overflow-hidden relative">
                  <img src="https://images.unsplash.com/photo-1563986768494-4dee2763ff3f?w=150&q=80" alt="Ad" className={clsx("w-full h-full object-cover", !isLight && "opacity-80")} />
                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -168,26 +164,68 @@ const Home = () => {
                  </div>
                </div>
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", isLight ? "text-black/80" : "text-white/90")}>Watch<br/>Ad</span>
+            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)}>Watch<br/>Ad</span>
           </button>
           
           {/* Balance Story */}
-          <div className="flex flex-col items-center gap-1 min-w-[70px]">
-            <div className={clsx("w-16 h-16 rounded-full border-2 p-1", isLight ? "border-white bg-white" : "border-green-400")}>
+          <button onClick={() => navigate('/airdrop')} className="flex flex-col items-center gap-1 min-w-[70px]">
+            <div className={clsx("w-16 h-16 rounded-full border-2 p-1", isLight ? "border-green-200 bg-white" : "border-green-400")}>
                <div className={clsx("w-full h-full rounded-full flex flex-col items-center justify-center", isLight ? "bg-green-100" : "bg-green-400/20 backdrop-blur-md")}>
                  <span className={clsx("text-[10px] font-bold", isLight ? "text-green-700" : "text-green-400")}>$FEC</span>
                  <span className={clsx("text-xs font-black", isLight ? "text-green-800" : "text-white")}>{fecBalance?.toFixed(1)}</span>
                </div>
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", isLight ? "text-black/80" : "text-white/90")}>My<br/>Wallet</span>
-          </div>
+            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)}>My<br/>Wallet</span>
+          </button>
         </div>
+      </div>
+
+      {/* Battle Button - Separate Long Button */}
+      <div className="px-4 my-6">
+        <motion.button
+          onClick={() => navigate('/battle')}
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          className={clsx(
+            "w-full py-5 px-6 rounded-2xl flex items-center justify-center gap-4 shadow-xl shadow-green-900/20 relative overflow-hidden border border-white/20",
+            "bg-gradient-to-r from-green-600 via-emerald-500 to-teal-600"
+          )}
+        >
+          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgNDBMMDQgMEgwIiBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC4xKSIgc3Ryb2tlLXdpZHRoPSIxIiBmaWxsPSJub25lIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30" />
+          
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+            className="absolute -right-4 -top-4 w-20 h-20 bg-white/10 rounded-full blur-xl"
+          />
+          
+          <div className="relative z-10 flex items-center gap-4">
+            <div className="relative">
+              <div className="absolute inset-0 bg-white/20 rounded-full blur-md animate-pulse" />
+              <div className="relative w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-2 border-white/30">
+                <Swords size={28} className="text-white" strokeWidth={2.5} />
+              </div>
+            </div>
+            
+            <div className="flex flex-col items-start">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl font-black text-white tracking-tight drop-shadow-lg">BATTLE</span>
+                <Flame size={20} className="text-green-200" fill="currentColor" />
+              </div>
+              <span className="text-sm font-semibold text-white/90 drop-shadow">
+                Challenge other players • Win rewards
+              </span>
+            </div>
+            
+            <ChevronRight size={24} className="text-white/80 ml-auto" />
+          </div>
+        </motion.button>
       </div>
 
       {/* Main Grid Menu (Games) */}
       <div className={clsx(
         "p-4 pt-6 pb-6 -mt-4 rounded-t-3xl border-t relative z-10 mx-2 backdrop-blur-lg",
-        isLight ? "bg-white border-white shadow-sm" : "bg-white/10 border-white/10"
+        isLight ? "bg-white/90 border-green-100 shadow-sm" : isGold ? "bg-amber-900/20 border-amber-500/20" : "bg-white/10 border-white/10"
       )}>
         <div className="grid grid-cols-4 gap-y-6 gap-x-2">
           <GameGridItem title="Memory" icon={Grid} onClick={() => navigate('/game/memory')} isLight={isLight} />
@@ -198,60 +236,61 @@ const Home = () => {
           <GameGridItem title="Odd One" icon={Eye} onClick={() => navigate('/game/odd-one')} isLight={isLight} />
           <GameGridItem title="Stroop" icon={Type} onClick={() => navigate('/game/stroop')} isLight={isLight} />
           <GameGridItem title="Tetris" icon={Grid} onClick={() => navigate('/game/tetris')} isLight={isLight} />
-          <GameGridItem title="Battle" icon={Swords} onClick={() => navigate('/battle')} isLight={isLight} />
+          <GameGridItem title="2048" icon={Grid3x3} onClick={() => navigate('/game/2048')} isLight={isLight} />
         </div>
       </div>
 
       {/* List Menu Section */}
       <div className="mt-4 space-y-3 px-4">
-        <div className={clsx("rounded-2xl overflow-hidden border", isLight ? "bg-white border-white" : "bg-white/10 border-white/5 backdrop-blur-md")}>
+        <div className={clsx("rounded-2xl overflow-hidden border", cardClass)}>
           <ListItem 
             title="Shop" 
             subtitle="Skins, Chests & Upgrades" 
             icon={ShoppingCart} 
             onClick={() => navigate('/shop')} 
-            isLight={isLight}
+            styles={styles}
           />
           <ListItem 
             title="Airdrop" 
             subtitle="Withdraw $FEC & Tasks" 
             icon={Wallet} 
             onClick={() => navigate('/airdrop')} 
-            isLight={isLight}
+            styles={styles}
           />
           <ListItem 
             title="My Profile" 
             subtitle="Stats & Achievements" 
             icon={User} 
             onClick={() => navigate('/profile')} 
-            isLight={isLight}
+            styles={styles}
           />
         </div>
 
-        <div className={clsx("rounded-2xl overflow-hidden border", isLight ? "bg-white border-white" : "bg-white/10 border-white/5 backdrop-blur-md")}>
+        <div className={clsx("rounded-2xl overflow-hidden border", cardClass)}>
           <ListItem 
             title="Daily Workout" 
             subtitle="Keep your streak alive!" 
             icon={Zap} 
             onClick={() => navigate('/daily-workout')} 
-            isLight={isLight}
+            styles={styles}
           />
           <ListItem 
             title="Settings" 
             icon={Settings} 
             onClick={() => navigate('/settings')} 
-            isLight={isLight}
+            styles={styles}
           />
         </div>
       </div>
 
       {/* Bottom Info */}
-      <div className={clsx("p-6 text-center text-xs", isLight ? "text-gray-400" : "text-white/40")}>
+      <div className={clsx("p-6 text-center text-xs", textSecondary)}>
         <p>© 2026 Focus App. All rights reserved.</p>
         <p className="mt-1">Version 1.2.0</p>
       </div>
 
       <ChatModal isOpen={showChat} onClose={() => setShowChat(false)} />
+      <DailyRewardModal isOpen={showDailyReward} onClose={() => setShowDailyReward(false)} />
       <AdModal 
         isOpen={showAdModal} 
         onClose={() => setShowAdModal(false)} 

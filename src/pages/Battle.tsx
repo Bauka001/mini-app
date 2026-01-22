@@ -122,15 +122,15 @@ export const BattlePage = () => {
             Compete against real players in real-time math battles!
           </p>
 
-          <button 
+          <button
             onClick={findMatch}
-            className="w-full max-w-xs py-4 bg-gradient-to-r from-primary to-blue-600 text-white font-black text-xl rounded-2xl shadow-lg shadow-primary/30 hover:scale-105 transition-transform flex items-center justify-center gap-3"
+            className="w-full max-w-xs py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-black text-xl rounded-2xl shadow-2xl shadow-green-500/40 border border-white/20 hover:scale-105 transition-all flex items-center justify-center gap-3"
           >
             <Zap size={24} className="animate-pulse" />
             Find Match
           </button>
-          
-          <button onClick={() => navigate(-1)} className="mt-6 text-gray-500 text-sm font-bold">
+
+          <button onClick={() => navigate('/')} className="mt-6 px-6 py-3 border-2 border-gray-700 text-gray-400 font-bold rounded-xl hover:bg-gray-800 hover:text-white transition-all">
             Back to Menu
           </button>
         </div>

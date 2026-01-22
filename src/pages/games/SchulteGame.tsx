@@ -23,15 +23,15 @@ export const SchulteGame = () => {
       title={t('game_schulte', 'Schulte Table')}
       instructions={t('schulte_desc', 'Find numbers from 1 to 25 in ascending order. Keep your eyes on the center of the grid.')}
     >
-      {({ onEnd }) => <SchulteBoard onEnd={(score, coins) => {
+      {({ onEnd, isPaused, theme }) => <SchulteBoard onEnd={(score, coins) => {
         addGameResult({ gameId: 'schulte', score, coinsEarned: coins });
         onEnd(score, coins);
-      }} />}
+      }} isPaused={isPaused} theme={theme} />}
     </GameWrapper>
   );
 };
 
-export const SchulteBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }) => {
+export const SchulteBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: number) => void, isPaused: boolean, theme: string }) => {
   const { activeSkin } = useStore();
   const [numbers, setNumbers] = useState<number[]>([]);
   const [nextNumber, setNextNumber] = useState(1);
@@ -47,6 +47,7 @@ export const SchulteBoard = ({ onEnd }: { onEnd: (score: string, coins: number) 
     setNumbers(nums);
     
     const timer = setInterval(() => {
+      if (isPaused) return;
       setTimeLeft(prev => {
         if (prev <= 0.1) {
           clearInterval(timer);
@@ -96,7 +97,7 @@ export const SchulteBoard = ({ onEnd }: { onEnd: (score: string, coins: number) 
       
       <div className="flex items-center gap-3 mb-6 bg-white/5 px-4 py-2 rounded-full border border-white/5">
         <span className="text-gray-400 text-sm uppercase font-bold tracking-wider">Find</span>
-        <div className="w-8 h-8 rounded-lg bg-primary text-black flex items-center justify-center font-black text-xl shadow-[0_0_15px_rgba(255,215,0,0.5)]">
+        <div className="w-8 h-8 rounded-lg bg-primary text-black flex items-center justify-center font-black text-xl shadow-lg">
            {nextNumber}
         </div>
       </div>
@@ -118,7 +119,7 @@ export const SchulteBoard = ({ onEnd }: { onEnd: (score: string, coins: number) 
             className={clsx(
               "flex items-center justify-center text-xl sm:text-2xl font-bold rounded-xl transition-all active:scale-90 relative overflow-hidden",
               num < nextNumber 
-                ? "opacity-50 grayscale text-gray-500 bg-black/20" // Don't fade out completely, just dim
+                ? "opacity-50 grayscale text-gray-500 bg-black/20" 
                 : skinClass
             )}
           >

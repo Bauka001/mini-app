@@ -10,9 +10,8 @@ import WebApp from '@twa-dev/sdk'
 
 WebApp.ready();
 
-// Ensure the manifest URL is correct based on your deployment or local environment
-const manifestUrl = 'https://raw.githubusercontent.com/ton-community/tutorials/main/03-client/test/public/tonconnect-manifest.json'; 
-// For production, you should use your own manifest: window.location.origin + '/tonconnect-manifest.json'
+// Use local manifest
+const manifestUrl = window.location.origin + '/tonconnect-manifest.json';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

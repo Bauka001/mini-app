@@ -1,38 +1,63 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore } from '../../store/useStore';
+import { useStore, Theme } from '../../store/useStore';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
+import { ReviveModal } from '../../components/modals/ReviveModal';
 
 export const MemoryGame = () => {
   const { t } = useTranslation();
-  const { addGameResult } = useStore();
+  const { addGameResult, theme } = useStore();
   
   return (
     <GameWrapper
       title={t('game_memory', 'Memory Matrix')}
       instructions={t('memory_desc', 'Remember the highlighted tiles and repeat the pattern.')}
     >
-      {({ onEnd }) => <MemoryBoard onEnd={(score, coins) => {
+      {({ onEnd, isPaused }) => <MemoryBoard onEnd={(score, coins) => {
         addGameResult({ gameId: 'memory', score, coinsEarned: coins });
         onEnd(score, coins);
-      }} />}
+      }} isGamePaused={isPaused} theme={theme} />}
     </GameWrapper>
   );
 };
 
-const MemoryBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }) => {
+const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coins: number) => void; isGamePaused: boolean; theme: Theme }) => {
   const [level, setLevel] = useState(1);
   const [gridSize, setGridSize] = useState(3);
   const [pattern, setPattern] = useState<number[]>([]);
   const [userSelection, setUserSelection] = useState<number[]>([]);
   const [gameState, setGameState] = useState<'showing' | 'playing' | 'success' | 'fail'>('showing');
   const [timeLeft, setTimeLeft] = useState(10); // 10s per level
+  
+  // Effects
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [shake, setShake] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Cleanup particles
+  useEffect(() => {
+    if (particles.length > 0) {
+      const timer = setTimeout(() => {
+        setParticles(prev => prev.slice(5));
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [particles]);
+
+  // Reset shake
+  useEffect(() => {
+    if (shake) {
+      const timer = setTimeout(() => setShake(false), 200);
+      return () => clearTimeout(timer);
+    }
+  }, [shake]);
 
   const getTileCount = (lvl: number) => Math.min(Math.floor(lvl / 2) + 2, gridSize * gridSize - 1);
 
   const generatePattern = useCallback(() => {
-    // ... same
     const totalTiles = gridSize * gridSize;
     const count = getTileCount(level);
     const newPattern: number[] = [];
@@ -47,6 +72,8 @@ const MemoryBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
   }, [level, gridSize]);
 
   useEffect(() => {
+    if (isGamePaused) return;
+    
     const newPattern = generatePattern();
     setPattern(newPattern);
     setUserSelection([]);
@@ -58,20 +85,19 @@ const MemoryBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [level, generatePattern]);
+  }, [level, generatePattern, isGamePaused]);
 
   // Timer effect
   useEffect(() => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || isGamePaused) return;
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
         if (prev <= 0.1) {
           clearInterval(timer);
           setGameState('fail');
-          setTimeout(() => {
-            onEnd(`Level ${level} (Time)`, level * 5);
-          }, 1000);
+          setShake(true);
+          // Don't auto-end, show revive modal
           return 0;
         }
         return prev - 0.1;
@@ -79,10 +105,26 @@ const MemoryBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
     }, 100);
 
     return () => clearInterval(timer);
-  }, [gameState, level, onEnd]);
+  }, [gameState, level, isGamePaused]);
+
+  const triggerSuccessParticles = () => {
+     if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        const newParticles: Particle[] = [];
+        for (let i = 0; i < 20; i++) {
+            newParticles.push({
+                id: `success-${Date.now()}-${i}`,
+                x: rect.width / 2,
+                y: rect.height / 2,
+                color: '#34d399' // Emerald
+            });
+        }
+        setParticles(prev => [...prev, ...newParticles]);
+     }
+  };
 
   const handleTileClick = (index: number) => {
-    if (gameState !== 'playing') return;
+    if (gameState !== 'playing' || isGamePaused) return;
     if (userSelection.includes(index)) return;
 
     const newSelection = [...userSelection, index];
@@ -91,6 +133,7 @@ const MemoryBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
     if (pattern.includes(index)) {
       if (newSelection.length === pattern.length) {
         setGameState('success');
+        triggerSuccessParticles();
         setTimeout(() => {
           setLevel(l => l + 1);
           if ((level + 1) % 3 === 0 && gridSize < 5) {
@@ -100,12 +143,32 @@ const MemoryBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
       }
     } else {
       setGameState('fail');
-      setTimeout(() => {
-        onEnd(`Level ${level}`, level * 10);
-      }, 1000);
+      setShake(true);
     }
   };
 
+  const handleRevive = () => {
+    // Retry current level
+    const newPattern = generatePattern();
+    setPattern(newPattern);
+    setUserSelection([]);
+    setGameState('showing');
+    setTimeLeft(10);
+    
+    const timer = setTimeout(() => {
+      setGameState('playing');
+    }, 1500);
+  };
+
+  const handleRestart = () => {
+    setLevel(1);
+    setGridSize(3);
+    setUserSelection([]);
+    setGameState('showing');
+    setTimeLeft(10);
+    // useEffect will regenerate pattern when level changes or on mount
+  };
+  
   const getTileStatus = (index: number) => {
     if (gameState === 'showing') {
       return pattern.includes(index) ? 'active' : 'default';
@@ -127,12 +190,37 @@ const MemoryBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
     return 'default';
   };
 
+  // Theme Styles
+  const bgStyle = theme === 'light' ? 'bg-white' : 'bg-transparent';
+  const gridBg = theme === 'light' ? 'bg-gray-200/80 border-gray-300' : 'bg-white/5 border-white/10';
+  const tileDefault = theme === 'light' ? 'bg-white hover:bg-gray-50 border-gray-200' : 'bg-white/5 hover:bg-white/10 border-white/5';
+
   return (
-    <div className="h-full flex flex-col items-center justify-center p-4">
-      <div className="mb-8 relative flex flex-col items-center">
-         <div className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-lg">
+    <div ref={containerRef} className={`h-full flex flex-col items-center justify-center p-4 relative overflow-hidden ${bgStyle}`}>
+      {/* Background Ambience */}
+      {theme !== 'light' && (
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-gray-900 to-black z-0" />
+      )}
+      
+      <ParticleSystem particles={particles} />
+
+      <ReviveModal 
+        isOpen={gameState === 'fail'}
+        score={level * 10} 
+        gameName="Memory Matrix"
+        onRevive={handleRevive}
+        onRestart={handleRestart}
+      />
+
+      <div className="mb-8 relative flex flex-col items-center z-10">
+         <motion.div 
+           key={level}
+           initial={{ scale: 1.5, opacity: 0 }}
+           animate={{ scale: 1, opacity: 1 }}
+           className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-lg"
+         >
             Level {level}
-         </div>
+         </motion.div>
          {gameState === 'showing' && (
             <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-sm text-purple-300 animate-pulse whitespace-nowrap">
                Memorize...
@@ -141,15 +229,17 @@ const MemoryBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
          {gameState === 'playing' && (
             <div className={clsx(
               "absolute -bottom-8 left-1/2 -translate-x-1/2 text-sm font-bold transition-colors",
-              timeLeft < 3 ? "text-red-500 animate-pulse" : "text-white"
+              timeLeft < 3 ? "text-red-500 animate-pulse" : theme === 'light' ? "text-gray-800" : "text-white"
             )}>
                {timeLeft.toFixed(1)}s
             </div>
          )}
       </div>
       
-      <div 
-        className="grid gap-3 p-5 bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl transition-all duration-300"
+      <motion.div 
+        animate={shake ? { x: [-5, 5, -5, 5, 0] } : {}}
+        transition={{ duration: 0.3 }}
+        className={`grid gap-3 p-5 backdrop-blur-xl rounded-3xl border shadow-2xl transition-all duration-300 z-10 ${gridBg}`}
         style={{ 
           gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
           width: 'min(90vw, 400px)',
@@ -159,26 +249,35 @@ const MemoryBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void 
         {Array.from({ length: gridSize * gridSize }).map((_, index) => {
           const status = getTileStatus(index);
           return (
-            <button
+            <motion.button
               key={index}
               onClick={() => handleTileClick(index)}
+              initial={{ scale: 1 }}
+              animate={
+                status === 'active' ? { scale: [1, 1.05, 1], boxShadow: "0 0 15px rgba(255,255,255,0.5)" } :
+                status === 'success' ? { scale: [1, 1.1, 1], boxShadow: "0 0 20px rgba(52,211,153,0.6)" } :
+                status === 'wrong' ? { rotate: [0, 5, -5, 0], scale: 0.95 } : 
+                { scale: 1 }
+              }
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               className={clsx(
-                "rounded-xl transition-all duration-300 relative overflow-hidden",
-                status === 'default' && "bg-white/5 hover:bg-white/10 border border-white/5",
-                status === 'active' && "bg-white shadow-[0_0_20px_rgba(255,255,255,0.6)] scale-105 border-white",
-                status === 'correct' && "bg-gradient-to-br from-green-400 to-emerald-600 shadow-[0_0_20px_rgba(52,211,153,0.6)] scale-100 border-transparent",
-                status === 'wrong' && "bg-gradient-to-br from-red-500 to-rose-700 shadow-[0_0_20px_rgba(244,63,94,0.6)] scale-90 border-transparent",
-                status === 'success' && "bg-gradient-to-br from-purple-500 to-indigo-600 shadow-[0_0_20px_rgba(139,92,246,0.6)] scale-105 border-transparent",
-                status === 'missed' && "bg-white/20 animate-pulse"
+                "rounded-xl transition-colors duration-300 relative overflow-hidden border",
+                status === 'default' && tileDefault,
+                status === 'active' && "bg-white border-white z-10",
+                status === 'correct' && "bg-gradient-to-br from-green-400 to-emerald-600 border-transparent z-10",
+                status === 'wrong' && "bg-gradient-to-br from-red-500 to-rose-700 border-transparent z-10",
+                status === 'success' && "bg-gradient-to-br from-purple-500 to-indigo-600 border-transparent z-10",
+                status === 'missed' && "bg-white/20"
               )}
-              disabled={gameState !== 'playing'}
+              disabled={gameState !== 'playing' || isGamePaused}
             >
                {/* Inner glow for 3D effect */}
                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
-            </button>
+            </motion.button>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 };

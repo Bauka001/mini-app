@@ -14,15 +14,15 @@ export const MathGame = () => {
       title={t('game_math', 'Arithmetic')}
       instructions={t('math_desc', 'Solve 10 math problems as fast as you can.')}
     >
-      {({ onEnd }) => <MathBoard onEnd={(score, coins) => {
+      {({ onEnd, isPaused, theme }) => <MathBoard onEnd={(score, coins) => {
         addGameResult({ gameId: 'math', score, coinsEarned: coins });
         onEnd(score, coins);
-      }} />}
+      }} isPaused={isPaused} theme={theme} />}
     </GameWrapper>
   );
 };
 
-export const MathBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => void }) => {
+export const MathBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: number) => void, isPaused: boolean, theme: string }) => {
   const { activeSkin } = useStore();
   const [question, setQuestion] = useState<{ text: string, answer: number, options: number[] } | null>(null);
   const [questionsAnswered, setQuestionsAnswered] = useState(0);
@@ -111,30 +111,50 @@ export const MathBoard = ({ onEnd }: { onEnd: (score: string, coins: number) => 
   if (!question) return null;
 
   return (
-    <div className="h-full flex flex-col items-center justify-between p-6 pb-20 relative">
+    <div className={clsx(
+      "h-full flex flex-col items-center justify-between p-6 pb-20 relative transition-colors duration-300",
+      theme === 'light' ? 'bg-gray-100' : 'bg-transparent'
+    )}>
       <div className="w-full flex justify-between text-lg font-bold">
-        <div className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/5 text-primary shadow-lg">
+        <div className={clsx(
+          "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg",
+          theme === 'light' ? "bg-white border-gray-200 text-primary" : "bg-white/10 border-white/5 text-primary"
+        )}>
           Correct: {correctCount}/10
         </div>
         <div className={clsx(
-           "px-4 py-2 rounded-full backdrop-blur-md border border-white/5 shadow-lg transition-colors",
-           timeLeft < 10 ? "bg-red-500/20 text-red-500 animate-pulse" : "bg-white/10 text-white"
+           "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg transition-colors",
+           timeLeft < 10 ? "bg-red-500/20 text-red-500 animate-pulse border-red-500/20" : 
+           theme === 'light' ? "bg-white border-gray-200 text-gray-800" : "bg-white/10 border-white/5 text-white"
         )}>
           {timeLeft.toFixed(1)}s
         </div>
-        <div className="px-4 py-2 rounded-full bg-white/10 backdrop-blur-md border border-white/5 text-white shadow-lg">
+        <div className={clsx(
+          "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg",
+          theme === 'light' ? "bg-white border-gray-200 text-gray-800" : "bg-white/10 border-white/5 text-white"
+        )}>
           Q: {questionsAnswered + 1}/10
         </div>
       </div>
 
       <div className={clsx(
-        "flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 rounded-3xl mb-8 border border-white/5 relative overflow-hidden",
-        isWrong ? "bg-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.4)]" : "bg-white/5 backdrop-blur-xl shadow-2xl"
+        "flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 rounded-3xl mb-8 border relative overflow-hidden",
+        isWrong 
+          ? "bg-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.4)] border-red-500/20" 
+          : theme === 'light'
+            ? "bg-white border-gray-200 shadow-xl"
+            : "bg-white/5 backdrop-blur-xl shadow-2xl border-white/5"
       )}>
-        <h2 className="text-7xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 drop-shadow-2xl">
+        <h2 className={clsx(
+          "text-7xl font-black tracking-wider text-transparent bg-clip-text drop-shadow-2xl",
+          theme === 'light' ? "bg-gradient-to-br from-gray-800 to-gray-600" : "bg-gradient-to-br from-white to-gray-400"
+        )}>
           {question.text}
         </h2>
-        <div className="mt-4 text-2xl text-gray-400 font-bold">= ?</div>
+        <div className={clsx(
+          "mt-4 text-2xl font-bold",
+          theme === 'light' ? "text-gray-500" : "text-gray-400"
+        )}>= ?</div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 w-full max-w-sm">

@@ -24,12 +24,12 @@ export const OddOneOutGame = () => {
       title={t('game_odd_one', 'Odd One Out')}
       instructions={t('odd_one_desc', 'Find the item that looks different from the others.')}
     >
-      {({ onEnd }) => <OddOneOutBoard onEnd={onEnd} addGameResult={addGameResult} />}
+      {({ onEnd, isPaused, theme }) => <OddOneOutBoard onEnd={onEnd} addGameResult={addGameResult} isPaused={isPaused} theme={theme} />}
     </GameWrapper>
   );
 };
 
-export const OddOneOutBoard = ({ onEnd, addGameResult }: { onEnd: (score: string, coins: number) => void, addGameResult: (result: any) => void }) => {
+export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEnd: (score: string, coins: number) => void, addGameResult: (result: any) => void, isPaused: boolean, theme: string }) => {
   const [level, setLevel] = useState(1);
   const [gridSize, setGridSize] = useState(3);
   const [items, setItems] = useState<string[]>([]);
@@ -68,7 +68,7 @@ export const OddOneOutBoard = ({ onEnd, addGameResult }: { onEnd: (score: string
     generateLevel();
     const timer = setInterval(() => {
       // Pause timer when showing Level Up screen or Level Complete Modal
-      if (showLevelUp || showLevelComplete) return;
+      if (showLevelUp || showLevelComplete || isPaused) return;
 
       setTimeLeft(prev => {
         if (prev <= 0.1) {
@@ -144,7 +144,10 @@ export const OddOneOutBoard = ({ onEnd, addGameResult }: { onEnd: (score: string
   };
 
   return (
-    <div className="h-full flex flex-col items-center justify-center p-4 relative">
+    <div className={clsx(
+      "h-full flex flex-col items-center justify-center p-4 relative transition-colors duration-300",
+      theme === 'light' ? 'bg-gray-100' : 'bg-transparent'
+    )}>
       {/* Level Complete Modal */}
       {showLevelComplete && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in duration-300 p-4">
@@ -184,21 +187,29 @@ export const OddOneOutBoard = ({ onEnd, addGameResult }: { onEnd: (score: string
       <div className="mb-8 flex flex-col items-center">
         <div className={clsx(
           "text-6xl font-black font-mono tracking-tighter transition-colors",
-          timeLeft < 10 ? "text-red-500 animate-pulse" : "text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400"
+          timeLeft < 10 
+            ? "text-red-500 animate-pulse" 
+            : theme === 'light'
+              ? "text-transparent bg-clip-text bg-gradient-to-r from-gray-800 to-gray-600"
+              : "text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400"
         )}>
           {timeLeft.toFixed(1)}
         </div>
         <div className="flex gap-4 mt-2">
-           <div className="text-xs text-primary font-bold tracking-widest uppercase">Score: {score}</div>
-           <div className="text-xs text-gray-400 font-bold tracking-widest uppercase">Level: {level}</div>
-           <div className="text-xs text-green-400 font-bold tracking-widest uppercase">Found: {foundCount}/{targetCount}</div>
+           <div className={clsx("text-xs font-bold tracking-widest uppercase", theme === 'light' ? "text-primary" : "text-primary")}>Score: {score}</div>
+           <div className={clsx("text-xs font-bold tracking-widest uppercase", theme === 'light' ? "text-gray-500" : "text-gray-400")}>Level: {level}</div>
+           <div className="text-xs text-green-500 font-bold tracking-widest uppercase">Found: {foundCount}/{targetCount}</div>
         </div>
       </div>
 
       <div 
         className={clsx(
-          "grid gap-2 p-3 rounded-2xl transition-all duration-300 backdrop-blur-xl border border-white/5 shadow-2xl",
-          isWrong ? "bg-red-500/20 border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]" : "bg-white/5"
+          "grid gap-2 p-3 rounded-2xl transition-all duration-300 backdrop-blur-xl border shadow-2xl",
+          isWrong 
+            ? "bg-red-500/20 border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]" 
+            : theme === 'light'
+              ? "bg-white border-gray-200 shadow-xl"
+              : "bg-white/5 border-white/5"
         )}
         style={{ 
           gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
@@ -210,7 +221,12 @@ export const OddOneOutBoard = ({ onEnd, addGameResult }: { onEnd: (score: string
           <button
             key={index}
             onClick={() => handleItemClick(index)}
-            className="flex items-center justify-center text-3xl sm:text-4xl rounded-xl bg-white/5 hover:bg-white/10 active:scale-90 transition-all duration-100"
+            className={clsx(
+              "flex items-center justify-center text-3xl sm:text-4xl rounded-xl transition-all duration-100",
+              theme === 'light' 
+                ? "bg-gray-100 hover:bg-gray-200 active:scale-90 text-gray-800"
+                : "bg-white/5 hover:bg-white/10 active:scale-90 text-white"
+            )}
           >
             {item}
           </button>

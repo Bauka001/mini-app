@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Home, ShoppingBag, Gift } from 'lucide-react';
+import { Home, ShoppingBag, Gift, Shield } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store/useStore';
 
@@ -11,7 +11,7 @@ export const Layout = () => {
   const navItems = [
     { path: '/', icon: Home, label: 'home' }, 
     { path: '/airdrop', icon: Gift, label: 'Airdrop' },
-    { path: '/community', icon: ShoppingBag, label: 'guilds' },
+    { path: '/community', icon: Shield, label: 'guilds' },
     { path: '/shop', icon: ShoppingBag, label: 'shop' },
   ];
 
@@ -52,7 +52,7 @@ export const Layout = () => {
                 className={clsx(
                   "flex flex-col items-center justify-center w-16 h-14 rounded-xl transition-all duration-300 relative overflow-hidden",
                   isActive 
-                    ? (isLight ? "text-white bg-[#f14635] shadow-lg" : "text-black bg-primary shadow-[0_0_15px_rgba(255,215,0,0.5)] scale-105")
+                    ? (isLight ? "text-white bg-blue-600 shadow-lg" : "text-black bg-primary shadow-lg scale-105")
                     : (isLight ? "text-gray-400 hover:text-gray-600 hover:bg-black/5" : "text-gray-400 hover:text-white hover:bg-white/5")
                 )}
               >
