@@ -129,7 +129,9 @@ export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEn
       if (newFoundCount >= targetCount) {
         // Award coins for level completion immediately
         const levelReward = 50 + (level * 10);
-        addGameResult({ gameId: 'odd_one_out_level', score: 0, coinsEarned: levelReward });
+        setTimeout(() => {
+          addGameResult({ gameId: 'odd_one_out_level', score: 0, coinsEarned: levelReward });
+        }, 0);
         
         setShowLevelComplete(true);
       } else {

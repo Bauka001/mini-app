@@ -68,7 +68,9 @@ export const DailyWorkoutPage = () => {
 
   const handleGameEnd = (score: string, coins: number) => {
     setResults(prev => [...prev, { game: currentGameId, score, coins }]);
-    addGameResult({ gameId: currentGameId, score, coinsEarned: coins });
+    setTimeout(() => {
+      addGameResult({ gameId: currentGameId, score, coinsEarned: coins });
+    }, 0);
     
     if (currentGameIndex < WORKOUT_PLAN.length - 1) {
       setStep(prev => prev + 1); // Go to Rest

@@ -72,7 +72,7 @@ export const ReviveModal: React.FC<ReviveModalProps> = ({
           {isWatchingAd ? (
             <div className="py-8">
               <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-              <p className="text-white animate-pulse">Watching Ad...</p>
+              <p className="text-white animate-pulse">{t('watching_ad')}</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -87,10 +87,10 @@ export const ReviveModal: React.FC<ReviveModalProps> = ({
                   className="w-full py-4 bg-gradient-to-r from-red-500 to-pink-600 rounded-xl font-bold text-white text-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-red-500/30"
                 >
                   <Heart className="w-5 h-5 fill-white" />
-                  Revive (1 HP)
+                  {t('revive_hp')}
                 </button>
               ) : (
-                <div className="text-red-400 text-sm mb-2">No HP left! Watch Ad to restore.</div>
+                <div className="text-red-400 text-sm mb-2">{t('no_hp')}</div>
               )}
 
               <button
@@ -98,7 +98,7 @@ export const ReviveModal: React.FC<ReviveModalProps> = ({
                 className="w-full py-4 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl font-bold text-white text-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-blue-500/30"
               >
                 <PlayCircle className="w-5 h-5" />
-                Watch Ad (+10 HP & Revive)
+                {t('watch_ad_hp')}
               </button>
 
               <div className="h-px bg-white/10 my-4" />
@@ -108,7 +108,7 @@ export const ReviveModal: React.FC<ReviveModalProps> = ({
                 className="w-full py-3 bg-white/5 border border-white/10 rounded-xl font-semibold text-gray-300 flex items-center justify-center gap-2 hover:bg-white/10 transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
-                Restart Game
+                {t('restart_game')}
               </button>
             </div>
           )}

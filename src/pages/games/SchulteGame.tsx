@@ -24,7 +24,9 @@ export const SchulteGame = () => {
       instructions={t('schulte_desc', 'Find numbers from 1 to 25 in ascending order. Keep your eyes on the center of the grid.')}
     >
       {({ onEnd, isPaused, theme }) => <SchulteBoard onEnd={(score, coins) => {
-        addGameResult({ gameId: 'schulte', score, coinsEarned: coins });
+        setTimeout(() => {
+          addGameResult({ gameId: 'schulte', score, coinsEarned: coins });
+        }, 0);
         onEnd(score, coins);
       }} isPaused={isPaused} theme={theme} />}
     </GameWrapper>

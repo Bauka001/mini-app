@@ -5,6 +5,8 @@ import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminChat } from './pages/admin/AdminChat';
 import { AdminGames } from './pages/admin/AdminGames';
+import AdminSettings from './pages/admin/AdminSettings';
+import AdminPanel from './pages/AdminPanel';
 
 // Static imports to prevent lazy loading errors
 import Home from './pages/Home';
@@ -60,6 +62,8 @@ function App() {
           <Route path="users" element={<AdminUsers />} />
           <Route path="chat" element={<AdminChat />} />
           <Route path="games" element={<AdminGames />} />
+          <Route path="settings" element={<AdminSettings />} />
+          <Route path="tickets" element={<AdminPanel />} />
         </Route>
       </Routes>
     </Router>

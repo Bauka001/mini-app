@@ -5,6 +5,7 @@ import { clsx } from 'clsx';
 import { useStore } from '../../store/useStore';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ReviveModal } from '../../components/modals/ReviveModal';
+import { SKIN_STYLES } from '../../utils/skins';
 
 export const StroopGame = () => {
   const { t } = useTranslation();
@@ -16,7 +17,9 @@ export const StroopGame = () => {
       instructions={t('stroop_desc', 'Select the COLOR of the text, not what the text says. Complete 10 rounds.')}
     >
       {({ onEnd, isPaused, theme }) => <StroopBoard onEnd={(score, coins) => {
-        addGameResult({ gameId: 'stroop', score, coinsEarned: coins });
+        setTimeout(() => {
+          addGameResult({ gameId: 'stroop', score, coinsEarned: coins });
+        }, 0);
         onEnd(score, coins);
       }} isPaused={isPaused} theme={theme} />}
     </GameWrapper>
@@ -95,6 +98,20 @@ const StroopBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins:
     } else {
       generateRound();
     }
+  };
+
+  const handleRestart = () => {
+    setRoundsPlayed(0);
+    setCorrectCount(0);
+    setTimeLeft(60);
+    setIsWrong(false);
+    setGameOver(false);
+    generateRound();
+  };
+
+  const handleRevive = () => {
+    setTimeLeft(timeLeft + 15);
+    setGameOver(false);
   };
 
   if (!currentRound) return null;

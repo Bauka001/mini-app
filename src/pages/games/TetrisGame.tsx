@@ -53,7 +53,9 @@ export const TetrisGame = () => {
       instructions={t('tetris_desc', 'Stack blocks to clear lines.')}
     >
       {({ onEnd, isPaused }) => <TetrisBoard onEnd={(score) => {
-        addGameResult({ gameId: 'tetris', score, coinsEarned: Math.floor(score / 10) });
+        setTimeout(() => {
+          addGameResult({ gameId: 'tetris', score, coinsEarned: Math.floor(score / 10) });
+        }, 0);
         onEnd(`${score}`, Math.floor(score / 10));
       }} isGamePaused={isPaused} theme={theme} />}
     </GameWrapper>

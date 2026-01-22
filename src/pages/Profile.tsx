@@ -4,7 +4,8 @@ import {
   ArrowLeft, Camera, Edit2, Trophy, Gift, 
   Coins, Diamond, Zap, History, Star, 
   Award, TrendingUp, Calendar, LayoutGrid,
-  Flame, Shield, Crown, Zap as ZapIcon, Calculator
+  Flame, Shield, Crown, Zap as ZapIcon, Calculator, 
+  Ticket as TicketIcon, Car, CheckCircle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStore';
@@ -41,7 +42,8 @@ const ProfilePage = () => {
     gems,
     streak,
     plan,
-    planExpiry
+    planExpiry,
+    tickets
   } = useStore();
   
   const currentPlan = PLAN_CONFIG[plan];
@@ -266,6 +268,58 @@ const ProfilePage = () => {
         <div className="w-full mt-6">
           <Achievements />
         </div>
+
+        {/* Tickets Section */}
+        {tickets.length > 0 && (
+          <div className="w-full max-w-sm mt-6">
+            <div className="flex items-center justify-between mb-4 px-2">
+              <h3 className="text-lg font-black flex items-center gap-2">
+                <TicketIcon size={20} className="text-yellow-400" />
+                My Tickets
+              </h3>
+              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                {tickets.length}
+              </span>
+            </div>
+            
+            <div className="space-y-3">
+              {tickets.map((ticket) => (
+                <div
+                  key={ticket.id}
+                  className="relative bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 rounded-2xl p-1 shadow-2xl"
+                >
+                  <div className="bg-gradient-to-br from-yellow-100 to-amber-200 rounded-xl p-4 h-full">
+                    <div className="absolute top-2 right-2">
+                      {ticket.isUsed ? (
+                        <div className="bg-green-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5">
+                          <CheckCircle className="w-2.5 h-2.5" />
+                          VERIFIED
+                        </div>
+                      ) : (
+                        <div className="bg-yellow-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+                          ACTIVE
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 p-2.5 rounded-full shadow-lg flex-shrink-0">
+                        <Car className="w-8 h-8 text-yellow-900" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-2xl font-black text-yellow-800 font-mono tracking-wider">
+                          {String(ticket.ticketNumber).padStart(8, '0')}
+                        </div>
+                        <div className="text-[9px] text-yellow-600 font-medium tracking-widest uppercase">Ticket Number</div>
+                        <p className="text-xs font-bold text-yellow-800 truncate">{ticket.eventName}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Level Progress Card */}
         <div className="w-full max-w-sm bg-white/5 backdrop-blur-xl rounded-3xl p-5 border border-white/10 mb-6 relative overflow-hidden group">

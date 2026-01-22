@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import { useStore, Language } from '../store/useStore';
-import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Instagram, Send, Info, CheckCircle, Gem, Share2 } from 'lucide-react';
+import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Instagram, Send, Info, CheckCircle, Gem, Share2, MessageSquare } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
 import { useState } from 'react';
 import { InfoGuideModal } from '../components/InfoGuideModal';
+import { FeedbackModal } from '../components/FeedbackModal';
 
 const SettingItem = ({ 
   icon: Icon, 
@@ -16,20 +17,29 @@ const SettingItem = ({
   title: string, 
   children?: React.ReactNode,
   onClick?: () => void 
-}) => (
-  <div 
-    onClick={onClick}
-    className="flex items-center justify-between p-4 bg-secondary rounded-xl mb-3 border border-gray-800"
-  >
-    <div className="flex items-center gap-3">
-      <div className="p-2 bg-gray-800 rounded-lg text-gray-400">
-        <Icon size={20} />
+}) => {
+  const { theme } = useStore();
+  const isLight = theme === 'light';
+
+  return (
+    <div 
+      onClick={onClick}
+      className={`flex items-center justify-between p-4 rounded-xl mb-3 border ${
+        isLight 
+          ? 'bg-white/80 border-gray-200' 
+          : 'bg-secondary border-gray-800'
+      }`}
+    >
+      <div className={`flex items-center gap-3 ${isLight ? 'text-gray-900' : ''}`}>
+        <div className={`p-2 rounded-lg ${isLight ? 'bg-gray-200 text-gray-600' : 'bg-gray-800 text-gray-400'}`}>
+          <Icon size={20} />
+        </div>
+        <span className="font-medium">{title}</span>
       </div>
-      <span className="font-medium">{title}</span>
+      {children}
     </div>
-    {children}
-  </div>
-);
+  );
+};
 
 const SocialTaskCard = ({ 
   platform, 
@@ -42,6 +52,8 @@ const SocialTaskCard = ({
   isClaimed: boolean, 
   onClick: () => void 
 }) => {
+  const { t } = useTranslation();
+
   const getIcon = () => {
     switch(platform) {
       case 'instagram': return <Instagram size={24} className="text-pink-500" />;
@@ -52,9 +64,9 @@ const SocialTaskCard = ({
 
   const getName = () => {
     switch(platform) {
-      case 'instagram': return 'Follow on Instagram';
-      case 'youtube': return 'Subscribe YouTube';
-      case 'telegram': return 'Join Founding Group';
+      case 'instagram': return t('task_instagram');
+      case 'youtube': return t('task_youtube');
+      case 'telegram': return t('task_telegram');
     }
   };
 
@@ -81,14 +93,14 @@ const SocialTaskCard = ({
         </div>
         <div className="text-left">
           <div className="text-sm font-bold text-white">{getName()}</div>
-          <div className="text-xs text-gray-400">Support the community</div>
+          <div className="text-xs text-gray-400">{t('support_community')}</div>
         </div>
       </div>
 
       <div className="flex items-center gap-2">
         {isClaimed ? (
           <span className="text-xs font-bold text-green-400 flex items-center gap-1">
-            <CheckCircle size={14} /> Claimed
+            <CheckCircle size={14} /> {t('claimed')}
           </span>
         ) : (
           <div className="flex items-center gap-1 bg-white/10 px-3 py-1.5 rounded-lg text-white text-xs font-bold">
@@ -104,6 +116,7 @@ const SocialTaskCard = ({
 export const SettingsContent = () => {
   const { t, i18n } = useTranslation();
   const [showInfo, setShowInfo] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const { 
     soundEnabled, 
     toggleSound, 
@@ -115,6 +128,8 @@ export const SettingsContent = () => {
     claimSocialReward,
     user
   } = useStore();
+
+  const isLight = theme === 'light';
 
   const handleLanguageChange = (lang: Language) => {
     setLanguage(lang);
@@ -140,7 +155,7 @@ export const SettingsContent = () => {
   return (
     <div className="w-full">
       <section className="mb-8">
-        <h2 className="text-sm font-bold text-gray-500 uppercase mb-3 ml-1">{t('settings')}</h2>
+        <h2 className={`text-sm font-bold uppercase mb-3 ml-1 ${theme === 'light' ? 'text-gray-500' : 'text-gray-500'}`}>{t('settings')}</h2>
         
         <SettingItem 
           icon={soundEnabled ? Volume2 : VolumeX} 
@@ -164,13 +179,20 @@ export const SettingsContent = () => {
         </SettingItem>
 
         <SettingItem icon={Info} 
-          title="Game Info / Guide"
+          title={t('game_info_guide')}
           onClick={() => setShowInfo(true)}
         >
-           <button className="text-xs font-bold text-primary">Open</button>
+           <button className="text-xs font-bold text-primary">{t('open')}</button>
         </SettingItem>
 
-        <SettingItem icon={Share2} title="Share App">
+        <SettingItem icon={MessageSquare} 
+          title="Feedback / Support"
+          onClick={() => setShowFeedback(true)}
+        >
+           <button className="text-xs font-bold text-primary">Write</button>
+        </SettingItem>
+
+        <SettingItem icon={Share2} title={t('share_app')}>
           <button 
             onClick={() => {
               const shareText = i18n.language === 'kz' 
@@ -191,7 +213,7 @@ export const SettingsContent = () => {
             }}
             className="text-xs font-bold text-primary"
           >
-            Share
+            {t('share_button')}
           </button>
         </SettingItem>
 
@@ -224,7 +246,7 @@ export const SettingsContent = () => {
                   theme === 'dark' ? "bg-gray-800 text-white border border-gray-600" : "bg-gray-800/50 text-gray-500"
                 )}
               >
-                Dark
+                {t('theme_dark')}
               </button>
               <button
                 onClick={() => handleThemeChange('light')}
@@ -233,7 +255,7 @@ export const SettingsContent = () => {
                   theme === 'light' ? "bg-white text-black" : "bg-gray-800/50 text-gray-500"
                 )}
               >
-                Light
+                {t('theme_light')}
               </button>
               <button
                 onClick={() => handleThemeChange('gold')}
@@ -242,7 +264,7 @@ export const SettingsContent = () => {
                   theme === 'gold' ? "bg-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]" : "bg-gray-800/50 text-yellow-500/50"
                 )}
               >
-                Gold
+                {t('theme_gold')}
               </button>
               <button
                 onClick={() => handleThemeChange('blue')}
@@ -251,7 +273,7 @@ export const SettingsContent = () => {
                   theme === 'blue' ? "bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.5)]" : "bg-gray-800/50 text-blue-500/50"
                 )}
               >
-                Blue
+                {t('theme_blue')}
               </button>
           </div>
         </SettingItem>
@@ -260,7 +282,7 @@ export const SettingsContent = () => {
       {/* Social Tasks Section */}
       <section className="mb-8">
         <h2 className="text-sm font-bold text-gray-500 uppercase mb-3 ml-1 flex items-center gap-2">
-          Earn Crystals 💎
+          {t('earn_crystals')}
         </h2>
         
         {socialTasks.map(task => (
@@ -275,15 +297,18 @@ export const SettingsContent = () => {
       </section>
       
       <InfoGuideModal isOpen={showInfo} onClose={() => setShowInfo(false)} />
+      <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
     </div>
   );
 };
 
 const SettingsPage = () => {
   const { t } = useTranslation();
+  const { theme } = useStore();
+  const isLight = theme === 'light';
   return (
     <div className="p-4 no-scrollbar">
-      <h1 className="text-3xl font-bold text-primary mb-6">{t('settings', 'Settings')}</h1>
+      <h1 className={`text-3xl font-bold mb-6 ${isLight ? 'text-gray-900' : 'text-primary'}`}>{t('settings', 'Settings')}</h1>
       <SettingsContent />
     </div>
   );

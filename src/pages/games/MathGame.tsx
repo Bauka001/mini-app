@@ -15,7 +15,9 @@ export const MathGame = () => {
       instructions={t('math_desc', 'Solve 10 math problems as fast as you can.')}
     >
       {({ onEnd, isPaused, theme }) => <MathBoard onEnd={(score, coins) => {
-        addGameResult({ gameId: 'math', score, coinsEarned: coins });
+        setTimeout(() => {
+          addGameResult({ gameId: 'math', score, coinsEarned: coins });
+        }, 0);
         onEnd(score, coins);
       }} isPaused={isPaused} theme={theme} />}
     </GameWrapper>

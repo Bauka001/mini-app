@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Star, Crown, Zap, Coins, Layout, Box, X, Ticket, Car, Shield, FileText } from 'lucide-react';
+import { Check, Star, Crown, Zap, Coins, Layout, Box, X, Ticket, Car, Shield, FileText, Snowflake, Brain, ShieldCheck } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store/useStore';
 import WebApp from '@twa-dev/sdk';
@@ -9,6 +9,7 @@ import { TermsModal } from '../components/TermsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 
 const CountdownTimer = () => {
+  const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
 
   function calculateTimeLeft() {
@@ -37,22 +38,22 @@ const CountdownTimer = () => {
     <div className="flex items-center gap-2 text-white font-mono text-xs bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 shadow-lg">
       <div className="flex flex-col items-center min-w-[20px]">
         <span className="font-bold text-red-500 text-lg leading-none">{timeLeft.days || '0'}</span>
-        <span className="text-[8px] text-gray-400 font-bold tracking-wider">DAYS</span>
+        <span className="text-[8px] text-gray-400 font-bold tracking-wider">{t('days')}</span>
       </div>
       <span className="text-gray-500 font-bold mb-2">:</span>
       <div className="flex flex-col items-center min-w-[20px]">
         <span className="font-bold text-white text-lg leading-none">{timeLeft.hours || '0'}</span>
-        <span className="text-[8px] text-gray-400 font-bold tracking-wider">HRS</span>
+        <span className="text-[8px] text-gray-400 font-bold tracking-wider">{t('hours')}</span>
       </div>
       <span className="text-gray-500 font-bold mb-2">:</span>
       <div className="flex flex-col items-center min-w-[20px]">
         <span className="font-bold text-white text-lg leading-none">{timeLeft.minutes || '0'}</span>
-        <span className="text-[8px] text-gray-400 font-bold tracking-wider">MIN</span>
+        <span className="text-[8px] text-gray-400 font-bold tracking-wider">{t('minutes')}</span>
       </div>
       <span className="text-gray-500 font-bold mb-2">:</span>
       <div className="flex flex-col items-center min-w-[20px]">
         <span className="font-bold text-white text-lg leading-none">{timeLeft.seconds || '0'}</span>
-        <span className="text-[8px] text-gray-400 font-bold tracking-wider">SEC</span>
+        <span className="text-[8px] text-gray-400 font-bold tracking-wider">{t('seconds')}</span>
       </div>
     </div>
   );
@@ -69,13 +70,57 @@ const PaymentModal = ({
   planTitle: string,
   price: string
 }) => {
+  const { t } = useTranslation();
+  const [promo, setPromo] = useState('');
+  const [discount, setDiscount] = useState(0);
+  const [showTask, setShowTask] = useState(false);
+
   if (!isOpen) return null;
+
+  const numericPrice = parseFloat(price.replace('$', ''));
+  const finalPrice = discount > 0 
+    ? `$${(numericPrice * (1 - discount / 100)).toFixed(2)}`
+    : price;
+
+  const handleApplyPromo = () => {
+      if (promo.trim().toUpperCase() === 'STARTUP' || promo.trim().toUpperCase() === 'STARTUP10') {
+          setDiscount(10);
+          WebApp.HapticFeedback.notificationOccurred('success');
+      } else {
+          WebApp.HapticFeedback.notificationOccurred('error');
+          alert('Invalid code');
+          setDiscount(0);
+      }
+  };
+
+  const handleNoPromo = () => {
+      setShowTask(true);
+  };
+
+  const handleTaskComplete = () => {
+      // Simulate task
+      window.open('https://www.instagram.com/focus_game_clube/?utm_source=ig_web_button_share_sheet', '_blank');
+      
+      setTimeout(() => {
+          setPromo('STARTUP10');
+          setDiscount(10);
+          setShowTask(false);
+          WebApp.HapticFeedback.notificationOccurred('success');
+      }, 3000);
+  };
 
   const handlePaymentMethod = (method: 'kaspi' | 'stars' | 'ton') => {
     WebApp.HapticFeedback.notificationOccurred('success');
     
     if (method === 'stars') {
-      WebApp.openTelegramLink('https://t.me/upgrade_0_bot?start=' + encodeURIComponent(planTitle.toLowerCase()));
+      const url = 'https://t.me/upgrade_0_bot?start=' + encodeURIComponent(planTitle.toLowerCase());
+      
+      // Check if running in Telegram
+      if (WebApp.platform === 'unknown') {
+         window.open(url, '_blank');
+      } else {
+         WebApp.openTelegramLink(url);
+      }
     } else if (method === 'ton') {
       alert('TON payment coming soon!');
     }
@@ -86,7 +131,7 @@ const PaymentModal = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden">
         <div className="p-4 border-b flex justify-between items-center">
-          <h3 className="font-bold text-lg text-black">Payment Method</h3>
+          <h3 className="font-bold text-lg text-black">{t('payment_method')}</h3>
           <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full text-gray-500">
             <X size={20} />
           </button>
@@ -94,10 +139,52 @@ const PaymentModal = ({
 
         <div className="p-6 space-y-4">
            <div className="text-center">
-             <div className="text-sm text-gray-500 mb-1">Paying for:</div>
+             <div className="text-sm text-gray-500 mb-1">{t('paying_for')}</div>
              <div className="font-bold text-xl text-black">{planTitle}</div>
-             <div className="text-2xl font-black text-red-500 mt-2">{price}</div>
+             <div className="flex items-center justify-center gap-2 mt-2">
+                {discount > 0 && <span className="text-lg text-gray-400 line-through">{price}</span>}
+                <div className="text-2xl font-black text-red-500">{finalPrice}</div>
+             </div>
+             {discount > 0 && <div className="text-xs font-bold text-green-600 mt-1">{t('discount_applied')}</div>}
            </div>
+
+           {/* Promocode Input */}
+           {!showTask ? (
+               <div className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                   <div className="flex gap-2 mb-2">
+                       <input 
+                           type="text" 
+                           placeholder={t('promo_code')}
+                           className="flex-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-bold text-black outline-none focus:border-blue-500"
+                           value={promo}
+                           onChange={e => setPromo(e.target.value)}
+                       />
+                       <button 
+                           onClick={handleApplyPromo}
+                           className="bg-black text-white px-4 py-2 rounded-lg text-sm font-bold"
+                       >
+                           {t('apply')}
+                       </button>
+                   </div>
+                   <button 
+                       onClick={handleNoPromo}
+                       className="text-xs text-blue-500 font-bold underline w-full text-center hover:text-blue-600"
+                   >
+                       {t('no_promocode')}
+                   </button>
+               </div>
+           ) : (
+               <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 text-center">
+                   <div className="text-sm font-bold text-blue-900 mb-2">{t('get_discount_title')}</div>
+                   <p className="text-xs text-blue-700 mb-3">{t('get_discount_desc')}</p>
+                   <button 
+                       onClick={handleTaskComplete}
+                       className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+                   >
+                       {t('subscribe_insta')}
+                   </button>
+               </div>
+           )}
            
            <div className="space-y-3">
              {/* Telegram Stars */}
@@ -113,7 +200,7 @@ const PaymentModal = ({
                  </div>
                  <div className="text-left">
                    <div className="text-sm font-bold text-white mb-1">Telegram Stars</div>
-                   <div className="text-xs text-white/70">Pay with XTR</div>
+                   <div className="text-xs text-white/70">{t('pay_with_xtr')}</div>
                  </div>
                </div>
                
@@ -134,7 +221,7 @@ const PaymentModal = ({
                  </div>
                  <div className="text-left">
                    <div className="text-sm font-bold text-white mb-1">TonConnect</div>
-                   <div className="text-xs text-white/70">Pay with TON</div>
+                   <div className="text-xs text-white/70">{t('pay_with_ton')}</div>
                  </div>
                </div>
                
@@ -156,7 +243,7 @@ const PaymentModal = ({
                  </div>
                  <div className="text-left">
                    <div className="text-sm font-bold text-gray-700 mb-1">Kaspi.kz</div>
-                   <div className="text-xs text-gray-500">Coming Soon</div>
+                   <div className="text-xs text-gray-500">{t('coming_soon')}</div>
                  </div>
                </div>
              </button>
@@ -318,20 +405,83 @@ const SkinCard = ({
   );
 };
 
+const BoosterCard = ({
+  type,
+  count,
+  cost,
+  icon: Icon,
+  name,
+  description,
+  onBuy,
+  styles
+}: any) => {
+  const { t } = useTranslation();
+  return (
+    <div className={clsx("p-4 rounded-xl border flex flex-col items-center gap-3", styles.isLight ? "bg-white border-gray-200" : "bg-white/5 border-white/10")}>
+      <div className={clsx("w-14 h-14 rounded-full flex items-center justify-center mb-2", 
+        type === 'freezes' ? "bg-blue-500/20 text-blue-500" :
+        type === 'hints' ? "bg-yellow-500/20 text-yellow-500" :
+        "bg-green-500/20 text-green-500"
+      )}>
+        <Icon size={28} />
+      </div>
+      <div className="text-center h-full flex flex-col justify-between">
+        <div>
+           <h3 className={clsx("font-bold text-sm", styles.textPrimary)}>{name}</h3>
+           <p className={clsx("text-xs mb-2 line-clamp-2", styles.textSecondary)}>{description}</p>
+        </div>
+        <p className={clsx("text-xs font-bold mb-3", styles.textAccent)}>{t('owned') || 'Owned'}: {count}</p>
+      </div>
+      <button
+        onClick={onBuy}
+        className={clsx("w-full py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-1 mt-auto", styles.btnPrimary)}
+      >
+        <Coins size={14} /> {cost}
+      </button>
+    </div>
+  );
+};
+
 const ShopPage = () => {
   const { t } = useTranslation();
-  const { coins, inventory, activeSkin, buySkin, equipSkin, upgradePlan, spendCoins, addCoins } = useStore();
-  const [activeTab, setActiveTab] = useState<'plans' | 'skins' | 'chests'>('plans');
+  const { coins, inventory, activeSkin, buySkin, equipSkin, upgradePlan, spendCoins, addCoins, redeemPromocode, buyBooster } = useStore();
+  const [activeTab, setActiveTab] = useState<'plans' | 'skins' | 'boosters' | 'chests'>('plans');
   const [showChest, setShowChest] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [paymentModal, setPaymentModal] = useState<{ title: string; price: string } | null>(null);
-  
+  const [promocode, setPromocode] = useState('');
+
   const styles = useThemeStyles();
   const { bgClass, textPrimary, textSecondary, textAccent, cardClass } = styles;
+
+  const handleRedeemPromocode = () => {
+    if (!promocode.trim()) return;
+    
+    WebApp.HapticFeedback.impactOccurred('medium');
+    const result = redeemPromocode(promocode);
+    
+    if (result.success) {
+      WebApp.HapticFeedback.notificationOccurred('success');
+      alert(result.message);
+      setPromocode('');
+    } else {
+      WebApp.HapticFeedback.notificationOccurred('error');
+      alert(result.message);
+    }
+  };
 
   const handleBuyChest = (cost: number) => {
     if (spendCoins(cost)) {
       setShowChest(true);
+    } else {
+      WebApp.HapticFeedback.notificationOccurred('error');
+      alert(t('not_enough_coins'));
+    }
+  };
+
+  const handleBuyBooster = (type: 'freezes' | 'hints' | 'shields', cost: number) => {
+    if (buyBooster(type, cost)) {
+      WebApp.HapticFeedback.notificationOccurred('success');
     } else {
       WebApp.HapticFeedback.notificationOccurred('error');
       alert(t('not_enough_coins'));
@@ -413,6 +563,16 @@ const ShopPage = () => {
           {t('skins')}
         </button>
         <button
+          onClick={() => setActiveTab('boosters')}
+          className={clsx(
+            "flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
+            getTabClass(activeTab === 'boosters')
+          )}
+        >
+          <Zap size={16} />
+          {t('boosters') || 'Boosters'}
+        </button>
+        <button
           onClick={() => setActiveTab('chests')}
           className={clsx(
             "flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
@@ -420,7 +580,7 @@ const ShopPage = () => {
           )}
         >
           <Box size={16} />
-          Chests
+          {t('chest_tab')}
         </button>
       </div>
 
@@ -587,7 +747,7 @@ const ShopPage = () => {
                    <div className="flex flex-wrap gap-2 mb-4">
                      <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-white/10 hover:bg-white/20 transition-colors">
                          <span className="text-xs">📱</span>
-                         <span className="text-[10px] font-bold text-white">iPhone 16 Pro</span>
+                         <span className="text-[10px] font-bold text-white">iPhone 17 Pro</span>
                      </div>
                      <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-white/10 hover:bg-white/20 transition-colors">
                          <span className="text-xs">🎮</span>
@@ -631,7 +791,7 @@ const ShopPage = () => {
         <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <SkinCard
             id="default"
-            name="Classic Black"
+            name={t('skin_classic')}
             cost={0}
             previewClass="bg-secondary text-white border border-gray-700"
             isOwned={true} // Default is always owned
@@ -642,7 +802,7 @@ const ShopPage = () => {
           />
           <SkinCard
             id="neon_blue"
-            name="Neon Blue"
+            name={t('skin_neon')}
             cost={100}
             previewClass="bg-blue-900/40 text-blue-100 border border-blue-500 shadow-blue-500/20"
             isOwned={inventory.includes('neon_blue')}
@@ -653,7 +813,7 @@ const ShopPage = () => {
           />
           <SkinCard
             id="royal_purple"
-            name="Royal Purple"
+            name={t('skin_purple')}
             cost={250}
             previewClass="bg-purple-900/40 text-purple-100 border border-purple-500 shadow-purple-500/20"
             isOwned={inventory.includes('royal_purple')}
@@ -664,13 +824,46 @@ const ShopPage = () => {
           />
           <SkinCard
             id="matrix"
-            name="Matrix"
+            name={t('skin_matrix')}
             cost={500}
             previewClass="bg-green-900/40 text-green-400 border border-green-500 font-mono"
             isOwned={inventory.includes('matrix')}
             isEquipped={activeSkin === 'matrix'}
             onBuy={() => handleBuySkin('matrix', 500)}
             onEquip={() => handleEquipSkin('matrix')}
+            styles={styles}
+          />
+        </div>
+      ) : activeTab === 'boosters' ? (
+        <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <BoosterCard
+            type="freezes"
+            count={inventory.freezes || 0}
+            cost={100}
+            icon={Snowflake}
+            name={t('booster_freeze') || 'Time Freeze'}
+            description={t('booster_freeze_desc') || 'Stop time for 5s'}
+            onBuy={() => handleBuyBooster('freezes', 100)}
+            styles={styles}
+          />
+          <BoosterCard
+            type="hints"
+            count={inventory.hints || 0}
+            cost={150}
+            icon={Brain}
+            name={t('booster_hint') || 'Smart Hint'}
+            description={t('booster_hint_desc') || 'Show right answer'}
+            onBuy={() => handleBuyBooster('hints', 150)}
+            styles={styles}
+          />
+          <BoosterCard
+            type="shields"
+            count={inventory.shields || 0}
+            cost={200}
+            icon={ShieldCheck}
+            name={t('booster_shield') || 'Shield'}
+            description={t('booster_shield_desc') || 'Protect from 1 mistake'}
+            onBuy={() => handleBuyBooster('shields', 200)}
             styles={styles}
           />
         </div>
@@ -681,8 +874,8 @@ const ShopPage = () => {
              <div className="flex items-center gap-4">
                 <div className="text-4xl">🎁</div>
                 <div>
-                  <h3 className={clsx("text-xl font-bold", textPrimary)}>Standard Chest</h3>
-                  <p className={clsx("text-sm", textSecondary)}>Contains 50-150 Coins</p>
+                  <h3 className={clsx("text-xl font-bold", textPrimary)}>{t('standard_chest')}</h3>
+                  <p className={clsx("text-sm", textSecondary)}>{t('standard_chest_desc')}</p>
                 </div>
              </div>
              <button 
@@ -698,8 +891,8 @@ const ShopPage = () => {
              <div className="flex items-center gap-4">
                 <div className="text-4xl">💎</div>
                 <div>
-                  <h3 className={clsx("text-xl font-bold", textPrimary)}>Rare Chest</h3>
-                  <p className={clsx("text-sm", textSecondary)}>Chance for $FEC & Gems</p>
+                  <h3 className={clsx("text-xl font-bold", textPrimary)}>{t('rare_chest')}</h3>
+                  <p className={clsx("text-sm", textSecondary)}>{t('rare_chest_desc')}</p>
                 </div>
              </div>
              <button 
@@ -714,8 +907,8 @@ const ShopPage = () => {
             <div className="flex items-center gap-4">
               <div className="text-4xl">🪙</div>
               <div>
-                <h3 className={clsx("text-xl font-bold", textPrimary)}>Coin Packs</h3>
-                <p className={clsx("text-sm", textSecondary)}>Buy coins instantly</p>
+                <h3 className={clsx("text-xl font-bold", textPrimary)}>{t('coin_packs')}</h3>
+                <p className={clsx("text-sm", textSecondary)}>{t('coin_packs_desc')}</p>
               </div>
             </div>
             <div className="flex gap-2">

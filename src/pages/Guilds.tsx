@@ -63,7 +63,6 @@ const MOCK_GUILDS: Guild[] = [
 const MOCK_GLOBAL_CHAT: GuildMessage[] = [
     { id: 1, sender: 'System', text: 'Welcome to Global Chat!', timestamp: new Date().toISOString(), isBot: true },
     { id: 2, sender: 'Guest_123', text: 'How do I earn gems?', timestamp: new Date(Date.now() - 60000).toISOString() },
-    { id: 3, sender: 'Helper_Bot', text: 'You can earn gems by completing social tasks in Settings!', timestamp: new Date(Date.now() - 30000).toISOString(), isBot: true },
 ];
 
 const EMBLEMS = ['🐲', '⚔️', '🛡️', '👑', '☠️', '🔮', '⚡', '🔥', '❄️', '🌟', '🦁', '🦅', '🐺', '🕷️', '🦂', '🦈'];
@@ -220,7 +219,7 @@ export const GuildsPage = () => {
   const sendGlobalMessage = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!globalChatMessage.trim()) return;
-    
+
     const newMessage: GuildMessage = {
         id: Date.now(),
         sender: user.firstName,
@@ -230,25 +229,6 @@ export const GuildsPage = () => {
 
     setGlobalMessages(prev => [...prev, newMessage]);
     setGlobalChatMessage('');
-
-    // Simulate Bot Response
-    setTimeout(() => {
-        const botResponses = [
-            "That's interesting!",
-            "Keep focusing!",
-            "Join a guild to earn more rewards.",
-            "Did you try the Squid Game yet?"
-        ];
-        const randomResponse = botResponses[Math.floor(Math.random() * botResponses.length)];
-        
-        setGlobalMessages(prev => [...prev, {
-            id: Date.now(),
-            sender: "Bot",
-            text: randomResponse,
-            timestamp: new Date().toISOString(),
-            isBot: true
-        }]);
-    }, 2000);
   };
 
   const filteredGuilds = guilds.filter(g => 

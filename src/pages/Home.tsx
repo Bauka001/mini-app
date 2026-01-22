@@ -14,6 +14,7 @@ import { showAd } from '../utils/ads';
 import ChatModal from '../components/ChatModal';
 import AdModal from '../components/AdModal';
 import { DailyRewardModal } from '../components/DailyRewardModal';
+import { NotificationsModal } from '../components/NotificationsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 
 const GameGridItem = ({ 
@@ -74,14 +75,14 @@ const ListItem = ({
 const Home = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { 
-    coins,
-    fecBalance,
-    watchAd,
-    plan,
-    dailyRewardStreak,
-    lastDailyRewardDate
-  } = useStore();
+  
+  // Optimized Selectors to prevent unnecessary re-renders
+  const coins = useStore(state => state.coins);
+  const fecBalance = useStore(state => state.fecBalance);
+  const watchAd = useStore(state => state.watchAd);
+  const dailyRewardStreak = useStore(state => state.dailyRewardStreak);
+  const lastDailyRewardDate = useStore(state => state.lastDailyRewardDate);
+  // plan is not used in Home, removed it
 
   const styles = useThemeStyles();
   const { isLight, isGold, bgClass, headerClass, cardClass, textPrimary, textSecondary, textAccent } = styles;
@@ -89,6 +90,10 @@ const Home = () => {
   const [showChat, setShowChat] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
   const [showDailyReward, setShowDailyReward] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  const notifications = useStore(state => state.notifications);
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
@@ -118,10 +123,18 @@ const Home = () => {
         "px-4 py-3 flex justify-between items-center sticky top-0 z-50 border-b backdrop-blur-xl",
         headerClass
       )}>
-        <button onClick={() => setShowChat(true)} className="relative">
-          <MessageCircle size={24} className={textAccent} />
-          <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
-        </button>
+        <div className="flex items-center gap-3">
+          <button onClick={() => setShowChat(true)} className="relative">
+            <MessageCircle size={24} className={textAccent} />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+          </button>
+          <button onClick={() => setShowNotifications(true)} className="relative">
+            <Bell size={24} className={textAccent} />
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+            )}
+          </button>
+        </div>
         <h1 className={clsx("text-xl font-bold tracking-tight", textAccent)}>Focus App</h1>
         <button onClick={() => navigate('/profile')}>
           <User size={24} className={textAccent} />
@@ -141,7 +154,7 @@ const Home = () => {
                  <Gift size={24} className={isLight ? "text-green-500" : "text-blue-400"} />
                </div>
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)}>Daily<br/>Bonus</span>
+            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)} dangerouslySetInnerHTML={{ __html: t('daily_bonus').replace(' ', '<br/>') }} />
           </button>
 
           {/* Leaderboard Story */}
@@ -151,7 +164,7 @@ const Home = () => {
                  <Trophy size={24} className={isLight ? "text-green-500" : "text-blue-400"} />
                </div>
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)}>Top<br/>Players</span>
+            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)} dangerouslySetInnerHTML={{ __html: t('top_players').replace(' ', '<br/>') }} />
           </button>
 
           {/* Ad Story */}
@@ -164,7 +177,7 @@ const Home = () => {
                  </div>
                </div>
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)}>Watch<br/>Ad</span>
+            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)} dangerouslySetInnerHTML={{ __html: t('watch_ad').replace(' ', '<br/>') }} />
           </button>
           
           {/* Balance Story */}
@@ -175,7 +188,7 @@ const Home = () => {
                  <span className={clsx("text-xs font-black", isLight ? "text-green-800" : "text-white")}>{fecBalance?.toFixed(1)}</span>
                </div>
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)}>My<br/>Wallet</span>
+            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)} dangerouslySetInnerHTML={{ __html: t('my_wallet').replace(' ', '<br/>') }} />
           </button>
         </div>
       </div>
@@ -209,11 +222,11 @@ const Home = () => {
             
             <div className="flex flex-col items-start">
               <div className="flex items-center gap-2">
-                <span className="text-2xl font-black text-white tracking-tight drop-shadow-lg">BATTLE</span>
+                <span className="text-2xl font-black text-white tracking-tight drop-shadow-lg">{t('battle_title')}</span>
                 <Flame size={20} className="text-green-200" fill="currentColor" />
               </div>
               <span className="text-sm font-semibold text-white/90 drop-shadow">
-                Challenge other players • Win rewards
+                {t('battle_desc')}
               </span>
             </div>
             
@@ -228,15 +241,15 @@ const Home = () => {
         isLight ? "bg-white/90 border-green-100 shadow-sm" : isGold ? "bg-amber-900/20 border-amber-500/20" : "bg-white/10 border-white/10"
       )}>
         <div className="grid grid-cols-4 gap-y-6 gap-x-2">
-          <GameGridItem title="Memory" icon={Grid} onClick={() => navigate('/game/memory')} isLight={isLight} />
-          <GameGridItem title="Schulte" icon={Brain} onClick={() => navigate('/game/schulte')} isLight={isLight} />
-          <GameGridItem title="Math" icon={Calculator} onClick={() => navigate('/game/math')} isLight={isLight} />
-          <GameGridItem title="Pairs" icon={Copy} onClick={() => navigate('/game/pairs')} isLight={isLight} />
+          <GameGridItem title={t('game_memory')} icon={Grid} onClick={() => navigate('/game/memory')} isLight={isLight} />
+          <GameGridItem title={t('game_schulte')} icon={Brain} onClick={() => navigate('/game/schulte')} isLight={isLight} />
+          <GameGridItem title={t('game_math')} icon={Calculator} onClick={() => navigate('/game/math')} isLight={isLight} />
+          <GameGridItem title={t('game_pairs')} icon={Copy} onClick={() => navigate('/game/pairs')} isLight={isLight} />
           
-          <GameGridItem title="Odd One" icon={Eye} onClick={() => navigate('/game/odd-one')} isLight={isLight} />
-          <GameGridItem title="Stroop" icon={Type} onClick={() => navigate('/game/stroop')} isLight={isLight} />
-          <GameGridItem title="Tetris" icon={Grid} onClick={() => navigate('/game/tetris')} isLight={isLight} />
-          <GameGridItem title="2048" icon={Grid3x3} onClick={() => navigate('/game/2048')} isLight={isLight} />
+          <GameGridItem title={t('game_odd_one')} icon={Eye} onClick={() => navigate('/game/odd-one')} isLight={isLight} />
+          <GameGridItem title={t('game_stroop')} icon={Type} onClick={() => navigate('/game/stroop')} isLight={isLight} />
+          <GameGridItem title={t('game_tetris')} icon={Grid} onClick={() => navigate('/game/tetris')} isLight={isLight} />
+          <GameGridItem title={t('game_2048')} icon={Grid3x3} onClick={() => navigate('/game/2048')} isLight={isLight} />
         </div>
       </div>
 
@@ -244,22 +257,22 @@ const Home = () => {
       <div className="mt-4 space-y-3 px-4">
         <div className={clsx("rounded-2xl overflow-hidden border", cardClass)}>
           <ListItem 
-            title="Shop" 
-            subtitle="Skins, Chests & Upgrades" 
+            title={t('shop_title')} 
+            subtitle={t('shop_desc')} 
             icon={ShoppingCart} 
             onClick={() => navigate('/shop')} 
             styles={styles}
           />
           <ListItem 
-            title="Airdrop" 
-            subtitle="Withdraw $FEC & Tasks" 
+            title={t('airdrop_title')} 
+            subtitle={t('airdrop_desc')} 
             icon={Wallet} 
             onClick={() => navigate('/airdrop')} 
             styles={styles}
           />
           <ListItem 
-            title="My Profile" 
-            subtitle="Stats & Achievements" 
+            title={t('profile_title')} 
+            subtitle={t('profile_desc')} 
             icon={User} 
             onClick={() => navigate('/profile')} 
             styles={styles}
@@ -268,14 +281,14 @@ const Home = () => {
 
         <div className={clsx("rounded-2xl overflow-hidden border", cardClass)}>
           <ListItem 
-            title="Daily Workout" 
-            subtitle="Keep your streak alive!" 
+            title={t('daily_workout_title')} 
+            subtitle={t('daily_workout_desc')} 
             icon={Zap} 
             onClick={() => navigate('/daily-workout')} 
             styles={styles}
           />
           <ListItem 
-            title="Settings" 
+            title={t('settings_title')} 
             icon={Settings} 
             onClick={() => navigate('/settings')} 
             styles={styles}
@@ -291,6 +304,7 @@ const Home = () => {
 
       <ChatModal isOpen={showChat} onClose={() => setShowChat(false)} />
       <DailyRewardModal isOpen={showDailyReward} onClose={() => setShowDailyReward(false)} />
+      <NotificationsModal isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
       <AdModal 
         isOpen={showAdModal} 
         onClose={() => setShowAdModal(false)} 

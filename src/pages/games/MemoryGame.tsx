@@ -17,7 +17,9 @@ export const MemoryGame = () => {
       instructions={t('memory_desc', 'Remember the highlighted tiles and repeat the pattern.')}
     >
       {({ onEnd, isPaused }) => <MemoryBoard onEnd={(score, coins) => {
-        addGameResult({ gameId: 'memory', score, coinsEarned: coins });
+        setTimeout(() => {
+          addGameResult({ gameId: 'memory', score, coinsEarned: coins });
+        }, 0);
         onEnd(score, coins);
       }} isGamePaused={isPaused} theme={theme} />}
     </GameWrapper>

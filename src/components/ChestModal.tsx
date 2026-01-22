@@ -13,7 +13,7 @@ interface ChestModalProps {
 
 export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
   const { t } = useTranslation();
-  const { addFec, claimDailyReward, theme } = useStore(); // Using claimDailyReward to add coins easily, or create addCoins action
+  const { addFec, addCoins, theme } = useStore(); // Using addCoins to add coins easily
   const [chestState, setChestState] = useState<'closed' | 'shaking' | 'opening' | 'opened'>('closed');
   const [reward, setReward] = useState<{ type: 'coins' | 'fec' | 'gem', amount: number } | null>(null);
 
@@ -61,7 +61,7 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
         // 70% chance for Coins
         const amount = Math.floor(Math.random() * 100) + 50;
         newReward = { type: 'coins' as const, amount };
-        claimDailyReward(amount); // Reusing this to add coins
+        addCoins(amount); // Reusing this to add coins
       }
 
       setReward(newReward);
@@ -82,10 +82,10 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
           "text-3xl font-black mb-2 text-center drop-shadow-lg",
           isLight ? "text-blue-600" : "text-white"
         )}>
-          {chestState === 'opened' ? "CONGRATULATIONS!" : "VICTORY CHEST"}
+          {chestState === 'opened' ? t('congratulations') : t('victory_chest')}
         </h2>
         <p className={clsx("mb-8 text-center", isLight ? "text-gray-500" : "text-gray-400")}>
-          {chestState === 'opened' ? "You found:" : `Reward for completing ${gameTitle}`}
+          {chestState === 'opened' ? t('you_found') : `${t('reward_for_completing')} ${gameTitle}`}
         </p>
 
         <div 
@@ -124,7 +124,7 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
                    "font-bold mt-2 text-sm uppercase tracking-wider",
                    isLight ? "text-blue-500" : "text-yellow-400"
                  )}>
-                   {reward.type === 'fec' ? 'Crypto Token!' : 'In-game Currency'}
+                   {reward.type === 'fec' ? t('crypto_token') : t('ingame_currency')}
                  </div>
                </>
              )}
@@ -132,7 +132,7 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
         </div>
 
         {chestState === 'closed' && (
-          <p className={clsx("text-sm mt-8 animate-pulse", isLight ? "text-gray-400" : "text-gray-500")}>Tap the chest to open</p>
+          <p className={clsx("text-sm mt-8 animate-pulse", isLight ? "text-gray-400" : "text-gray-500")}>{t('tap_to_open')}</p>
         )}
 
         {chestState === 'opened' && (
@@ -143,7 +143,7 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
               isLight ? "bg-blue-600 text-white shadow-lg" : "bg-primary text-black shadow-[0_0_20px_rgba(255,215,0,0.3)]"
             )}
           >
-            CLAIM REWARD
+            {t('claim_reward')}
           </button>
         )}
 

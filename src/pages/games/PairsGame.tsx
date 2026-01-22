@@ -17,7 +17,9 @@ export const PairsGame = () => {
       instructions={t('pairs_desc', 'Find all matching pairs of cards.')}
     >
       {({ onEnd, isPaused, theme }) => <PairsBoard onEnd={(score, coins) => {
-        addGameResult({ gameId: 'pairs', score, coinsEarned: coins });
+        setTimeout(() => {
+          addGameResult({ gameId: 'pairs', score, coinsEarned: coins });
+        }, 0);
         onEnd(score, coins);
       }} isPaused={isPaused} theme={theme} />}
     </GameWrapper>

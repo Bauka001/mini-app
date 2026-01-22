@@ -17,39 +17,42 @@ export const TermsModal = ({
   const content = {
     kz: {
       title: "Қатысу шарттары",
+      grandPrizeLabel: "Бас жүлде",
       rules: [
         "Ұтыс ойынына тек 'Premium' жоспарын сатып алған қолданушылар қатыса алады.",
         "Әрбір Premium қолданушыға бірегей билет нөмірі беріледі.",
         "Ұтыс ойыны 2026 жылдың 1 наурызында ресми Instagram парақшамызда жарияланады.",
         "Жеңімпаз кездейсоқ сандар генераторы арқылы анықталады.",
         "Бас жүлде: Ford Mustang GT.",
-        "Қосымша жүлделер: iPhone 16 Pro, PlayStation 5, AirPods Pro.",
+        "Қосымша жүлделер: iPhone 17 Pro, PlayStation 5, AirPods Pro.",
         "Қатысушы кәмелетке толған (18+) болуы тиіс.",
         "Ұйымдастырушылар ережелерді өзгертуге құқылы."
       ]
     },
     ru: {
       title: "Условия участия",
+      grandPrizeLabel: "Главный приз",
       rules: [
         "В розыгрыше могут участвовать только пользователи, купившие план 'Premium'.",
         "Каждому Premium пользователю присваивается уникальный номер билета.",
         "Результаты розыгрыша будут официально объявлены 1 марта 2026 года на нашей странице в Instagram.",
         "Победитель будет определен с помощью генератора случайных чисел.",
         "Главный приз: Ford Mustang GT.",
-        "Дополнительные призы: iPhone 16 Pro, PlayStation 5, AirPods Pro.",
+        "Дополнительные призы: iPhone 17 Pro, PlayStation 5, AirPods Pro.",
         "Участник должен быть совершеннолетним (18+).",
         "Организаторы оставляют за собой право изменять правила."
       ]
     },
     en: {
       title: "Terms & Conditions",
+      grandPrizeLabel: "Grand Prize",
       rules: [
         "Only users who purchased the 'Premium' plan can participate in the raffle.",
         "Each Premium user is assigned a unique ticket number.",
         "The raffle results will be officially announced on March 1, 2026 on our Instagram page.",
         "The winner will be determined using a random number generator.",
         "Grand Prize: Ford Mustang GT.",
-        "Additional Prizes: iPhone 16 Pro, PlayStation 5, AirPods Pro.",
+        "Additional Prizes: iPhone 17 Pro, PlayStation 5, AirPods Pro.",
         "Participants must be of legal age (18+).",
         "Organizers reserve the right to modify the rules."
       ]
@@ -118,7 +121,7 @@ export const TermsModal = ({
              </div>
              
              <div className="mt-8 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 text-center">
-               <p className="text-yellow-500 text-xs font-bold uppercase tracking-widest mb-1">Grand Prize</p>
+               <p className="text-yellow-500 text-xs font-bold uppercase tracking-widest mb-1">{content[activeTab].grandPrizeLabel}</p>
                <p className="text-white font-black text-lg">Ford Mustang GT</p>
              </div>
            </div>
@@ -126,13 +129,13 @@ export const TermsModal = ({
            {/* Footer */}
            <div className="p-4 border-t border-white/10 bg-white/5 flex flex-col gap-3">
              <a 
-               href="https://www.instagram.com/upgrade.0?igsh=MTF3Mng5ODRsZmpscw=="
+               href="https://www.instagram.com/focus_game_clube/?utm_source=ig_web_button_share_sheet"
                target="_blank"
                rel="noopener noreferrer"
                className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
              >
                <Instagram size={20} />
-               <span>Instagram: @upgrade.0</span>
+               <span>Instagram: @focus_game_clube</span>
              </a>
              <button 
                onClick={onClose}
