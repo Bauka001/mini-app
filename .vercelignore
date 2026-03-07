@@ -1,7 +1,12 @@
 node_modules
-build
-dist
 .git
-.trae
-.log
-.figma
+.vscode
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+**/*.map
+README.md
+.env*
+.DS_Store
+dist

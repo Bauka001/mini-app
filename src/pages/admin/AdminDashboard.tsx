@@ -1,49 +1,13 @@
-import { Users, MessageSquare, Gamepad2, TrendingUp, Award, Activity, AlertCircle, CheckCircle, Send, Reply } from 'lucide-react';
+import { Users, MessageSquare, Ticket, ShieldCheck, Coins, AlertCircle, Send, Search } from 'lucide-react';
 import { useStore } from '../../store/useStore';
-import { useState, useMemo } from 'react';
-
-interface StatCardProps {
-  title: string;
-  value: string;
-  icon: any;
-  color: string;
-  trend?: string;
-}
-
-const StatCard = ({ title, value, icon: Icon, color, trend }: StatCardProps) => (
-  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-shadow">
-    <div className="flex items-center justify-between mb-4">
-      <div className={`p-4 rounded-2xl ${color} shadow-lg shadow-current/20`}>
-        <Icon className="w-6 h-6 text-white" />
-      </div>
-      {trend && (
-        <div className="flex items-center gap-1 text-green-500 bg-green-50 dark:bg-green-500/10 px-2 py-1 rounded-lg text-xs font-bold">
-          <TrendingUp className="w-3 h-3" />
-          {trend}
-        </div>
-      )}
-    </div>
-    <h3 className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">{title}</h3>
-    <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{value}</p>
-  </div>
-);
+import { useState } from 'react';
 
 export const AdminDashboard = () => {
-  const { user, adminIds, feedbacks, updateFeedbackStatus, replyToFeedback, history } = useStore();
+  const { user, adminIds, feedbacks, updateFeedbackStatus, replyToFeedback, tickets, eventParticipants, coins, plan, verifyTicket } = useStore();
   const [filter, setFilter] = useState<'all' | 'new' | 'read' | 'resolved'>('all');
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
-
-  // Real Data Calculations
-  const realStats = useMemo(() => {
-    const totalScore = history.reduce((acc, curr) => acc + curr.score, 0);
-    const gamesPlayed = history.length;
-    
-    return [
-      { title: 'Шағымдар', value: feedbacks.length.toString(), icon: MessageSquare, color: 'bg-purple-600', trend: feedbacks.filter(f => f.status === 'new').length > 0 ? 'Жаңа бар' : '0' },
-      { title: 'Ойындар (Мен)', value: gamesPlayed.toLocaleString(), icon: Gamepad2, color: 'bg-orange-500', trend: 'Жергілікті' },
-      { title: 'Ұпай (Мен)', value: totalScore.toLocaleString(), icon: Award, color: 'bg-yellow-500', trend: 'Жергілікті' },
-    ];
-  }, [history, feedbacks]);
+  const [ticketNumber, setTicketNumber] = useState('');
+  const [verifyResult, setVerifyResult] = useState<'idle' | 'success' | 'fail'>('idle');
 
   if (!adminIds.includes(user.id)) {
     return (
@@ -85,10 +49,43 @@ export const AdminDashboard = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
-        {realStats.map((stat, index) => (
-          <StatCard key={index} {...stat} />
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-4 rounded-2xl bg-blue-600">
+              <Ticket className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <h3 className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">Тікеттер</h3>
+          <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{tickets.length.toString()}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-4 rounded-2xl bg-green-600">
+              <ShieldCheck className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <h3 className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">Қатысушылар</h3>
+          <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{eventParticipants.length.toString()}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-4 rounded-2xl bg-purple-600">
+              <MessageSquare className="w-6 h-6 text-white" />
+            </div>
+          </div>
+          <h3 className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">Шағымдар</h3>
+          <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{feedbacks.length.toString()}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-4">
+            <div className="p-4 rounded-2xl bg-yellow-500">
+              <Coins className="w-6 h-6 text-black" />
+            </div>
+          </div>
+          <h3 className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">Баланс</h3>
+          <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{coins.toLocaleString()} coins • {plan.toUpperCase()}</p>
+        </div>
       </div>
 
       <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
@@ -185,6 +182,46 @@ export const AdminDashboard = () => {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden mt-12">
+        <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between">
+          <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">Тікет верификация</h3>
+        </div>
+        <div className="p-8 flex flex-col md:flex-row gap-4 items-center">
+          <div className="flex items-center gap-2 w-full max-w-md">
+            <Search size={18} className="text-gray-400" />
+            <input value={ticketNumber} onChange={(e) => setTicketNumber(e.target.value)} placeholder="Тікет нөмірі" className="flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          </div>
+          <button onClick={() => { const ok = verifyTicket(Number(ticketNumber)); setVerifyResult(ok ? 'success' : 'fail'); }} className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition">Тексеру</button>
+          {verifyResult !== 'idle' && (
+            <span className={`${verifyResult === 'success' ? 'text-green-600' : 'text-red-600'} font-bold text-sm`}>{verifyResult === 'success' ? 'Расталды' : 'Қате немесе қолданылған'}</span>
+          )}
+        </div>
+        <div className="px-8 pb-8">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500">
+                  <th className="py-2">Ticket</th>
+                  <th className="py-2">User</th>
+                  <th className="py-2">Verified</th>
+                  <th className="py-2">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {eventParticipants.slice(0, 20).map(p => (
+                  <tr key={p.ticketId} className="border-t border-gray-100 dark:border-gray-800">
+                    <td className="py-2 font-bold">{p.ticketNumber}</td>
+                    <td className="py-2">{p.userName}</td>
+                    <td className={`py-2 ${p.isVerified ? 'text-green-600' : 'text-gray-500'}`}>{p.isVerified ? 'Иә' : 'Жоқ'}</td>
+                    <td className="py-2 text-gray-500">{new Date(p.purchaseDate).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

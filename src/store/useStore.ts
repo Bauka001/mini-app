@@ -242,6 +242,8 @@ interface UserState {
   eventParticipants: EventParticipant[];
   planExpiry: number | null;
 
+  promotionEndISO: string | null;
+
   inventory: {
     freezes: number;
     hints: number;
@@ -252,6 +254,7 @@ interface UserState {
   toggleSound: () => void;
   setTheme: (theme: Theme) => void;
   updateUserProfile: (data: Partial<UserProfile>) => void;
+  syncUserFromTelegram: () => void;
   addGameResult: (result: Omit<GameResult, 'date' | 'timestamp'>) => void;
   upgradePlan: (plan: 'silver' | 'gold' | 'premium', days: number) => void;
   buySkin: (skinId: string, cost: number) => boolean;
@@ -313,10 +316,20 @@ interface UserState {
   purchaseTicket: (eventName: string, eventDate: string, price: number) => { success: boolean; ticketNumber?: number };
   verifyTicket: (ticketNumber: number) => boolean;
   getEventParticipants: () => EventParticipant[];
+  updateTicketsEventDate: (newDateISO: string) => void;
+  setPromotionEndISO: (newDateISO: string) => void;
+  extendPromotionEnd: (days: number, hour?: number) => void;
 }
 
-const telegramUser = getTelegramUser() || MOCK_USER;
-const ADMIN_IDS = [telegramUser.id, 123456789];
+const tgUser = getTelegramUser();
+const initialUserRaw = tgUser || (import.meta.env.DEV ? MOCK_USER : {
+  id: 0,
+  first_name: 'Guest',
+  last_name: '',
+  username: '',
+  photo_url: ''
+});
+const ADMIN_IDS = [initialUserRaw.id, 123456789];
 
 const generateDailyChallenges = (): Challenge[] => [
   {
@@ -442,15 +455,84 @@ export const useStore = create<UserState>()(
       },
 
       user: {
-        id: telegramUser.id,
-        firstName: telegramUser.first_name,
-        lastName: telegramUser.last_name,
-        username: telegramUser.username,
-        photoUrl: telegramUser.photo_url,
+        id: initialUserRaw.id,
+        firstName: initialUserRaw.first_name,
+        lastName: initialUserRaw.last_name,
+        username: initialUserRaw.username,
+        photoUrl: initialUserRaw.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${initialUserRaw.first_name}`,
         guildId: null,
         level: 1,
         xp: 0,
         achievements: []
+      },
+
+      syncUserFromTelegram: () => {
+        const currentUser = getTelegramUser();
+        if (currentUser) {
+          set((state) => {
+            const isDifferentUser = state.user.id !== currentUser.id;
+            if (isDifferentUser) {
+              return {
+                language: 'ru',
+                soundEnabled: true,
+                theme: 'light',
+                brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
+                user: {
+                  id: currentUser.id,
+                  firstName: currentUser.first_name,
+                  lastName: currentUser.last_name,
+                  username: currentUser.username,
+                  photoUrl: currentUser.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${currentUser.first_name}`,
+                  guildId: null,
+                  level: 1,
+                  xp: 0,
+                  achievements: []
+                },
+                coins: 100,
+                gems: 0,
+                fecBalance: 0,
+                skinInventory: ['default'],
+                activeSkin: 'default',
+                unclaimedLevelRewards: [],
+                usedPromocodes: [],
+                currentGuild: null,
+                allGuilds: mockGuilds,
+                guildRankings: [],
+                privateChats: [],
+                activePrivateChat: null,
+                dailyGoalMinutes: 10,
+                streak: 0,
+                history: [],
+                lastDailyRewardDate: null,
+                challenges: generateDailyChallenges(),
+                lastChallengeDate: new Date().toISOString().split('T')[0],
+                socialTasks: initialSocialTasks,
+                adminIds: ADMIN_IDS,
+                feedbacks: [],
+                notifications: [],
+                plan: 'free',
+                planExpiry: null,
+                hp: 100,
+                maxHp: 100,
+                dailyRewardStreak: 0,
+                tickets: [],
+                eventParticipants: [],
+       promotionEndISO: '2026-04-16T08:00:00.000Z',
+                inventory: { freezes: 0, hints: 0, shields: 0 }
+              };
+            }
+            return {
+              user: {
+                ...state.user,
+                id: currentUser.id,
+                firstName: currentUser.first_name,
+                lastName: currentUser.last_name,
+                username: currentUser.username,
+                photoUrl: currentUser.photo_url || state.user.photoUrl
+              }
+            };
+          });
+        }
       },
 
       coins: 100,
@@ -491,6 +573,7 @@ export const useStore = create<UserState>()(
 
       tickets: [],
       eventParticipants: [],
+                 promotionEndISO: '2026-04-16T08:00:00.000Z',
 
       setLanguage: (language) => set({ language }),
       toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
@@ -1356,10 +1439,38 @@ export const useStore = create<UserState>()(
 
       getEventParticipants: () => {
         return get().eventParticipants;
-      }
+      },
+
+      updateTicketsEventDate: (newDateISO) => set((state) => {
+        const allSame = state.tickets.every(t => t.eventDate === newDateISO);
+        if (allSame) return state;
+        return {
+          tickets: state.tickets.map(t => ({ ...t, eventDate: newDateISO }))
+        };
+      }),
+
+      setPromotionEndISO: (newDateISO) => set((state) => {
+        if (state.promotionEndISO === newDateISO) return state;
+        // Only set the promotion end; ticket dates can be synced separately
+        return { promotionEndISO: newDateISO };
+      }),
+
+      extendPromotionEnd: (days, hour) => set((state) => {
+        const base = state.promotionEndISO ? new Date(state.promotionEndISO) : new Date();
+        const extended = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+        if (typeof hour === 'number') {
+          extended.setHours(hour, 0, 0, 0);
+        }
+        const newISO = extended.toISOString();
+        const ticketsAllSame = state.tickets.every(t => t.eventDate === newISO);
+        return {
+          promotionEndISO: newISO,
+          tickets: ticketsAllSame ? state.tickets : state.tickets.map(t => ({ ...t, eventDate: newISO }))
+        };
+      })
     }),
     {
-      name: 'focus-storage-v16',
+      name: `focus-storage-v17`,
       storage: createJSONStorage(() => telegramStorage),
     }
   )

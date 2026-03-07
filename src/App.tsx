@@ -1,4 +1,6 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import WebApp from '@twa-dev/sdk';
 import { Layout } from './components/Layout';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
@@ -7,6 +9,7 @@ import { AdminChat } from './pages/admin/AdminChat';
 import { AdminGames } from './pages/admin/AdminGames';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminPanel from './pages/AdminPanel';
+import { useStore } from './store/useStore';
 
 // Static imports to prevent lazy loading errors
 import Home from './pages/Home';
@@ -18,6 +21,7 @@ import GuildsPage from './pages/Guilds';
 import BattlePage from './pages/Battle';
 import DailyWorkoutPage from './pages/DailyWorkout';
 import AirdropPage from './pages/Airdrop';
+import Tournaments from './pages/Tournaments';
 
 // Games
 import SchulteGame from './pages/games/SchulteGame';
@@ -30,6 +34,50 @@ import TetrisGame from './pages/games/TetrisGame';
 import Merge2048Game from './pages/games/Merge2048Game';
 
 function App() {
+  const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
+  const addNotification = useStore((state) => state.addNotification);
+  const userId = useStore((state) => state.user.id);
+
+  useEffect(() => {
+    syncUserFromTelegram();
+    if (WebApp) {
+      try {
+        WebApp.ready();
+        WebApp.expand();
+      } catch {}
+    }
+  }, [syncUserFromTelegram]);
+
+  useEffect(() => {
+    let count = 0;
+    const timer = setInterval(() => {
+      syncUserFromTelegram();
+      count++;
+      const id = useStore.getState().user.id;
+      if (id && typeof id === 'number') {
+        clearInterval(timer);
+      }
+      if (count > 20) {
+        clearInterval(timer);
+      }
+    }, 250);
+    return () => clearInterval(timer);
+  }, [syncUserFromTelegram]);
+
+  useEffect(() => {
+    if (userId && typeof userId === 'number') {
+      const key = `welcome_shown_${userId}`;
+      if (!localStorage.getItem(key)) {
+        addNotification({
+          title: 'Қош келдіңіз!',
+          message: 'Профиль құру үшін Profile бөліміне өтіңіз',
+          type: 'success'
+        });
+        localStorage.setItem(key, '1');
+      }
+    }
+  }, [userId, addNotification]);
+
   return (
     <Router>
       <Routes>
@@ -45,6 +93,7 @@ function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/daily-workout" element={<DailyWorkoutPage />} />
         <Route path="/battle" element={<BattlePage />} />
+        <Route path="/tournaments" element={<Tournaments />} />
         
         {/* Games */}
         <Route path="/game/schulte" element={<SchulteGame />} />

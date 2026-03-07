@@ -237,10 +237,10 @@ const Home = () => {
 
       {/* Main Grid Menu (Games) */}
       <div className={clsx(
-        "p-4 pt-6 pb-6 -mt-4 rounded-t-3xl border-t relative z-10 mx-2 backdrop-blur-lg",
+        "p-3 sm:p-4 pt-4 sm:pt-6 pb-6 -mt-4 rounded-t-3xl border-t relative z-10 mx-1 sm:mx-2 backdrop-blur-lg",
         isLight ? "bg-white/90 border-green-100 shadow-sm" : isGold ? "bg-amber-900/20 border-amber-500/20" : "bg-white/10 border-white/10"
       )}>
-        <div className="grid grid-cols-4 gap-y-6 gap-x-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-y-5 sm:gap-y-6 gap-x-2">
           <GameGridItem title={t('game_memory')} icon={Grid} onClick={() => navigate('/game/memory')} isLight={isLight} />
           <GameGridItem title={t('game_schulte')} icon={Brain} onClick={() => navigate('/game/schulte')} isLight={isLight} />
           <GameGridItem title={t('game_math')} icon={Calculator} onClick={() => navigate('/game/math')} isLight={isLight} />

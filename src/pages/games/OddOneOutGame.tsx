@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
@@ -44,7 +44,7 @@ export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEn
   const [foundCount, setFoundCount] = useState(0);
   const [targetCount, setTargetCount] = useState(10); // Start with 10 targets per level
 
-  const generateLevel = () => {
+  const generateLevel = useCallback(() => {
     // Determine grid size based on level (slightly harder progression)
     const newGridSize = Math.min(8, 3 + Math.floor((level - 1) / 2));
     setGridSize(newGridSize);
@@ -62,7 +62,7 @@ export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEn
 
     setItems(newItems);
     setOddIndex(newOddIndex);
-  };
+  }, [level]);
 
   useEffect(() => {
     generateLevel();
@@ -86,7 +86,7 @@ export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEn
     }, 100);
 
     return () => clearInterval(timer);
-  }, [showLevelUp, showLevelComplete]);
+  }, [showLevelUp, showLevelComplete, isPaused, addGameResult, onEnd, score, generateLevel]);
 
   // Re-generate when level changes
   useEffect(() => {
@@ -94,7 +94,7 @@ export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEn
        generateLevel();
        setFoundCount(0); // Reset found count for new level
     }
-  }, [level, showLevelComplete]);
+  }, [level, showLevelComplete, generateLevel]);
 
   const handleNextLevel = () => {
     setLevel(l => l + 1);

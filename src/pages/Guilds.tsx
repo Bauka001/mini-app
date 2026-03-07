@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { Users, Plus, MessageSquare, Send, Shield, Crown, LogOut, Search, Globe, MoreVertical, Smile, Info, X, Star, Zap as ZapIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore, Guild, GuildMessage } from '../store/useStore';
@@ -61,16 +61,86 @@ const MOCK_GUILDS: Guild[] = [
 ];
 
 const MOCK_GLOBAL_CHAT: GuildMessage[] = [
-    { id: 1, sender: 'System', text: 'Welcome to Global Chat!', timestamp: new Date().toISOString(), isBot: true },
-    { id: 2, sender: 'Guest_123', text: 'How do I earn gems?', timestamp: new Date(Date.now() - 60000).toISOString() },
+    { id: 1, sender: 'ЖИ', text: 'Добро пожаловать в глобальный чат!', timestamp: new Date().toISOString(), isBot: true },
+    { id: 2, sender: 'Guest_123', text: 'Как заработать монеты?', timestamp: new Date(Date.now() - 60000).toISOString() },
 ];
 
 const EMBLEMS = ['🐲', '⚔️', '🛡️', '👑', '☠️', '🔮', '⚡', '🔥', '❄️', '🌟', '🦁', '🦅', '🐺', '🕷️', '🦂', '🦈'];
 
+// Optimized Message Component
+const ChatMessage = memo(({ msg, isMe, showAvatar, user, plan, themeStyles }: { msg: GuildMessage, isMe: boolean, showAvatar: boolean, user: any, plan: string, themeStyles: any }) => {
+    const { isLight, isBlue, isGold, textAccent, textSecondary } = themeStyles;
+    const currentPlan = PLAN_CONFIG[plan as keyof typeof PLAN_CONFIG] || PLAN_CONFIG.free;
+
+    if (msg.isBot) {
+        return (
+            <div className={clsx("flex flex-col animate-in fade-in slide-in-from-bottom-2 items-center w-full")}>
+                <div className={clsx(
+                  "px-4 py-1.5 rounded-full text-[10px] font-bold my-2 text-center uppercase tracking-wider border backdrop-blur-sm",
+                  isBlue ? "bg-blue-500/10 border-blue-400/40 text-blue-300" : isGold ? "bg-yellow-500/10 border-yellow-500/40 text-yellow-400" : isLight ? "bg-green-100 text-green-700 border-green-200" : "bg-primary/10 border-primary/30 text-primary"
+                )}>
+                  {'ЖИ: ' + msg.text}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={clsx("flex flex-col animate-in fade-in slide-in-from-bottom-2", isMe ? "items-end" : "items-start")}>
+            <div className={clsx("flex gap-2 max-w-[85%]", isMe ? "flex-row-reverse" : "flex-row")}>
+                {/* Avatar */}
+                <div className={clsx("w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-md mt-auto", 
+                   !showAvatar && "opacity-0",
+                   isMe 
+                     ? (isLight ? "bg-green-600 text-white" : "bg-primary text-black") 
+                     : (isLight ? "bg-gray-300 text-gray-700" : "bg-white/20 text-white")
+                )}>
+                  {isMe ? 'You' : msg.sender[0]}
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <div className={clsx("flex items-center gap-1", isMe ? "flex-row-reverse" : "flex-row")}>
+                      {showAvatar && !isMe && (
+                         <span className={clsx("text-[10px] font-bold ml-1", textAccent)}>{msg.sender}</span>
+                      )}
+                      {isMe && plan !== 'free' && (
+                        <div className={clsx("flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black uppercase", currentPlan.bg, currentPlan.border, currentPlan.color)}>
+                          <currentPlan.icon size={8} />
+                          {currentPlan.name}
+                        </div>
+                      )}
+                    </div>
+                    <div className={clsx(
+                      "px-4 py-2.5 text-sm break-words shadow-sm relative group",
+                      isMe 
+                        ? clsx(
+                            "rounded-2xl rounded-tr-none text-white",
+                            isLight ? "bg-gradient-to-br from-green-500 to-green-600" : isBlue ? "bg-gradient-to-br from-blue-600 to-blue-700" : isGold ? "bg-gradient-to-br from-yellow-600 to-orange-600" : "bg-gradient-to-br from-primary to-purple-600"
+                          )
+                        : clsx(
+                            "rounded-2xl rounded-tl-none",
+                            isLight ? "bg-white border border-gray-100 text-gray-800" : "bg-white/10 border border-white/5 text-gray-100"
+                          )
+                    )}>
+                      {msg.text}
+                      <div className={clsx(
+                          "text-[9px] text-right mt-1 opacity-70 font-mono",
+                          isMe ? "text-white/80" : textSecondary
+                      )}>
+                          {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </div>
+                    </div>
+                </div>
+             </div>
+        </div>
+    );
+});
+
 export const GuildsPage = () => {
   const navigate = useNavigate();
   const { user, currentGuild, joinGuild, leaveGuild, updateGuild, plan } = useStore();
-  const { isLight, isBlue, isGold, bgClass, cardClass, headerClass, textPrimary, textSecondary, textAccent, btnPrimary, btnSecondary } = useThemeStyles();
+  const styles = useThemeStyles();
+  const { isLight, isBlue, isGold, bgClass, cardClass, headerClass, textPrimary, textSecondary, textAccent, btnPrimary, btnSecondary } = styles;
   
   const currentPlan = PLAN_CONFIG[plan];
   
@@ -136,8 +206,14 @@ export const GuildsPage = () => {
         members: [{ id: String(user.id), name: user.firstName, score: user.xp }],
         messages: [{
             id: Date.now(),
-            sender: 'System',
-            text: `Guild "${newGuildName}" created!`,
+            sender: 'ЖИ',
+            text: `Гильдия "${newGuildName}" создана!`,
+            timestamp: new Date().toISOString(),
+            isBot: true
+        }, {
+            id: Date.now() + 1,
+            sender: 'ЖИ',
+            text: `Добро пожаловать в "${newGuildName}"! Приглашайте друзей, общайтесь и соревнуйтесь, чтобы повышать ваш рейтинг.`,
             timestamp: new Date().toISOString(),
             isBot: true
         }],
@@ -167,8 +243,8 @@ export const GuildsPage = () => {
         members: [...targetGuild.members, { id: String(user.id), name: user.firstName, score: user.xp }],
         messages: [...targetGuild.messages, {
             id: Date.now(),
-            sender: 'System',
-            text: `${user.firstName} joined the guild!`,
+            sender: 'ЖИ',
+            text: `${user.firstName} присоединился к гильдии! Добро пожаловать!`,
             timestamp: new Date().toISOString(),
             isBot: true
         }]
@@ -322,55 +398,17 @@ export const GuildsPage = () => {
                  const showAvatar = idx === 0 || globalMessages[idx - 1].sender !== msg.sender || (new Date(msg.timestamp).getTime() - new Date(globalMessages[idx - 1].timestamp).getTime() > 60000);
                  
                  return (
-                 <div key={msg.id} className={clsx("flex flex-col animate-in fade-in slide-in-from-bottom-2", msg.isBot ? "items-center w-full" : isMe ? "items-end" : "items-start")}>
-                   {msg.isBot ? (
-                    <div className={clsx(
-                      "px-4 py-1.5 rounded-full text-[10px] font-bold my-2 text-center uppercase tracking-wider border backdrop-blur-sm",
-                      isBlue ? "bg-blue-500/10 border-blue-400/40 text-blue-300" : isGold ? "bg-yellow-500/10 border-yellow-500/40 text-yellow-400" : "bg-primary/10 border-primary/30 text-primary"
-                    )}>
-                      {msg.text}
-                    </div>
-                  ) : (
-                    <div className={clsx("flex gap-2 max-w-[85%]", isMe ? "flex-row-reverse" : "flex-row")}>
-                      {/* Avatar */}
-                      <div className={clsx("w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-md mt-auto", 
-                         !showAvatar && "opacity-0",
-                         isMe 
-                           ? (isLight ? "bg-green-600 text-white" : "bg-primary text-black") 
-                           : (isLight ? "bg-gray-300 text-gray-700" : "bg-white/20 text-white")
-                      )}>
-                        {msg.sender[0]}
-                      </div>
-
-                      <div className="flex flex-col gap-1">
-                          {showAvatar && !isMe && (
-                             <span className={clsx("text-[10px] font-bold ml-1", textAccent)}>{msg.sender}</span>
-                          )}
-                          <div className={clsx(
-                            "px-4 py-2.5 text-sm break-words shadow-sm relative group",
-                            isMe 
-                              ? clsx(
-                                  "rounded-2xl rounded-tr-none text-white",
-                                  isLight ? "bg-gradient-to-br from-green-500 to-green-600" : isBlue ? "bg-gradient-to-br from-blue-600 to-blue-700" : isGold ? "bg-gradient-to-br from-yellow-600 to-orange-600" : "bg-gradient-to-br from-primary to-purple-600"
-                                )
-                              : clsx(
-                                  "rounded-2xl rounded-tl-none",
-                                  isLight ? "bg-white border border-gray-100 text-gray-800" : "bg-white/10 border border-white/5 text-gray-100"
-                                )
-                          )}>
-                            {msg.text}
-                            <div className={clsx(
-                                "text-[9px] text-right mt-1 opacity-70 font-mono",
-                                isMe ? "text-white/80" : textSecondary
-                            )}>
-                                {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                            </div>
-                          </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )})}
+                   <ChatMessage 
+                     key={msg.id} 
+                     msg={msg} 
+                     isMe={isMe} 
+                     showAvatar={showAvatar} 
+                     user={user} 
+                     plan={plan} 
+                     themeStyles={styles} 
+                   />
+                 );
+               })}
               <div ref={globalMessagesEndRef} />
             </div>
 
@@ -655,63 +693,17 @@ export const GuildsPage = () => {
                      const showAvatar = idx === 0 || currentGuild.messages[idx - 1].sender !== msg.sender || (new Date(msg.timestamp).getTime() - new Date(currentGuild.messages[idx - 1].timestamp).getTime() > 60000);
                      
                      return (
-                     <div key={msg.id} className={clsx("flex flex-col animate-in fade-in slide-in-from-bottom-2", msg.isBot ? "items-center w-full" : isMe ? "items-end" : "items-start")}>
-                        {msg.isBot ? (
-                         <div className={clsx(
-                           "px-4 py-1.5 rounded-full text-[10px] font-bold my-2 text-center uppercase tracking-wider border backdrop-blur-sm",
-                           isBlue ? "bg-blue-500/10 border-blue-400/40 text-blue-300" : isGold ? "bg-yellow-500/10 border-yellow-500/40 text-yellow-400" : isLight ? "bg-green-100 text-green-700 border-green-200" : "bg-primary/10 border-primary/30 text-primary"
-                         )}>
-                           {msg.text}
-                         </div>
-                       ) : (
-                         <div className={clsx("flex gap-2 max-w-[85%]", isMe ? "flex-row-reverse" : "flex-row")}>
-                            {/* Avatar */}
-                            <div className={clsx("w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold shadow-md mt-auto", 
-                               !showAvatar && "opacity-0",
-                               isMe 
-                                 ? (isLight ? "bg-green-600 text-white" : "bg-primary text-black") 
-                                 : (isLight ? "bg-gray-300 text-gray-700" : "bg-white/20 text-white")
-                            )}>
-                              {isMe ? 'You' : msg.sender[0]}
-                            </div>
-
-                            <div className="flex flex-col gap-1">
-                                <div className={clsx("flex items-center gap-1", isMe ? "flex-row-reverse" : "flex-row")}>
-                                  {showAvatar && !isMe && (
-                                     <span className={clsx("text-[10px] font-bold ml-1", textAccent)}>{msg.sender}</span>
-                                  )}
-                                  {isMe && plan !== 'free' && (
-                                    <div className={clsx("flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[9px] font-black uppercase", currentPlan.bg, currentPlan.border, currentPlan.color)}>
-                                      <currentPlan.icon size={8} />
-                                      {currentPlan.name}
-                                    </div>
-                                  )}
-                                </div>
-                                <div className={clsx(
-                                  "px-4 py-2.5 text-sm break-words shadow-sm relative group",
-                                  isMe 
-                                    ? clsx(
-                                        "rounded-2xl rounded-tr-none text-white",
-                                        isLight ? "bg-gradient-to-br from-green-500 to-green-600" : isBlue ? "bg-gradient-to-br from-blue-600 to-blue-700" : isGold ? "bg-gradient-to-br from-yellow-600 to-orange-600" : "bg-gradient-to-br from-primary to-purple-600"
-                                      )
-                                    : clsx(
-                                        "rounded-2xl rounded-tl-none",
-                                        isLight ? "bg-white border border-gray-100 text-gray-800" : "bg-white/10 border border-white/5 text-gray-100"
-                                      )
-                                )}>
-                                  {msg.text}
-                                  <div className={clsx(
-                                      "text-[9px] text-right mt-1 opacity-70 font-mono",
-                                      isMe ? "text-white/80" : textSecondary
-                                  )}>
-                                      {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                                  </div>
-                                </div>
-                            </div>
-                         </div>
-                       )}
-                     </div>
-                   )})}
+                       <ChatMessage 
+                         key={msg.id} 
+                         msg={msg} 
+                         isMe={isMe} 
+                         showAvatar={showAvatar} 
+                         user={user} 
+                         plan={plan} 
+                         themeStyles={styles} 
+                       />
+                     );
+                   })}
                    <div ref={messagesEndRef} />
                 </div>
 

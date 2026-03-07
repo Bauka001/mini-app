@@ -201,7 +201,7 @@ export const SettingsContent = () => {
                 ? 'Развивай свой мозг в Focus mini app! Мой уровень ' + (user?.level || 1) + '. А ты готов к вызову? 🧠'
                 : 'Boost your brain with Focus mini app! My level is ' + (user?.level || 1) + '. Are you ready? 🧠';
               
-              const shareUrl = 'https://t.me/upgrade_0_bot?start=app';
+              const shareUrl = 'https://t.me/Focus_game_bot?start=app';
               
               if (WebApp.shareText) {
                 WebApp.shareText(shareText, shareUrl);

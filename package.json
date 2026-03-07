@@ -8,6 +8,8 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "deploy:vercel": "powershell -ExecutionPolicy Bypass -File ./deploy-vercel.ps1",
+    "post:tg": "powershell -ExecutionPolicy Bypass -File ./post-telegram.ps1",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },

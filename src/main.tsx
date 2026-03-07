@@ -9,6 +9,9 @@ import { TonConnectUIProvider } from '@tonconnect/ui-react';
 import WebApp from '@twa-dev/sdk'
 
 WebApp.ready();
+try {
+  WebApp.expand();
+} catch {}
 
 // Use local manifest
 const manifestUrl = window.location.origin + '/tonconnect-manifest.json';

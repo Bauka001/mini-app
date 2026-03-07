@@ -4,16 +4,17 @@ import { Check, Star, Crown, Zap, Coins, Layout, Box, X, Ticket, Car, Shield, Fi
 import { clsx } from 'clsx';
 import { useStore } from '../store/useStore';
 import WebApp from '@twa-dev/sdk';
+import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
 import { ChestModal } from '../components/ChestModal';
 import { TermsModal } from '../components/TermsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 
-const CountdownTimer = () => {
+const CountdownTimer = ({ endDate }: { endDate: Date }) => {
   const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
 
   function calculateTimeLeft() {
-    const difference = +new Date("2026-03-01T00:00:00") - +new Date();
+    const difference = +endDate - +new Date();
     let timeLeft: any = {};
 
     if (difference > 0) {
@@ -74,6 +75,8 @@ const PaymentModal = ({
   const [promo, setPromo] = useState('');
   const [discount, setDiscount] = useState(0);
   const [showTask, setShowTask] = useState(false);
+  const [showTon, setShowTon] = useState(false);
+  const [tonUi] = useTonConnectUI();
 
   if (!isOpen) return null;
 
@@ -113,7 +116,7 @@ const PaymentModal = ({
     WebApp.HapticFeedback.notificationOccurred('success');
     
     if (method === 'stars') {
-      const url = 'https://t.me/upgrade_0_bot?start=' + encodeURIComponent(planTitle.toLowerCase());
+      const url = 'https://t.me/Focus_game_bot?start=' + encodeURIComponent(planTitle.toLowerCase());
       
       // Check if running in Telegram
       if (WebApp.platform === 'unknown') {
@@ -122,9 +125,9 @@ const PaymentModal = ({
          WebApp.openTelegramLink(url);
       }
     } else if (method === 'ton') {
-      alert('TON payment coming soon!');
+      setShowTon(true);
     }
-    onClose();
+    if (method !== 'ton') onClose();
   };
 
   return (
@@ -184,6 +187,38 @@ const PaymentModal = ({
                        {t('subscribe_insta')}
                    </button>
                </div>
+           )}
+           
+           {showTon && (
+             <div className="bg-white p-4 rounded-xl border border-gray-200 space-y-3">
+               <div className="text-sm font-bold text-black">TonConnect</div>
+               <TonConnectButton />
+               <button
+                 onClick={async () => {
+                   const numericPrice = parseFloat(price.replace('$', '')) || 1;
+                   const tonAmount = numericPrice <= 1 ? 0.5 : numericPrice <= 10 ? 5 : 10;
+                   const nano = Math.round(tonAmount * 1e9).toString();
+                   try {
+                     await tonUi.sendTransaction({
+                       validUntil: Math.floor(Date.now() / 1000) + 300,
+                       messages: [
+                         {
+                           address: 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c', // demo address
+                           amount: nano
+                         }
+                       ]
+                     });
+                     WebApp.HapticFeedback.notificationOccurred('success');
+                     onClose();
+                   } catch (e) {
+                     WebApp.HapticFeedback.notificationOccurred('error');
+                   }
+                 }}
+                 className="w-full py-2 bg-black text-white rounded-lg text-sm font-bold"
+               >
+                 Pay with TON
+               </button>
+             </div>
            )}
            
            <div className="space-y-3">
@@ -444,15 +479,72 @@ const BoosterCard = ({
 
 const ShopPage = () => {
   const { t } = useTranslation();
-  const { coins, inventory, activeSkin, buySkin, equipSkin, upgradePlan, spendCoins, addCoins, redeemPromocode, buyBooster } = useStore();
+  const { coins, inventory, skinInventory, activeSkin, buySkin, equipSkin, upgradePlan, spendCoins, addCoins, redeemPromocode, buyBooster, updateTicketsEventDate, promotionEndISO, setPromotionEndISO, extendPromotionEnd, user, adminIds } = useStore();
   const [activeTab, setActiveTab] = useState<'plans' | 'skins' | 'boosters' | 'chests'>('plans');
   const [showChest, setShowChest] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [paymentModal, setPaymentModal] = useState<{ title: string; price: string } | null>(null);
   const [promocode, setPromocode] = useState('');
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminCode, setAdminCode] = useState('');
+
+  const ADMIN_SECRET = 'EXTEND_PROMO_5_DAYS';
+  const isAdmin = adminIds.includes(user.id);
+
+  const handleExtendPromotion = () => {
+    if (adminCode === ADMIN_SECRET) {
+      console.log('Extending promotion by 5 days...');
+      const result = extendPromotionEnd(5, 20);
+      console.log('Extension result:', result);
+      WebApp.HapticFeedback.notificationOccurred('success');
+      const newEnd = promotionEndISO ? new Date(promotionEndISO) : new Date();
+      const extended = new Date(newEnd.getTime() + 5 * 24 * 60 * 60 * 1000);
+      alert(`Акция 5 күнге ұзартылды!\nПромоушен ұзартылды!\n\nЖаңа аяқталу уақыты:\n${extended.toLocaleString()}`);
+      setShowAdminPanel(false);
+      setAdminCode('');
+    } else {
+      WebApp.HapticFeedback.notificationOccurred('error');
+      alert('Қате код!\nКод: EXTEND_PROMO_5_DAYS');
+    }
+  };
+
+  const handleDirectExtend = () => {
+    console.log('Direct extend called');
+    extendPromotionEnd(5, 20);
+    WebApp.HapticFeedback.notificationOccurred('success');
+    alert('Акция 5 күнге ұзартылды!');
+  };
 
   const styles = useThemeStyles();
   const { bgClass, textPrimary, textSecondary, textAccent, cardClass } = styles;
+
+  useEffect(() => {
+    // Ensure tickets are synced with stored promotion end
+    if (promotionEndISO) {
+      updateTicketsEventDate(promotionEndISO);
+    }
+  }, [promotionEndISO, updateTicketsEventDate]);
+
+  useEffect(() => {
+    // One-time extension hook triggered by operator request; guarded by a localStorage flag
+    const key = 'promo_extend_once_v3';
+    if (localStorage.getItem(key) !== 'done') {
+      if (promotionEndISO) {
+        // Only run if promotionEndISO is valid
+        // But since we hardcoded the date in store, we might not need to extend anymore
+        // unless this logic is specifically for "adding 20 days to the hardcoded date" which seems wrong.
+        // Let's keep it but make sure it doesn't break logic.
+        // Actually, if we hardcoded 2026-04-15, this extend will add 20 days to it?
+        // No, extendPromotionEnd adds days to the CURRENT promotionEndISO.
+        // So it would become May 2026.
+        // Let's disable this auto-extend to keep the date fixed at 2026-04-15 for everyone.
+        // Or if the user wants "Extend by 5 days" from NOW, they can use Admin panel.
+        
+        // extendPromotionEnd(20, 20); // Disabled to enforce fixed date
+        localStorage.setItem(key, 'done');
+      }
+    }
+  }, [promotionEndISO, extendPromotionEnd]);
 
   const handleRedeemPromocode = () => {
     if (!promocode.trim()) return;
@@ -534,7 +626,17 @@ const ShopPage = () => {
   return (
     <div className={clsx("p-4 min-h-screen", bgClass)}>
       <div className="flex items-center justify-between mb-6">
-        <h1 className={clsx("text-3xl font-bold", textAccent)}>{t('shop')}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className={clsx("text-3xl font-bold", textAccent)}>{t('shop')}</h1>
+          {isAdmin && (
+            <button
+              onClick={() => setShowAdminPanel(true)}
+              className="px-3 py-1 rounded-lg text-sm font-bold border"
+            >
+              Admin
+            </button>
+          )}
+        </div>
         <div className={clsx("flex items-center gap-2 px-4 py-2 rounded-full border", cardClass)}>
           <Coins size={20} className={textAccent} fill="currentColor" />
           <span className={clsx("font-bold text-lg", textPrimary)}>{coins}</span>
@@ -740,7 +842,7 @@ const ShopPage = () => {
                         </div>
                       </div>
                       {/* Timer */}
-                      <CountdownTimer />
+                      <CountdownTimer endDate={promotionEndISO ? new Date(promotionEndISO) : new Date('2026-04-16T08:00:00.000Z')} />
                    </div>
 
                    {/* Additional Prizes */}
@@ -805,7 +907,7 @@ const ShopPage = () => {
             name={t('skin_neon')}
             cost={100}
             previewClass="bg-blue-900/40 text-blue-100 border border-blue-500 shadow-blue-500/20"
-            isOwned={inventory.includes('neon_blue')}
+            isOwned={skinInventory.includes('neon_blue')}
             isEquipped={activeSkin === 'neon_blue'}
             onBuy={() => handleBuySkin('neon_blue', 100)}
             onEquip={() => handleEquipSkin('neon_blue')}
@@ -816,7 +918,7 @@ const ShopPage = () => {
             name={t('skin_purple')}
             cost={250}
             previewClass="bg-purple-900/40 text-purple-100 border border-purple-500 shadow-purple-500/20"
-            isOwned={inventory.includes('royal_purple')}
+            isOwned={skinInventory.includes('royal_purple')}
             isEquipped={activeSkin === 'royal_purple'}
             onBuy={() => handleBuySkin('royal_purple', 250)}
             onEquip={() => handleEquipSkin('royal_purple')}
@@ -827,7 +929,7 @@ const ShopPage = () => {
             name={t('skin_matrix')}
             cost={500}
             previewClass="bg-green-900/40 text-green-400 border border-green-500 font-mono"
-            isOwned={inventory.includes('matrix')}
+            isOwned={skinInventory.includes('matrix')}
             isEquipped={activeSkin === 'matrix'}
             onBuy={() => handleBuySkin('matrix', 500)}
             onEquip={() => handleEquipSkin('matrix')}
@@ -960,6 +1062,51 @@ const ShopPage = () => {
         planTitle={paymentModal?.title || ''}
         price={paymentModal?.price || ''}
       />
+
+      {/* Admin Panel Modal */}
+      {showAdminPanel && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className={clsx("rounded-2xl w-full max-w-sm overflow-hidden", styles.isLight ? "bg-white" : "bg-gray-900")}>
+            <div className="p-4 border-b flex justify-between items-center">
+              <h3 className="font-bold text-lg text-black">Admin Panel</h3>
+              <button 
+                onClick={() => setShowAdminPanel(false)}
+                className="p-1 hover:bg-gray-100 rounded-full text-gray-500"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="text-xs text-gray-500 text-center bg-gray-100 p-2 rounded">
+                Current end: {promotionEndISO ? new Date(promotionEndISO).toLocaleString([], { hour12: true, timeZone: 'UTC' }) : 'Not set'}
+              </div>
+              <button 
+                onClick={handleDirectExtend}
+                className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 transition-all"
+              >
+                ⚡ Тікелей ұзарту / Extend Directly
+              </button>
+              <div className="text-center text-xs text-gray-400">— немесе код арқылы / or by code —</div>
+              <div>
+                <label className="block text-sm font-bold mb-2 text-black">Admin Code</label>
+                <input 
+                  type="text" 
+                  placeholder="Enter admin code..."
+                  className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm font-bold text-black outline-none focus:border-blue-500"
+                  value={adminCode}
+                  onChange={e => setAdminCode(e.target.value)}
+                />
+              </div>
+              <button 
+                onClick={handleExtendPromotion}
+                className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-red-500 to-orange-500 text-white hover:from-red-600 hover:to-orange-600 transition-all"
+              >
+                Extend Promotion 5 Days
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

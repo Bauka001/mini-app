@@ -84,7 +84,7 @@ const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, co
 
     const timer = setTimeout(() => {
       setGameState('playing');
-    }, 1500);
+    }, 2500);
 
     return () => clearTimeout(timer);
   }, [level, generatePattern, isGamePaused]);
@@ -256,7 +256,7 @@ const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, co
               onClick={() => handleTileClick(index)}
               initial={{ scale: 1 }}
               animate={
-                status === 'active' ? { scale: [1, 1.05, 1], boxShadow: "0 0 15px rgba(255,255,255,0.5)" } :
+                status === 'active' ? { scale: [1, 1.08, 1], boxShadow: "0 0 28px rgba(239,68,68,0.9)" } :
                 status === 'success' ? { scale: [1, 1.1, 1], boxShadow: "0 0 20px rgba(52,211,153,0.6)" } :
                 status === 'wrong' ? { rotate: [0, 5, -5, 0], scale: 0.95 } : 
                 { scale: 1 }
@@ -266,7 +266,7 @@ const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, co
               className={clsx(
                 "rounded-xl transition-colors duration-300 relative overflow-hidden border",
                 status === 'default' && tileDefault,
-                status === 'active' && "bg-white border-white z-10",
+                status === 'active' && "bg-gradient-to-br from-red-600 to-rose-700 border-transparent z-10",
                 status === 'correct' && "bg-gradient-to-br from-green-400 to-emerald-600 border-transparent z-10",
                 status === 'wrong' && "bg-gradient-to-br from-red-500 to-rose-700 border-transparent z-10",
                 status === 'success' && "bg-gradient-to-br from-purple-500 to-indigo-600 border-transparent z-10",
@@ -276,6 +276,10 @@ const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, co
             >
                {/* Inner glow for 3D effect */}
                <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+               {status === 'active' && (
+                 <div className="absolute inset-0 rounded-xl animate-pulse pointer-events-none"
+                      style={{ boxShadow: '0 0 45px 12px rgba(239,68,68,0.75)' }} />
+               )}
             </motion.button>
           );
         })}
