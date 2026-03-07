@@ -82,6 +82,7 @@ const Home = () => {
   const watchAd = useStore(state => state.watchAd);
   const dailyRewardStreak = useStore(state => state.dailyRewardStreak);
   const lastDailyRewardDate = useStore(state => state.lastDailyRewardDate);
+  const user = useStore(state => state.user);
   // plan is not used in Home, removed it
 
   const styles = useThemeStyles();
@@ -128,17 +129,22 @@ const Home = () => {
             <MessageCircle size={24} className={textAccent} />
             <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
           </button>
+          <div className="flex flex-col">
+            <span className={clsx("text-[10px] font-bold opacity-60", textAccent)}>ID: {user.gameId || '17096844'}</span>
+            <h1 className={clsx("text-lg font-bold tracking-tight", textAccent)}>Focus App</h1>
+          </div>
+        </div>
+        <div className="flex items-center gap-4">
           <button onClick={() => setShowNotifications(true)} className="relative">
             <Bell size={24} className={textAccent} />
             {unreadCount > 0 && (
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
             )}
           </button>
+          <button onClick={() => navigate('/profile')}>
+            <User size={24} className={textAccent} />
+          </button>
         </div>
-        <h1 className={clsx("text-xl font-bold tracking-tight", textAccent)}>Focus App</h1>
-        <button onClick={() => navigate('/profile')}>
-          <User size={24} className={textAccent} />
-        </button>
       </header>
 
       {/* Stories Area */}

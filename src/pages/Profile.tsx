@@ -224,6 +224,9 @@ const ProfilePage = () => {
                   </motion.p>
                   
                   <div className="flex items-center gap-3 mt-2">
+                    <div className="flex items-center gap-1.5 bg-primary/10 px-2 py-1 rounded-lg border border-primary/20">
+                      <span className="text-[10px] font-bold text-primary">ID: {user.gameId || '17096844'}</span>
+                    </div>
                     <div className="flex items-center gap-1.5 bg-orange-500/10 px-2 py-1 rounded-lg border border-orange-500/20">
                       <Flame size={12} className="text-orange-500 fill-orange-500" />
                       <span className="text-[10px] font-bold text-orange-500">{streak} Days</span>

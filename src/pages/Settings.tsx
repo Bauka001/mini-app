@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { useStore, Language } from '../store/useStore';
-import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Instagram, Send, Info, CheckCircle, Gem, Share2, MessageSquare } from 'lucide-react';
+import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Instagram, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
 import { useState } from 'react';
@@ -126,7 +126,8 @@ export const SettingsContent = () => {
     setTheme,
     socialTasks,
     claimSocialReward,
-    user
+    user,
+    logout
   } = useStore();
 
   const isLight = theme === 'light';
@@ -276,6 +277,15 @@ export const SettingsContent = () => {
                 {t('theme_blue')}
               </button>
           </div>
+        </SettingItem>
+
+        <SettingItem icon={LogOut} title="Log out / Шығу" onClick={() => {
+          if (confirm('Are you sure you want to log out? / Шығуды қалайсыз ба?')) {
+            logout();
+            WebApp.close();
+          }
+        }}>
+          <button className="text-xs font-bold text-red-500">Log out</button>
         </SettingItem>
       </section>
 

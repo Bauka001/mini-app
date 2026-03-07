@@ -4,6 +4,7 @@ import { clsx } from 'clsx';
 
 interface User {
   id: string;
+  gameId: string; // Add gameId field
   name: string;
   username: string;
   email?: string;
@@ -16,14 +17,10 @@ interface User {
 }
 
 const MOCK_USERS: User[] = [
-  { id: '1', name: 'User_001', username: 'user001', email: 'user001@example.com', level: 25, coins: 54320, score: 98750, joinedAt: '2024-01-15', status: 'active', lastActive: '2 min ago' },
-  { id: '2', name: 'User_002', username: 'user002', email: 'user002@example.com', level: 23, coins: 32100, score: 87620, joinedAt: '2024-02-10', status: 'active', lastActive: '5 min ago' },
-  { id: '3', name: 'User_003', username: 'user003', email: 'user003@example.com', level: 21, coins: 28750, score: 76540, joinedAt: '2024-02-20', status: 'blocked', lastActive: '1 hour ago' },
-  { id: '4', name: 'User_004', username: 'user004', email: 'user004@example.com', level: 19, coins: 19800, score: 65430, joinedAt: '2024-03-01', status: 'active', lastActive: '10 min ago' },
-  { id: '5', name: 'User_005', username: 'user005', email: 'user005@example.com', level: 18, coins: 15600, score: 54320, joinedAt: '2024-03-05', status: 'active', lastActive: '15 min ago' },
-  { id: '6', name: 'User_006', username: 'user006', email: 'user006@example.com', level: 15, coins: 12500, score: 43210, joinedAt: '2024-03-10', status: 'active', lastActive: '20 min ago' },
-  { id: '7', name: 'User_007', username: 'user007', email: 'user007@example.com', level: 12, coins: 9800, score: 32100, joinedAt: '2024-03-15', status: 'blocked', lastActive: '1 day ago' },
-  { id: '8', name: 'User_008', username: 'user008', email: 'user008@example.com', level: 10, coins: 7600, score: 21000, joinedAt: '2024-03-20', status: 'active', lastActive: '30 min ago' },
+  { id: '1', gameId: '17096844', name: 'User_001', username: 'user001', email: 'user001@example.com', level: 25, coins: 54320, score: 98750, joinedAt: '2024-01-15', status: 'active', lastActive: '2 min ago' },
+  { id: '2', gameId: '28475921', name: 'User_002', username: 'user002', email: 'user002@example.com', level: 23, coins: 32100, score: 87620, joinedAt: '2024-02-10', status: 'active', lastActive: '5 min ago' },
+  { id: '3', gameId: '93847512', name: 'User_003', username: 'user003', email: 'user003@example.com', level: 21, coins: 28750, score: 76540, joinedAt: '2024-02-20', status: 'blocked', lastActive: '1 hour ago' },
+  { id: '4', gameId: '47583920', name: 'User_004', username: 'user004', email: 'user004@example.com', level: 19, coins: 19800, score: 65430, joinedAt: '2024-03-01', status: 'active', lastActive: '10 min ago' },
 ];
 
 export const AdminUsers = () => {
@@ -35,6 +32,7 @@ export const AdminUsers = () => {
   const filteredUsers = users.filter(user => {
     const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                          user.username?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         user.gameId?.includes(searchQuery) || // Add search by gameId
                          user.email?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || user.status === statusFilter;
     return matchesSearch && matchesStatus;

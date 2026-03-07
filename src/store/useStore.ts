@@ -114,6 +114,7 @@ export interface PrivateChat {
 
 interface UserProfile {
   id: number;
+  gameId?: string; // Format like 17096844
   firstName: string;
   lastName?: string;
   username?: string;
@@ -319,6 +320,7 @@ interface UserState {
   updateTicketsEventDate: (newDateISO: string) => void;
   setPromotionEndISO: (newDateISO: string) => void;
   extendPromotionEnd: (days: number, hour?: number) => void;
+  logout: () => void;
 }
 
 const tgUser = getTelegramUser();
@@ -329,7 +331,11 @@ const initialUserRaw = tgUser || (import.meta.env.DEV ? MOCK_USER : {
   username: '',
   photo_url: ''
 });
-const ADMIN_IDS = [initialUserRaw.id, 123456789];
+const ADMIN_IDS = [initialUserRaw.id, 17096844];
+
+const generateGameId = () => {
+  return Math.floor(10000000 + Math.random() * 90000000).toString();
+};
 
 const generateDailyChallenges = (): Challenge[] => [
   {
@@ -456,6 +462,7 @@ export const useStore = create<UserState>()(
 
       user: {
         id: initialUserRaw.id,
+        gameId: initialUserRaw.id ? generateGameId() : '17096844',
         firstName: initialUserRaw.first_name,
         lastName: initialUserRaw.last_name,
         username: initialUserRaw.username,
@@ -479,6 +486,7 @@ export const useStore = create<UserState>()(
                 brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
                 user: {
                   id: currentUser.id,
+                  gameId: generateGameId(),
                   firstName: currentUser.first_name,
                   lastName: currentUser.last_name,
                   username: currentUser.username,
@@ -1467,10 +1475,68 @@ export const useStore = create<UserState>()(
           promotionEndISO: newISO,
           tickets: ticketsAllSame ? state.tickets : state.tickets.map(t => ({ ...t, eventDate: newISO }))
         };
+      }),
+
+      logout: () => set((state) => {
+        // Clear Telegram storage
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('focus-storage-v17');
+        }
+        
+        // Reset to initial state
+        return {
+          language: 'ru',
+          soundEnabled: true,
+          theme: 'light',
+          brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
+          user: {
+            id: 0,
+            firstName: 'Guest',
+            lastName: '',
+            username: '',
+            photoUrl: '',
+            guildId: null,
+            level: 1,
+            xp: 0,
+            achievements: []
+          },
+          coins: 100,
+          gems: 0,
+          fecBalance: 0,
+          skinInventory: ['default'],
+          activeSkin: 'default',
+          unclaimedLevelRewards: [],
+          usedPromocodes: [],
+          currentGuild: null,
+          allGuilds: mockGuilds,
+          guildRankings: [],
+          privateChats: [],
+          activePrivateChat: null,
+          dailyGoalMinutes: 10,
+          streak: 0,
+          history: [],
+          lastDailyRewardDate: null,
+          challenges: generateDailyChallenges(),
+          lastChallengeDate: new Date().toISOString().split('T')[0],
+          socialTasks: initialSocialTasks,
+          adminIds: ADMIN_IDS,
+          feedbacks: [],
+          notifications: [],
+          plan: 'free',
+          planExpiry: null,
+          hp: 100,
+          maxHp: 100,
+          dailyRewardStreak: 0,
+          lastDailyRewardDate: null,
+          tickets: [],
+          eventParticipants: [],
+          promotionEndISO: '2026-04-16T08:00:00.000Z',
+          inventory: { freezes: 0, hints: 0, shields: 0 }
+        };
       })
     }),
     {
-      name: `focus-storage-v17`,
+      name: `focus-storage-v18-${getTelegramUser()?.id || 'guest'}`,
       storage: createJSONStorage(() => telegramStorage),
     }
   )
