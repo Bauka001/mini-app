@@ -1,6 +1,5 @@
 import React, { ReactNode } from 'react';
 import { useTelegramAuth } from '../hooks/useTelegramAuth';
-import { useStore } from '../store/useStore';
 import WebApp from '@twa-dev/sdk';
 
 interface AuthGuardProps {
@@ -9,25 +8,28 @@ interface AuthGuardProps {
   adminOnly?: boolean;
 }
 
-export const AuthGuard = ({
-  children,
+export const AuthGuard = ({ 
+  children, 
   fallback = (
     <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
       <div className="text-center">
-        <div className="w-16 h-16 border-4 border-t-primary border-white/10 rounded-full animate-spin mx-auto mb-4" />
+        <div className="w-16 h-16 border-4 border-t-primary rounded-full animate-spin mx-auto mb-4" />
         <p className="text-lg font-bold">Жүктелуде...</p>
-        <p className="text-sm text-gray-400 mt-1">Telegram-нан деректер алынуда</p>
+        <p className="text-sm text-gray-400">Telegram-нан деректер алынуда</p>
       </div>
     </div>
   ),
-  adminOnly = false,
+  adminOnly = false
 }: AuthGuardProps) => {
   const { isAuthenticated, isLoading, error, user } = useTelegramAuth();
-  // Use adminIds from store — single source of truth
-  const adminIds = useStore((state) => state.adminIds);
+  const ADMIN_IDS = [123456789];
 
-  if (isLoading) return <>{fallback}</>;
+  // Loading state
+  if (isLoading) {
+    return <>{fallback}</>;
+  }
 
+  // Error state
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
@@ -46,6 +48,7 @@ export const AuthGuard = ({
     );
   }
 
+  // Not authenticated
   if (!isAuthenticated) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
@@ -53,7 +56,7 @@ export const AuthGuard = ({
           <div className="text-6xl mb-4">📱</div>
           <h2 className="text-2xl font-bold mb-4">Telegram-нан ашыңыз</h2>
           <p className="text-gray-400 mb-8">
-            Бұл қолданба Telegram Mini App.
+            Бұл қолданба Telegram Mini App. 
             Дұрыс аутентификация үшін Telegram-ден ашыңыз.
           </p>
           <button
@@ -67,18 +70,18 @@ export const AuthGuard = ({
     );
   }
 
-  // Admin check — uses store adminIds (dynamic, persisted)
-  if (adminOnly && user && !adminIds.includes(user.id)) {
+  // Admin check
+  if (adminOnly && user && !ADMIN_IDS.includes(user.id)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">🚫</div>
-          <h2 className="text-2xl font-bold text-red-500 mb-4">Қатынау жоқ</h2>
+          <h2 className="text-2xl font-bold text-red-500 mb-4">Қатынау рұқсат</h2>
           <p className="text-gray-300 mb-6">
             Бұл бет тек әкімшілер үшін қолжетімді.
           </p>
           <button
-            onClick={() => window.history.back()}
+            onClick={() => WebApp.close()}
             className="px-6 py-3 bg-gray-600 text-white font-bold rounded-xl hover:scale-105 transition-transform"
           >
             Артқа қайту
@@ -88,5 +91,6 @@ export const AuthGuard = ({
     );
   }
 
+  // Authenticated
   return <>{children}</>;
 };

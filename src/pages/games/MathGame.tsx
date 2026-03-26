@@ -14,7 +14,7 @@ export const MathGame = () => {
       title={t('game_math', 'Arithmetic')}
       instructions={t('math_desc', 'Solve 10 math problems as fast as you can.')}
     >
-      {({ onEnd }) => <MathBoard onEnd={(score, coins) => {
+      {({ onEnd, isPaused, theme }) => <MathBoard onEnd={(score, coins) => {
         addGameResult({ gameId: 'math', score, coinsEarned: coins });
         onEnd(score, coins);
       }} isPaused={isPaused} theme={theme} />}
@@ -23,7 +23,7 @@ export const MathGame = () => {
 };
 
 export const MathBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: number) => void, isPaused: boolean, theme: string }) => {
-  const { activeSkin } = useStore();
+  const { activeSkin, user } = useStore();
   const [question, setQuestion] = useState<{ text: string, answer: number, options: number[] } | null>(null);
   const [questionsAnswered, setQuestionsAnswered] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -115,12 +115,20 @@ export const MathBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, c
       "h-full flex flex-col items-center justify-between p-6 pb-20 relative transition-colors duration-300",
       theme === 'light' ? 'bg-gray-100' : 'bg-transparent'
     )}>
-      <div className="w-full flex justify-between text-lg font-bold">
-        <div className={clsx(
-          "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg",
-          theme === 'light' ? "bg-white border-gray-200 text-primary" : "bg-white/10 border-white/5 text-primary"
-        )}>
-          Correct: {correctCount}/10
+      <div className="w-full flex justify-between items-center text-lg font-bold mb-4">
+        <div className="flex flex-col gap-1">
+          <div className={clsx(
+            "px-3 py-1 rounded-lg text-[10px] backdrop-blur-md border",
+            theme === 'light' ? "bg-white/50 border-gray-200 text-gray-500" : "bg-white/5 border-white/5 text-white/40"
+          )}>
+            ID: {user.gameId || '17096844'}
+          </div>
+          <div className={clsx(
+            "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg",
+            theme === 'light' ? "bg-white border-gray-200 text-primary" : "bg-white/10 border-white/5 text-primary"
+          )}>
+            Correct: {correctCount}/10
+          </div>
         </div>
         <div className={clsx(
            "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg transition-colors",

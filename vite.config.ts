@@ -15,7 +15,7 @@ export default defineConfig({
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-ui': ['framer-motion', 'lucide-react', 'clsx', 'tailwind-merge'],
-          'vendor-utils': ['i18next', 'react-i18next', 'zustand', 'socket.io-client'],
+          'vendor-utils': ['i18next', 'react-i18next', 'zustand'],
         }
       }
     },

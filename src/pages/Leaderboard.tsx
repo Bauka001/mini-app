@@ -1,6 +1,6 @@
-import { Trophy, Crown, Medal, MessageCircle, Send } from 'lucide-react';
+import { Trophy, Crown, Medal } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { useState, useRef, useEffect } from 'react';
+import { useMemo } from 'react';
 
 // Mock Leaderboard Data
 const MOCK_LEADERBOARD = [
@@ -11,35 +11,13 @@ const MOCK_LEADERBOARD = [
   { id: 105, name: 'Eve', xp: 8700, level: 8, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Eve' },
 ];
 
-interface ChatMessage {
-  id: number;
-  sender: string;
-  text: string;
-  timestamp: string;
-  isBot?: boolean;
-}
-
-const MOCK_GLOBAL_CHAT: ChatMessage[] = [
-  { id: 1, sender: 'System', text: 'Welcome to Global Leaderboard Chat!', timestamp: new Date().toISOString(), isBot: true },
-  { id: 2, sender: 'Guest_123', text: 'How do I get more XP?', timestamp: new Date(Date.now() - 60000).toISOString() },
-  { id: 3, sender: 'Helper_Bot', text: 'Play games to earn XP and level up!', timestamp: new Date(Date.now() - 30000).toISOString(), isBot: true },
-];
-
 const LeaderboardPage = () => {
   const { user } = useStore();
-  const [activeTab, setActiveTab] = useState<'leaderboard' | 'chat'>('leaderboard');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(MOCK_GLOBAL_CHAT);
-  const [chatInput, setChatInput] = useState('');
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages, activeTab]);
-
   const userInTop5 = MOCK_LEADERBOARD.some(u => u.id === user.id);
-  const displayList = [...MOCK_LEADERBOARD];
-
-  displayList.sort((a, b) => b.xp - a.xp);
+  const displayList = useMemo(
+    () => [...MOCK_LEADERBOARD].sort((a, b) => b.xp - a.xp),
+    []
+  );
 
   const getRankIcon = (index: number) => {
     switch (index) {
@@ -48,40 +26,6 @@ const LeaderboardPage = () => {
       case 2: return <Medal size={24} className="text-orange-400 fill-orange-400" />;
       default: return <span className="text-lg font-bold text-gray-500 w-6 text-center">{index + 1}</span>;
     }
-  };
-
-  const sendChatMessage = (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!chatInput.trim()) return;
-
-    const newMessage: ChatMessage = {
-      id: Date.now(),
-      sender: user.firstName,
-      text: chatInput,
-      timestamp: new Date().toISOString()
-    };
-
-    setChatMessages(prev => [...prev, newMessage]);
-    setChatInput('');
-
-    // Simulate bot response
-    setTimeout(() => {
-      const botResponses = [
-        "Keep grinding!",
-        "Level up to unlock more games!",
-        "Check out the Guilds section too!",
-        "Great job on your progress!"
-      ];
-      const randomResponse = botResponses[Math.floor(Math.random() * botResponses.length)];
-
-      setChatMessages(prev => [...prev, {
-        id: Date.now(),
-        sender: "Bot",
-        text: randomResponse,
-        timestamp: new Date().toISOString(),
-        isBot: true
-      }]);
-    }, 2000);
   };
 
   return (
@@ -94,27 +38,7 @@ const LeaderboardPage = () => {
         <p className="text-gray-400 text-sm mt-1">Top players this week</p>
       </header>
 
-      {/* Tabs */}
-      <div className="flex bg-white/5 p-1 rounded-xl mb-6 border border-white/5">
-        <button
-          onClick={() => setActiveTab('leaderboard')}
-          className="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-wide bg-primary text-black shadow-lg shadow-primary/20"
-        >
-          <Trophy size={16} />
-          Ranking
-        </button>
-        <button
-          onClick={() => setActiveTab('chat')}
-          className="flex-1 py-2.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 uppercase tracking-wide text-gray-400 hover:text-white hover:bg-white/5"
-        >
-          <MessageCircle size={16} />
-          Chat
-        </button>
-      </div>
-
-      {/* Leaderboard Tab */}
-      {activeTab === 'leaderboard' && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Top 3 Podium */}
           <div className="flex justify-center items-end gap-4 mb-10 mt-8">
             {/* 2nd Place */}
@@ -192,56 +116,7 @@ const LeaderboardPage = () => {
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Global Chat Tab */}
-      {activeTab === 'chat' && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-[calc(100vh-250px)] flex flex-col">
-          <div className="flex-1 bg-white/5 rounded-3xl border border-white/5 overflow-hidden flex flex-col shadow-2xl">
-            <div className="p-4 bg-white/5 border-b border-white/5 font-bold text-sm flex items-center gap-2 text-primary">
-              <MessageCircle size={18} />
-              Global Chat
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
-              {chatMessages.map((msg) => (
-                <div key={msg.id} className="flex flex-col items-start animate-in fade-in slide-in-from-bottom-2">
-                  {msg.isBot ? (
-                    <div className="bg-primary/10 border border-primary/30 px-4 py-1.5 rounded-full text-[10px] text-primary font-bold my-2 text-center uppercase tracking-wider">
-                      {msg.text}
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-baseline gap-2 mb-1 pl-1">
-                        <span className="text-xs font-bold text-blue-400">{msg.sender}</span>
-                        <span className="text-[10px] text-gray-500">{new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                      </div>
-                      <div className="bg-white/10 px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm break-words max-w-[85%] shadow-sm">
-                        {msg.text}
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))}
-              <div ref={messagesEndRef} />
-            </div>
-
-            <form onSubmit={sendChatMessage} className="p-3 bg-black/40 border-t border-white/5 flex gap-2 backdrop-blur-md">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Send message..."
-                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-primary focus:bg-white/10 outline-none transition-all placeholder:text-gray-600 text-white"
-              />
-              <button type="submit" className="p-3 bg-primary text-black rounded-xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-primary/20">
-                <Send size={20} />
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };

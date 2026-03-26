@@ -1,17 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { 
-  Play, Brain, Calculator, Type, Grid, Trophy, Bell, 
-  CheckCircle, Video, Coins, Zap, Eye, Copy, Swords, Info, 
-  Settings, Gift, MessageCircle, User, ChevronRight, ShoppingCart, 
-  Wallet, BarChart2, HelpCircle, Map, Flame, Grid3x3, Shield, Crown
+  Brain, Calculator, Type, Grid, Trophy, Bell,
+  Video, Zap, Eye, Copy,
+  Settings, Gift, User, ChevronRight, ShoppingCart,
+  Wallet, Grid3x3
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { clsx } from 'clsx';
-import { showAd } from '../utils/ads';
-import ChatModal from '../components/ChatModal';
 import AdModal from '../components/AdModal';
 import { DailyRewardModal } from '../components/DailyRewardModal';
 import { NotificationsModal } from '../components/NotificationsModal';
@@ -88,7 +85,6 @@ const Home = () => {
   const styles = useThemeStyles();
   const { isLight, isGold, bgClass, headerClass, cardClass, textPrimary, textSecondary, textAccent } = styles;
 
-  const [showChat, setShowChat] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
   const [showDailyReward, setShowDailyReward] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -125,13 +121,14 @@ const Home = () => {
         headerClass
       )}>
         <div className="flex items-center gap-3">
-          <button onClick={() => setShowChat(true)} className="relative">
-            <MessageCircle size={24} className={textAccent} />
-            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
-          </button>
           <div className="flex flex-col">
             <span className={clsx("text-[10px] font-bold opacity-60", textAccent)}>ID: {user.gameId || '17096844'}</span>
-            <h1 className={clsx("text-lg font-bold tracking-tight", textAccent)}>Focus App</h1>
+            <div className="flex items-center gap-1">
+              <h1 className={clsx("text-lg font-bold tracking-tight", textAccent)}>Focus App</h1>
+              {user.username && (
+                <span className={clsx("text-[8px] font-bold px-1 rounded bg-white/10", textAccent)}>@{user.username}</span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -199,51 +196,9 @@ const Home = () => {
         </div>
       </div>
 
-      {/* Battle Button - Separate Long Button */}
-      <div className="px-4 my-6">
-        <motion.button
-          onClick={() => navigate('/battle')}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className={clsx(
-            "w-full py-5 px-6 rounded-2xl flex items-center justify-center gap-4 shadow-xl shadow-green-900/20 relative overflow-hidden border border-white/20",
-            "bg-gradient-to-r from-green-600 via-emerald-500 to-teal-600"
-          )}
-        >
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTTAgNDBMMDQgMEgwIiBzdHJva2U9InJnYmEoMjU1LDI1NSwyNTUsMC4xKSIgc3Ryb2tlLXdpZHRoPSIxIiBmaWxsPSJub25lIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2dyaWQpIi8+PC9zdmc+')] opacity-30" />
-          
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-            className="absolute -right-4 -top-4 w-20 h-20 bg-white/10 rounded-full blur-xl"
-          />
-          
-          <div className="relative z-10 flex items-center gap-4">
-            <div className="relative">
-              <div className="absolute inset-0 bg-white/20 rounded-full blur-md animate-pulse" />
-              <div className="relative w-14 h-14 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border-2 border-white/30">
-                <Swords size={28} className="text-white" strokeWidth={2.5} />
-              </div>
-            </div>
-            
-            <div className="flex flex-col items-start">
-              <div className="flex items-center gap-2">
-                <span className="text-2xl font-black text-white tracking-tight drop-shadow-lg">{t('battle_title')}</span>
-                <Flame size={20} className="text-green-200" fill="currentColor" />
-              </div>
-              <span className="text-sm font-semibold text-white/90 drop-shadow">
-                {t('battle_desc')}
-              </span>
-            </div>
-            
-            <ChevronRight size={24} className="text-white/80 ml-auto" />
-          </div>
-        </motion.button>
-      </div>
-
       {/* Main Grid Menu (Games) */}
       <div className={clsx(
-        "p-3 sm:p-4 pt-4 sm:pt-6 pb-6 -mt-4 rounded-t-3xl border-t relative z-10 mx-1 sm:mx-2 backdrop-blur-lg",
+        "p-3 sm:p-4 pt-4 sm:pt-6 pb-6 mt-4 rounded-t-3xl border-t relative z-10 mx-1 sm:mx-2 backdrop-blur-lg",
         isLight ? "bg-white/90 border-green-100 shadow-sm" : isGold ? "bg-amber-900/20 border-amber-500/20" : "bg-white/10 border-white/10"
       )}>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-y-5 sm:gap-y-6 gap-x-2">
@@ -308,7 +263,6 @@ const Home = () => {
         <p className="mt-1">Version 1.2.0</p>
       </div>
 
-      <ChatModal isOpen={showChat} onClose={() => setShowChat(false)} />
       <DailyRewardModal isOpen={showDailyReward} onClose={() => setShowDailyReward(false)} />
       <NotificationsModal isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
       <AdModal 

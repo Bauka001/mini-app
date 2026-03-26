@@ -4,14 +4,12 @@ import WebApp from '@twa-dev/sdk';
 import { Layout } from './components/Layout';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AuthGuard } from './components/AuthGuard';
-import { AdminLoginModal } from './components/AdminLoginModal';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminChat } from './pages/admin/AdminChat';
 import { AdminGames } from './pages/admin/AdminGames';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminPanel from './pages/AdminPanel';
-import AdminAirdrop from './pages/admin/AdminAirdrop';
 import { useStore } from './store/useStore';
 
 // Static imports to prevent lazy loading errors
@@ -20,11 +18,8 @@ import ShopPage from './pages/Shop';
 import SettingsPage from './pages/Settings';
 import ProfilePage from './pages/Profile';
 import LeaderboardPage from './pages/Leaderboard';
-import GuildsPage from './pages/Guilds';
-import BattlePage from './pages/Battle';
 import DailyWorkoutPage from './pages/DailyWorkout';
 import AirdropPage from './pages/Airdrop';
-import Tournaments from './pages/Tournaments';
 
 // Games
 import SchulteGame from './pages/games/SchulteGame';
@@ -43,29 +38,41 @@ function App() {
   const logout = useStore((state) => state.logout);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
 
+  // Sync user data immediately and handle account switching
   useEffect(() => {
-    syncUserFromTelegram();
     if (WebApp) {
       try {
         WebApp.ready();
         WebApp.expand();
-      } catch {}
+      } catch (e) {
+        console.error('WebApp initialization error:', e);
+      }
     }
-  }, [syncUserFromTelegram]);
 
+    const checkAccount = () => {
+      const tgUser = WebApp?.initDataUnsafe?.user || (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
+      
+      if (tgUser && userId && userId !== 0 && userId !== tgUser.id) {
+        console.warn('Account switch detected! Clearing local data and reloading...');
+        // Force clear everything related to this app
+        localStorage.clear(); 
+        sessionStorage.clear();
+        window.location.reload();
+        return true;
+      }
+      return false;
+    };
+
+    if (!checkAccount()) {
+      syncUserFromTelegram();
+    }
+  }, [syncUserFromTelegram, userId, logout]);
+
+  // Periodic sync check
   useEffect(() => {
-    let count = 0;
     const timer = setInterval(() => {
       syncUserFromTelegram();
-      count++;
-      const id = useStore.getState().user.id;
-      if (id && typeof id === 'number') {
-        clearInterval(timer);
-      }
-      if (count > 20) {
-        clearInterval(timer);
-      }
-    }, 250);
+    }, 2000);
     return () => clearInterval(timer);
   }, [syncUserFromTelegram]);
 
@@ -100,7 +107,6 @@ function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
-            <Route path="community" element={<GuildsPage />} />
             <Route path="leaderboard" element={<LeaderboardPage />} />
             <Route path="shop" element={<ShopPage />} />
             <Route path="airdrop" element={<AirdropPage />} />
@@ -109,8 +115,6 @@ function App() {
           
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/daily-workout" element={<DailyWorkoutPage />} />
-          <Route path="/battle" element={<BattlePage />} />
-          <Route path="/tournaments" element={<Tournaments />} />
           
           {/* Games */}
           <Route path="/game/schulte" element={<SchulteGame />} />
@@ -130,7 +134,6 @@ function App() {
             <Route path="games" element={<AuthGuard adminOnly={true}><AdminGames /></AuthGuard>} />
             <Route path="settings" element={<AuthGuard adminOnly={true}><AdminSettings /></AuthGuard>} />
             <Route path="tickets" element={<AuthGuard adminOnly={true}><AdminPanel /></AuthGuard>} />
-            <Route path="airdrop" element={<AuthGuard adminOnly={true}><AdminAirdrop /></AuthGuard>} />
           </Route>
         </Routes>
       </Router>

@@ -1,5 +1,5 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Home, ShoppingBag, Gift, Shield } from 'lucide-react';
+import { Home, ShoppingBag, Gift } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store/useStore';
 
@@ -11,7 +11,6 @@ export const Layout = () => {
   const navItems = [
     { path: '/', icon: Home, label: 'home' }, 
     { path: '/airdrop', icon: Gift, label: 'Airdrop' },
-    { path: '/community', icon: Shield, label: 'guilds' },
     { path: '/shop', icon: ShoppingBag, label: 'shop' },
   ];
 

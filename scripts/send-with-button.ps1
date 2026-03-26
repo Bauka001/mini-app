@@ -2,9 +2,18 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
 
-$BOT_TOKEN = "8073638759:AAFFo7S5omP506H6_FrkxjN2xiTi-mDR98c"
-$CHAT_ID = "-1003495648526"
-$PLAY_URL = "https://mini-app-two-lyart.vercel.app"
+$BOT_TOKEN = $env:BOT_TOKEN
+if (-not $BOT_TOKEN -or $BOT_TOKEN.Trim().Length -eq 0) {
+  $BOT_TOKEN = Read-Host "Enter BOT_TOKEN"
+}
+$CHAT_ID = $env:CHAT_ID
+if (-not $CHAT_ID -or $CHAT_ID.Trim().Length -eq 0) {
+  $CHAT_ID = Read-Host "Enter CHAT_ID"
+}
+$PLAY_URL = $env:PLAY_URL
+if (-not $PLAY_URL -or $PLAY_URL.Trim().Length -eq 0) {
+  $PLAY_URL = "https://mini-app-two-lyart.vercel.app"
+}
 
 $message = @"
 🔔 <b>ЖАҢАРТУ / ОБНОВЛЕНИЕ</b> 🔔
@@ -20,8 +29,8 @@ $message = @"
 • Лишние файлы удалены
 
 🐛 <b>Түзетулер / Исправления:</b>
-• Акция уақыты дұрысталды (2026-04-16)
-• Время акции исправлено (2026-04-16)
+• Акция уақыты ұзартылды (2026-04-26)
+• Время акции продлено (2026-04-26)
 
 🎮 <b>Ойынға кіріп тексеріңіз! / Зайдите в игру и проверьте!</b>
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, MessageSquare, Gamepad2, Settings, LogOut, ArrowLeft, Gift } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, Gamepad2, Settings, LogOut, ArrowLeft } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export const AdminLayout = () => {
@@ -11,7 +11,6 @@ export const AdminLayout = () => {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
     { icon: Users, label: 'Users', path: '/admin/users' },
-    { icon: Gift, label: 'Airdrop', path: '/admin/airdrop' },
     { icon: MessageSquare, label: 'Chat Moderation', path: '/admin/chat' },
     { icon: Gamepad2, label: 'Games', path: '/admin/games' },
     { icon: Settings, label: 'Settings', path: '/admin/settings' },

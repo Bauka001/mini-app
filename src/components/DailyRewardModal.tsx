@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Coins, Diamond, Star, Calendar, X, Check } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import { clsx } from 'clsx';
-// import confetti from 'canvas-confetti';
 
 export const DailyRewardModal = ({ 
   isOpen, 
@@ -15,16 +14,10 @@ export const DailyRewardModal = ({
   const { lastDailyRewardDate, dailyRewardStreak, claimDailyLoginReward } = useStore();
   const [claimedReward, setClaimedReward] = useState<{ coins: number; gems: number; xp: number } | null>(null);
 
-  const handleClaim = () => {
+  const handleClaim = async () => {
     const result = claimDailyLoginReward();
     if (result.success) {
       setClaimedReward(result.reward);
-      // confetti({
-      //   particleCount: 100,
-      //   spread: 70,
-      //   origin: { y: 0.6 },
-      //   colors: ['#FFD700', '#FFA500', '#FF4500']
-      // });
       // Close after 2 seconds
       setTimeout(() => {
         setClaimedReward(null); // Reset for next time
