@@ -1,33 +1,23 @@
-@import url('https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Courier Prime', 'Courier New', monospace;
+  --font-sans: 'Inter', 'sans-serif';
 }
 
 :root {
-  /* Default Dark Mode (Polished Navy) */
-  --color-primary: #60A5FA; /* Blue-400 - Calm Focus Blue */
-  --color-background: #0F172A; /* Slate-900 - Deep Navy */
-  --color-secondary: #1E293B; /* Slate-800 - Lighter Navy for cards */
-  --color-text: #F8FAFC; /* Slate-50 - Crisp White */
+  --color-primary: #3B82F6;
+  --color-background: #000000;
+  --color-secondary: #1a1a1a;
+  --color-text: #FFFFFF;
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --color-primary: #3B82F6; /* Blue-500 */
-  --color-background: #F1F5F9; /* Slate-100 - Soft Gray */
-  --color-secondary: #FFFFFF; /* White */
-  --color-text: #0F172A; /* Slate-900 */
-  color-scheme: light;
-}
-
-[data-theme="gold"] {
-  /* Bright/Light Gold Theme (Champagne/Luxury) */
-  --color-primary: #D97706; /* Amber-600 - Rich Deep Gold */
-  --color-background: #FFFBEB; /* Amber-50 - Very Light Cream/Gold background */
-  --color-secondary: #FFFFFF; /* White - Clean card background */
-  --color-text: #451A03; /* Amber-950 - Dark Brown/Black Text for contrast */
+  --color-primary: #3B82F6;
+  --color-background: #FFFFFF;
+  --color-secondary: #F3F4F6;
+  --color-text: #111827;
   color-scheme: light;
 }
 
@@ -35,7 +25,7 @@ html, body {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  position: fixed; /* Prevents iOS rubber-banding */
+  position: fixed;
   top: 0;
   left: 0;
   margin: 0;
@@ -44,7 +34,6 @@ html, body {
   background-color: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-sans);
-  transition: background-color 0.3s, color 0.3s;
 }
 
 #root {
@@ -55,46 +44,9 @@ html, body {
   -webkit-overflow-scrolling: touch;
 }
 
-/* Utilities using the variables */
 .bg-primary { background-color: var(--color-primary); }
 .text-primary { color: var(--color-primary); }
 .border-primary { border-color: var(--color-primary); }
-
-.bg-black { background-color: var(--color-background); } /* Remap bg-black to variable for theme switching */
-.text-white { color: var(--color-text); } /* Remap text-white to variable */
-
+.bg-black { background-color: var(--color-background); }
+.text-white { color: var(--color-text); }
 .bg-secondary { background-color: var(--color-secondary); }
-
-/* Custom utility for inverted text in light mode (e.g. buttons) */
-[data-theme="light"] .text-black-in-light { color: #000000; }
-[data-theme="gold"] .text-black-in-light { color: #000000; }
-
-/* Special Gold Gradient for Gold Theme elements */
-[data-theme="gold"] .bg-gradient-to-tr {
-  background-image: linear-gradient(to top right, #F59E0B, #FCD34D);
-}
-
-[data-theme="gold"] .bg-primary {
-    background-image: linear-gradient(135deg, #F59E0B 0%, #FCD34D 50%, #FDE68A 100%);
-    color: #451A03; /* Dark text on bright gold button */
-    text-shadow: none;
-    font-weight: 700;
-}
-
-/* Custom Scrollbar */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: rgba(156, 163, 175, 0.5);
-  border-radius: 20px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(156, 163, 175, 0.8);
-}

@@ -27,12 +27,12 @@ const GameGridItem = ({
 }) => (
   <button 
     onClick={onClick}
-    className="flex flex-col items-center gap-2 p-2 active:opacity-70 transition-opacity"
+    className="flex flex-col items-center gap-2 p-3"
   >
     <div className="w-12 h-12 flex items-center justify-center">
-      <Icon size={32} className={isLight ? "text-green-600 drop-shadow-sm" : "text-white drop-shadow-md"} />
+      <Icon size={28} className={isLight ? "text-gray-800" : "text-gray-100"} />
     </div>
-    <span className={clsx("text-[11px] font-medium text-center leading-tight", isLight ? "text-green-800" : "text-white/90")}>{title}</span>
+    <span className={clsx("text-xs text-center", isLight ? "text-gray-700" : "text-gray-300")}>{title}</span>
   </button>
 );
 
@@ -52,20 +52,20 @@ const ListItem = ({
   <button 
     onClick={onClick}
     className={clsx(
-      "w-full p-4 flex items-center justify-between border-b last:border-0 transition-colors",
-      styles.isLight ? "bg-white border-green-50 active:bg-green-50" : "bg-transparent border-white/5 active:bg-white/5"
+      "w-full p-4 flex items-center justify-between border-b last:border-0",
+      styles.isLight ? "bg-white border-gray-100" : "bg-transparent border-gray-800"
     )}
   >
     <div className="flex items-center gap-4">
-      <div className={clsx("w-10 h-10 rounded-xl flex items-center justify-center", styles.isLight ? "bg-green-100" : "bg-white/20")}>
-        <Icon size={24} className={styles.isLight ? "text-green-600" : "text-white"} />
+      <div className={clsx("w-10 h-10 rounded flex items-center justify-center", styles.isLight ? "bg-gray-100" : "bg-gray-800")}>
+        <Icon size={20} className={styles.isLight ? "text-gray-700" : "text-gray-300"} />
       </div>
       <div className="text-left">
-        <div className={clsx("font-medium", styles.textPrimary)}>{title}</div>
+        <div className={clsx("text-sm", styles.textPrimary)}>{title}</div>
         {subtitle && <div className={clsx("text-xs", styles.textSecondary)}>{subtitle}</div>}
       </div>
     </div>
-    <ChevronRight size={20} className={styles.textSecondary} />
+    <ChevronRight size={16} className={styles.textSecondary} />
   </button>
 );
 
@@ -73,17 +73,12 @@ const Home = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   
-  // Optimized Selectors to prevent unnecessary re-renders
-  const coins = useStore(state => state.coins);
-  const fecBalance = useStore(state => state.fecBalance);
   const watchAd = useStore(state => state.watchAd);
-  const dailyRewardStreak = useStore(state => state.dailyRewardStreak);
   const lastDailyRewardDate = useStore(state => state.lastDailyRewardDate);
   const user = useStore(state => state.user);
-  // plan is not used in Home, removed it
 
   const styles = useThemeStyles();
-  const { isLight, isGold, bgClass, headerClass, cardClass, textPrimary, textSecondary, textAccent } = styles;
+  const { isLight, textPrimary, textSecondary } = styles;
 
   const [showAdModal, setShowAdModal] = useState(false);
   const [showDailyReward, setShowDailyReward] = useState(false);
@@ -117,91 +112,68 @@ const Home = () => {
 
       {/* Header */}
       <header className={clsx(
-        "px-4 py-3 flex justify-between items-center sticky top-0 z-50 border-b backdrop-blur-xl",
-        headerClass
+        "px-4 py-4 flex justify-between items-center border-b",
+        isLight ? "bg-white border-gray-200" : "bg-black border-gray-800"
       )}>
-        <div className="flex items-center gap-3">
-          <div className="flex flex-col">
-            <span className={clsx("text-[10px] font-bold opacity-60", textAccent)}>ID: {user.gameId || '17096844'}</span>
-            <div className="flex items-center gap-1">
-              <h1 className={clsx("text-lg font-bold tracking-tight", textAccent)}>Focus App</h1>
-              {user.username && (
-                <span className={clsx("text-[8px] font-bold px-1 rounded bg-white/10", textAccent)}>@{user.username}</span>
-              )}
-            </div>
-          </div>
+        <div className="flex flex-col">
+          <h1 className={clsx("text-lg font-semibold", isLight ? "text-gray-900" : "text-white")}>Focus App</h1>
+          <span className={clsx("text-xs", isLight ? "text-gray-500" : "text-gray-400")}>ID: {user.gameId || '17096844'}</span>
         </div>
         <div className="flex items-center gap-4">
           <button onClick={() => setShowNotifications(true)} className="relative">
-            <Bell size={24} className={textAccent} />
+            <Bell size={20} className={isLight ? "text-gray-600" : "text-gray-400"} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
             )}
           </button>
           <button onClick={() => navigate('/profile')}>
-            <User size={24} className={textAccent} />
+            <User size={20} className={isLight ? "text-gray-600" : "text-gray-400"} />
           </button>
         </div>
       </header>
 
       {/* Stories Area */}
       <div className={clsx(
-        "p-4 pb-6 border-b backdrop-blur-md",
-        isLight ? "bg-white/60 border-green-100" : isGold ? "bg-amber-900/10 border-amber-500/20" : "bg-white/5 border-white/5"
+        "px-4 py-4 border-b",
+        isLight ? "bg-gray-50 border-gray-200" : "bg-gray-900 border-gray-800"
       )}>
-        <div className="flex overflow-x-auto gap-4 no-scrollbar pb-2">
-          {/* Daily Reward Story */}
-          <button onClick={() => setShowDailyReward(true)} className="flex flex-col items-center gap-1 min-w-[70px]">
-            <div className={clsx("w-16 h-16 rounded-full border-2 p-1", isLight ? "border-green-200 bg-white" : "border-blue-400")}>
-               <div className={clsx("w-full h-full rounded-full flex items-center justify-center", isLight ? "bg-green-50" : "bg-blue-400/20 backdrop-blur-md")}>
-                 <Gift size={24} className={isLight ? "text-green-500" : "text-blue-400"} />
-               </div>
+        <div className="flex gap-6">
+          <button onClick={() => setShowDailyReward(true)} className="flex flex-col items-center gap-2">
+            <div className={clsx("w-14 h-14 rounded-full flex items-center justify-center", isLight ? "bg-white border-2 border-gray-200" : "bg-gray-800 border-2 border-gray-700")}>
+               <Gift size={20} className={isLight ? "text-gray-700" : "text-gray-300"} />
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)} dangerouslySetInnerHTML={{ __html: t('daily_bonus').replace(' ', '<br/>') }} />
+            <span className={clsx("text-xs", isLight ? "text-gray-700" : "text-gray-300")}>{t('daily_bonus')}</span>
           </button>
 
-          {/* Leaderboard Story */}
-          <button onClick={() => navigate('/leaderboard')} className="flex flex-col items-center gap-1 min-w-[70px]">
-            <div className={clsx("w-16 h-16 rounded-full border-2 p-1", isLight ? "border-green-200 bg-white" : "border-blue-400")}>
-               <div className={clsx("w-full h-full rounded-full flex items-center justify-center", isLight ? "bg-green-50" : "bg-blue-400/20 backdrop-blur-md")}>
-                 <Trophy size={24} className={isLight ? "text-green-500" : "text-blue-400"} />
-               </div>
+          <button onClick={() => navigate('/leaderboard')} className="flex flex-col items-center gap-2">
+            <div className={clsx("w-14 h-14 rounded-full flex items-center justify-center", isLight ? "bg-white border-2 border-gray-200" : "bg-gray-800 border-2 border-gray-700")}>
+               <Trophy size={20} className={isLight ? "text-gray-700" : "text-gray-300"} />
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)} dangerouslySetInnerHTML={{ __html: t('top_players').replace(' ', '<br/>') }} />
+            <span className={clsx("text-xs", isLight ? "text-gray-700" : "text-gray-300")}>{t('top_players')}</span>
           </button>
 
-          {/* Ad Story */}
-          <button onClick={handleWatchAd} className="flex flex-col items-center gap-1 min-w-[70px]">
-            <div className={clsx("w-16 h-16 rounded-full border-2 p-0.5", isLight ? "border-green-500 bg-white" : "border-pink-500")}>
-               <div className="w-full h-full rounded-full overflow-hidden relative">
-                 <img src="https://images.unsplash.com/photo-1563986768494-4dee2763ff3f?w=150&q=80" alt="Ad" className={clsx("w-full h-full object-cover", !isLight && "opacity-80")} />
-                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                   <Video size={20} className="text-white" />
-                 </div>
-               </div>
+          <button onClick={handleWatchAd} className="flex flex-col items-center gap-2">
+            <div className={clsx("w-14 h-14 rounded-full flex items-center justify-center", isLight ? "bg-white border-2 border-gray-200" : "bg-gray-800 border-2 border-gray-700")}>
+               <Video size={20} className={isLight ? "text-gray-700" : "text-gray-300"} />
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)} dangerouslySetInnerHTML={{ __html: t('watch_ad').replace(' ', '<br/>') }} />
+            <span className={clsx("text-xs", isLight ? "text-gray-700" : "text-gray-300")}>{t('watch_ad')}</span>
           </button>
           
-          {/* Balance Story */}
-          <button onClick={() => navigate('/airdrop')} className="flex flex-col items-center gap-1 min-w-[70px]">
-            <div className={clsx("w-16 h-16 rounded-full border-2 p-1", isLight ? "border-green-200 bg-white" : "border-green-400")}>
-               <div className={clsx("w-full h-full rounded-full flex flex-col items-center justify-center", isLight ? "bg-green-100" : "bg-green-400/20 backdrop-blur-md")}>
-                 <span className={clsx("text-[10px] font-bold", isLight ? "text-green-700" : "text-green-400")}>$FEC</span>
-                 <span className={clsx("text-xs font-black", isLight ? "text-green-800" : "text-white")}>{fecBalance?.toFixed(1)}</span>
-               </div>
+          <button onClick={() => navigate('/airdrop')} className="flex flex-col items-center gap-2">
+            <div className={clsx("w-14 h-14 rounded-full flex items-center justify-center", isLight ? "bg-white border-2 border-gray-200" : "bg-gray-800 border-2 border-gray-700")}>
+               <span className={clsx("text-xs font-bold", isLight ? "text-gray-700" : "text-gray-300")}>$FEC</span>
             </div>
-            <span className={clsx("text-[10px] font-medium text-center leading-tight", textPrimary)} dangerouslySetInnerHTML={{ __html: t('my_wallet').replace(' ', '<br/>') }} />
+            <span className={clsx("text-xs", isLight ? "text-gray-700" : "text-gray-300")}>{t('my_wallet')}</span>
           </button>
         </div>
       </div>
 
       {/* Main Grid Menu (Games) */}
       <div className={clsx(
-        "p-3 sm:p-4 pt-4 sm:pt-6 pb-6 mt-4 rounded-t-3xl border-t relative z-10 mx-1 sm:mx-2 backdrop-blur-lg",
-        isLight ? "bg-white/90 border-green-100 shadow-sm" : isGold ? "bg-amber-900/20 border-amber-500/20" : "bg-white/10 border-white/10"
+        "p-4 mt-4",
+        isLight ? "bg-white" : "bg-black"
       )}>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-y-5 sm:gap-y-6 gap-x-2">
+        <div className="grid grid-cols-4 gap-4">
           <GameGridItem title={t('game_memory')} icon={Grid} onClick={() => navigate('/game/memory')} isLight={isLight} />
           <GameGridItem title={t('game_schulte')} icon={Brain} onClick={() => navigate('/game/schulte')} isLight={isLight} />
           <GameGridItem title={t('game_math')} icon={Calculator} onClick={() => navigate('/game/math')} isLight={isLight} />
@@ -215,8 +187,11 @@ const Home = () => {
       </div>
 
       {/* List Menu Section */}
-      <div className="mt-4 space-y-3 px-4">
-        <div className={clsx("rounded-2xl overflow-hidden border", cardClass)}>
+      <div className={clsx(
+        "mt-4 space-y-1",
+        isLight ? "bg-white" : "bg-black"
+      )}>
+        <div className={clsx("rounded-lg overflow-hidden border", isLight ? "border-gray-200" : "border-gray-800")}>
           <ListItem 
             title={t('shop_title')} 
             subtitle={t('shop_desc')} 
@@ -240,7 +215,7 @@ const Home = () => {
           />
         </div>
 
-        <div className={clsx("rounded-2xl overflow-hidden border", cardClass)}>
+        <div className={clsx("rounded-lg overflow-hidden border", isLight ? "border-gray-200" : "border-gray-800")}>
           <ListItem 
             title={t('daily_workout_title')} 
             subtitle={t('daily_workout_desc')} 
@@ -258,9 +233,8 @@ const Home = () => {
       </div>
 
       {/* Bottom Info */}
-      <div className={clsx("p-6 text-center text-xs", textSecondary)}>
-        <p>© 2026 Focus App. All rights reserved.</p>
-        <p className="mt-1">Version 1.2.0</p>
+      <div className={clsx("p-6 text-center text-xs", isLight ? "text-gray-400" : "text-gray-600")}>
+        <p>© 2026 Focus App. Version 1.2.0</p>
       </div>
 
       <DailyRewardModal isOpen={showDailyReward} onClose={() => setShowDailyReward(false)} />
