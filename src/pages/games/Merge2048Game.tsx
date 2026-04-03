@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useStore } from '../../store/useStore';
+import { useStore } from '../../store/useStore.1';
 import { soundManager } from '../../utils/soundManager';
 import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
 import { Zap, AlertTriangle } from 'lucide-react';
 import { ReviveModal } from '../../components/modals/ReviveModal';
+import { clsx } from 'clsx';
 
 const ROWS = 8;
 const COLS = 6;
@@ -374,16 +375,18 @@ const Merge2048Game = () => {
             return false;
         };
         
-        const bgStyle = theme === 'light' ? 'bg-white' : 'bg-black';
-        const gridBg = theme === 'light' ? 'bg-gray-200/80 border-gray-300' : 'bg-gray-900/80 border-white/10';
-        const cellEmpty = theme === 'light' ? 'bg-white/50' : 'bg-white/10';
+        const bgStyle = theme === 'light' ? 'bg-gradient-to-br from-indigo-50 to-blue-50' : 'bg-transparent';
+        const gridBg = theme === 'light' ? 'bg-white/60 border-white/80 shadow-[0_8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl' : 'bg-white/5 border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-2xl';
+        const cellEmpty = theme === 'light' ? 'bg-indigo-900/5' : 'bg-white/5';
 
         return (
-        <div ref={containerRef} className={`flex flex-col items-center h-full max-w-lg mx-auto p-4 relative overflow-hidden ${bgStyle}`}>
-          <div className="absolute inset-0 pointer-events-none">
-             <div className="absolute inset-0 bg-gradient-to-b from-purple-900/20 to-black/50" />
-             <motion.div className="absolute top-0 left-0 w-full h-full bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10" />
-          </div>
+        <div ref={containerRef} className={`flex flex-col items-center h-full max-w-lg mx-auto p-4 relative overflow-hidden ${bgStyle} transition-colors duration-500`}>
+          {theme !== 'light' && (
+            <div className="absolute inset-0 pointer-events-none">
+               <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-background to-background" />
+               <motion.div className="absolute top-0 left-0 w-full h-full bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.03]" />
+            </div>
+          )}
 
           <ParticleSystem particles={particles} />
 
@@ -424,21 +427,21 @@ const Merge2048Game = () => {
           </AnimatePresence>
 
           <div className="flex justify-between items-end w-full mb-6 px-2 z-10">
-            <motion.div whileHover={{ scale: 1.05 }} className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 shadow-lg min-w-[120px]">
-              <div className="text-xs text-gray-400 uppercase tracking-wider font-bold mb-1">Ұпай</div>
-              <motion.div key={score} initial={{ scale: 1.2, color: '#fbbf24' }} animate={{ scale: 1, color: '#ffffff' }} className="text-3xl font-black text-white font-mono">{score}</motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} className={clsx("backdrop-blur-xl rounded-[1.5rem] p-4 border shadow-lg min-w-[120px]", theme === 'light' ? 'bg-white/80 border-white text-indigo-900 shadow-[0_8px_30px_rgb(0,0,0,0.04)]' : 'bg-white/10 border-white/10 text-white')}>
+              <div className={clsx("text-xs uppercase tracking-wider font-bold mb-1", theme === 'light' ? 'text-indigo-400' : 'text-gray-400')}>Ұпай</div>
+              <motion.div key={score} initial={{ scale: 1.2, color: '#fbbf24' }} animate={{ scale: 1, color: theme === 'light' ? '#312e81' : '#ffffff' }} className="text-3xl font-black font-mono">{score}</motion.div>
             </motion.div>
 
             {combo > 1 && (
-               <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} className="flex flex-col items-center">
+               <motion.div initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0, opacity: 0 }} className="flex flex-col items-center bg-white/10 backdrop-blur-md rounded-2xl p-2 px-4 border border-white/20 shadow-xl">
                  <div className="text-pink-500 font-black text-2xl italic tracking-tighter drop-shadow-lg flex items-center gap-1"><Zap className="w-6 h-6 fill-current" />COMBO x{combo}</div>
-                 <div className="w-full h-1 bg-gray-700 rounded-full mt-1 overflow-hidden"><motion.div initial={{ width: "100%" }} animate={{ width: "0%" }} transition={{ duration: 5 }} className="h-full bg-gradient-to-r from-pink-500 to-purple-500" /></div>
+                 <div className="w-full h-1.5 bg-gray-900/50 rounded-full mt-1 overflow-hidden"><motion.div initial={{ width: "100%" }} animate={{ width: "0%" }} transition={{ duration: 5 }} className="h-full bg-gradient-to-r from-pink-500 to-purple-500" /></div>
                </motion.div>
             )}
 
-            <div className="flex flex-col items-center">
-               <div className="text-xs text-gray-400 mb-1 uppercase tracking-wider font-bold">Келесі</div>
-               <motion.div key={nextBlock} initial={{ rotate: -180, scale: 0 }} animate={{ rotate: 0, scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 15 }} className={`w-14 h-14 rounded-xl flex items-center justify-center text-white font-bold text-2xl shadow-2xl ${getBlockColor(nextBlock)} border-2 border-white/20`}>{nextBlock}</motion.div>
+            <div className={clsx("flex flex-col items-center backdrop-blur-xl rounded-[1.5rem] p-3 px-5 border shadow-lg", theme === 'light' ? 'bg-white/80 border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]' : 'bg-white/10 border-white/10')}>
+               <div className={clsx("text-xs mb-2 uppercase tracking-wider font-bold", theme === 'light' ? 'text-indigo-400' : 'text-gray-400')}>Келесі</div>
+               <motion.div key={nextBlock} initial={{ rotate: -180, scale: 0 }} animate={{ rotate: 0, scale: 1 }} transition={{ type: "spring", stiffness: 200, damping: 15 }} className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-[0_8px_16px_rgba(0,0,0,0.2)] ${getBlockColor(nextBlock)} border-2 border-white/30`}>{nextBlock}</motion.div>
             </div>
           </div>
 

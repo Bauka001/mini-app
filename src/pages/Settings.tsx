@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { useStore, Language } from '../store/useStore';
+import { Language } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
 import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Instagram, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';

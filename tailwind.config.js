@@ -7,10 +7,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#3B82F6',
-        background: '#000000',
-        secondary: '#1a1a1a',
-        text: '#FFFFFF',
+        primary: 'var(--color-primary)',
+        background: 'var(--color-background)',
+        secondary: 'var(--color-secondary)',
+        text: 'var(--color-text)',
+        muted: 'var(--color-muted)',
+        accent: 'var(--color-accent)',
+        // mapping bg-black and text-white to theme variables to avoid breaking existing code
+        black: 'var(--color-background)',
+        white: 'var(--color-text)',
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],

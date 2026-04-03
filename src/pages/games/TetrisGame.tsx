@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore, Theme } from '../../store/useStore';
+import { Theme } from '../../store/useStore';
+import { useStore } from '../../store/useStore.1';
 import { ArrowLeft, ArrowRight, RotateCw, ArrowDown, ArrowBigDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
@@ -481,43 +482,55 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
   const ghostPosition = calculateGhostPosition();
 
   // Theme Styles
-  const bgStyle = theme === 'light' ? 'bg-white' : 'bg-transparent';
-  const boardBg = theme === 'light' ? 'bg-gray-200 border-gray-300' : 'bg-gray-900/90 border-white/10';
+  const bgStyle = theme === 'light' ? 'bg-gradient-to-br from-indigo-50 to-blue-50' : 'bg-transparent';
+  const boardBg = theme === 'light' ? 'bg-white/60 border-white/80 shadow-inner' : 'bg-gray-900/90 border-white/10 shadow-inner';
   const cellGrid = theme === 'light' 
-    ? 'linear-gradient(to right, #000000 1px, transparent 1px), linear-gradient(to bottom, #000000 1px, transparent 1px)' 
-    : 'linear-gradient(to right, #ffffff 1px, transparent 1px), linear-gradient(to bottom, #ffffff 1px, transparent 1px)';
+    ? 'linear-gradient(to right, #6366f120 1px, transparent 1px), linear-gradient(to bottom, #6366f120 1px, transparent 1px)' 
+    : 'linear-gradient(to right, #ffffff15 1px, transparent 1px), linear-gradient(to bottom, #ffffff15 1px, transparent 1px)';
 
   return (
-    <div className={`flex flex-col items-center justify-between h-full p-2 gap-2 relative overflow-hidden ${bgStyle}`}>
+    <div className={`flex flex-col items-center justify-between h-full p-2 gap-2 relative overflow-hidden transition-colors duration-500 ${bgStyle}`}>
       {theme !== 'light' && (
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-gray-900 to-black z-0" />
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-background to-background z-0" />
       )}
       
       <div className="absolute inset-0 pointer-events-none z-50">
         <ParticleSystem particles={particles} />
       </div>
 
-      <div className="flex items-center gap-4 z-10 scale-90 sm:scale-100 origin-top">
-        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-xl rounded-2xl p-3 border border-white/10 shadow-2xl transform hover:scale-105 transition-transform">
-          <div className="text-[10px] text-gray-400 mb-1 font-bold tracking-wider">SCORE</div>
-          <div className="text-2xl font-black bg-gradient-to-r from-yellow-400 to-orange-500 bg-clip-text text-transparent">{score.toLocaleString()}</div>
+      <div className="flex items-center gap-2 sm:gap-4 z-10 scale-90 sm:scale-100 origin-top mt-2">
+        <div className={clsx(
+          "backdrop-blur-xl rounded-2xl p-3 px-5 border shadow-lg transform hover:scale-105 transition-transform flex flex-col items-center",
+          theme === 'light' ? "bg-white/80 border-indigo-100" : "bg-white/10 border-white/10"
+        )}>
+          <div className={clsx("text-[10px] mb-1 font-black tracking-widest uppercase", theme === 'light' ? "text-indigo-400" : "text-gray-400")}>SCORE</div>
+          <div className="text-2xl font-black font-mono bg-gradient-to-br from-yellow-400 to-orange-500 bg-clip-text text-transparent drop-shadow-sm">{score.toLocaleString()}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-xl rounded-2xl p-3 border border-white/10 shadow-2xl transform hover:scale-105 transition-transform">
-          <div className="text-[10px] text-gray-400 mb-1 font-bold tracking-wider">LEVEL</div>
-          <div className="text-2xl font-black bg-gradient-to-r from-purple-400 to-pink-500 bg-clip-text text-transparent">{level}</div>
+        <div className={clsx(
+          "backdrop-blur-xl rounded-2xl p-3 px-5 border shadow-lg transform hover:scale-105 transition-transform flex flex-col items-center",
+          theme === 'light' ? "bg-white/80 border-indigo-100" : "bg-white/10 border-white/10"
+        )}>
+          <div className={clsx("text-[10px] mb-1 font-black tracking-widest uppercase", theme === 'light' ? "text-indigo-400" : "text-gray-400")}>LEVEL</div>
+          <div className="text-2xl font-black font-mono bg-gradient-to-br from-purple-400 to-pink-500 bg-clip-text text-transparent drop-shadow-sm">{level}</div>
         </div>
 
-        <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-xl rounded-2xl p-3 border border-white/10 shadow-2xl transform hover:scale-105 transition-transform">
-          <div className="text-[10px] text-gray-400 mb-1 font-bold tracking-wider">LINES</div>
-          <div className="text-2xl font-black bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">{lines}</div>
+        <div className={clsx(
+          "backdrop-blur-xl rounded-2xl p-3 px-5 border shadow-lg transform hover:scale-105 transition-transform flex flex-col items-center",
+          theme === 'light' ? "bg-white/80 border-indigo-100" : "bg-white/10 border-white/10"
+        )}>
+          <div className={clsx("text-[10px] mb-1 font-black tracking-widest uppercase", theme === 'light' ? "text-indigo-400" : "text-gray-400")}>LINES</div>
+          <div className="text-2xl font-black font-mono bg-gradient-to-br from-cyan-400 to-blue-500 bg-clip-text text-transparent drop-shadow-sm">{lines}</div>
         </div>
       </div>
 
-      <div className="flex gap-4 items-start z-10 flex-1 justify-center min-h-0">
-        <div className="hidden sm:block bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-xl rounded-2xl p-4 border border-white/10 shadow-2xl">
-          <div className="text-xs text-gray-400 mb-2 text-center font-bold tracking-wider">NEXT</div>
-          <div className="w-20 h-20 flex items-center justify-center">
+      <div className="flex gap-4 items-start z-10 flex-1 justify-center min-h-0 w-full max-w-lg mt-2">
+        <div className={clsx(
+          "hidden sm:flex flex-col items-center backdrop-blur-xl rounded-[2rem] p-5 border shadow-xl",
+          theme === 'light' ? "bg-white/80 border-indigo-100" : "bg-white/5 border-white/10"
+        )}>
+          <div className={clsx("text-xs mb-3 font-black tracking-widest uppercase", theme === 'light' ? "text-indigo-400" : "text-gray-400")}>NEXT</div>
+          <div className="w-24 h-24 flex items-center justify-center">
             {nextPiece && (
               <div className="flex gap-1">
                 {TETROMINOS[nextPiece].shape.map((row, y) => (
@@ -526,8 +539,10 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
                       <div
                         key={x}
                         className={clsx(
-                          "w-5 h-5 rounded-sm border border-white/10",
-                          cell ? `bg-gradient-to-br ${TETROMINOS[nextPiece].color} shadow-lg ${TETROMINOS[nextPiece].shadow}` : "bg-transparent"
+                          "w-6 h-6 rounded-sm border",
+                          cell 
+                            ? `bg-gradient-to-br ${TETROMINOS[nextPiece].color} shadow-[0_0_10px_rgba(0,0,0,0.2)] ${TETROMINOS[nextPiece].shadow} ${theme === 'light' ? 'border-white/50' : 'border-white/20'}` 
+                            : "bg-transparent border-transparent"
                         )}
                       />
                     ))}
@@ -541,16 +556,19 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
         <motion.div 
             animate={shake ? { x: [-3, 3, -3, 3, 0], y: [-2, 2, 0] } : {}}
             transition={{ duration: 0.2 }}
-            className={`relative bg-gradient-to-br from-gray-900 to-black rounded-xl p-1 shadow-2xl overflow-hidden border ${theme === 'light' ? 'border-gray-300' : 'border-white/10'}`}
+            className={clsx(
+              "relative rounded-[2rem] p-1.5 sm:p-2 shadow-2xl overflow-hidden border backdrop-blur-md",
+              theme === 'light' ? "bg-white/40 border-white" : "bg-white/5 border-white/10"
+            )}
         >
           {theme !== 'light' && <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-cyan-500/5 pointer-events-none" />}
           
           <div 
             ref={boardRef}
-            className={`relative rounded-lg overflow-hidden ${boardBg}`}
+            className={`relative rounded-2xl overflow-hidden ${boardBg}`}
             style={{ width: cellSize * BOARD_WIDTH, height: cellSize * BOARD_HEIGHT }}
           >
-             <div className="absolute inset-0 opacity-10 pointer-events-none" 
+             <div className="absolute inset-0 opacity-100 pointer-events-none z-0" 
                   style={{ 
                       backgroundImage: cellGrid,
                       backgroundSize: `${cellSize}px ${cellSize}px`

@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Play, RotateCcw, Coins, Share2, Puzzle, Activity, Brain, Calculator, Keyboard, Zap, Trophy, Star, Pause, Home } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useStore } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
 import { soundManager } from '../utils/soundManager';
+import { hapticFeedback } from '../utils/telegram';
 import { ChestModal } from './ChestModal';
+import { DailyQuestPopup } from './DailyQuestPopup';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type GameState = 'instruction' | 'playing' | 'paused' | 'finished';
@@ -34,57 +36,63 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
   const [lastScore, setLastScore] = useState<any>(null);
   const [lastCoins, setLastCoins] = useState<number>(0);
   const [showChest, setShowChest] = useState(false);
+  const [showQuestPopup, setShowQuestPopup] = useState(false);
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { coins, soundEnabled } = useStore();
+  const { coins, soundEnabled, dailyQuest, claimDailyQuestReward } = useStore();
 
   useEffect(() => {
     soundManager.setEnabled(soundEnabled);
   }, [soundEnabled]);
 
   const handleShare = () => {
+    hapticFeedback.click();
     soundManager.playClick();
     const shareText = `Менде ${title} ойынын ойнадым! 🎮\nҰпай: ${lastScore} | Coins: +${lastCoins}`;
+    const botUrl = 'https://t.me/Focus_game_bot';
 
     try {
       if (navigator.share) {
         navigator.share({
           title: `${title} - Focus App`,
           text: shareText,
-          url: window.location.href
+          url: botUrl
         });
       } else if (window.Telegram && window.Telegram.WebApp) {
         const tg = window.Telegram.WebApp;
         tg.ready();
         if (tg.openTelegramLink) {
           const encodedText = encodeURIComponent(shareText);
-          tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(window.location.href)}&text=${encodedText}`);
+          tg.openTelegramLink(`https://t.me/share/url?url=${encodeURIComponent(botUrl)}&text=${encodedText}`);
         } else {
-          navigator.clipboard.writeText(shareText);
+          navigator.clipboard.writeText(shareText + ' ' + botUrl);
           alert('Мәтін көшірілді! 📋');
         }
       } else {
-        navigator.clipboard.writeText(shareText);
+        navigator.clipboard.writeText(shareText + ' ' + botUrl);
         alert('Мәтін көшірілді! 📋');
       }
     } catch (error) {
       console.error('Share error:', error);
-      navigator.clipboard.writeText(shareText);
+      navigator.clipboard.writeText(shareText + ' ' + botUrl);
       alert('Мәтін көшірілді! 📋');
     }
   };
 
   const handleStart = () => {
+    hapticFeedback.impact('medium');
     soundManager.playClick();
     setGameState('playing');
   };
 
   const handlePause = () => {
+    hapticFeedback.click();
     soundManager.playClick();
     setGameState('paused');
   };
 
   const handleResume = () => {
+    hapticFeedback.impact('light');
     soundManager.playClick();
     setGameState('playing');
   };
@@ -92,27 +100,38 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
   const handleEnd = (score: any, earnedCoins: number) => {
     setLastScore(score);
     setLastCoins(earnedCoins);
-    
+
     if (earnedCoins > 0) {
+      hapticFeedback.notification('success');
       soundManager.playWin();
       setShowChest(true);
     } else {
+      hapticFeedback.notification('success');
       soundManager.playSuccess();
       setGameState('finished');
     }
   };
 
   const handleChestClose = () => {
+    hapticFeedback.click();
     setShowChest(false);
     setGameState('finished');
+
+    const currentQuest = useStore.getState().dailyQuest;
+
+    if (currentQuest.isCompleted && !currentQuest.isClaimed) {
+      setShowQuestPopup(true);
+    }
   };
 
   const handleRestart = () => {
+    hapticFeedback.impact('medium');
     soundManager.playClick();
     setGameState('playing');
   };
 
   const handleBack = () => {
+    hapticFeedback.click();
     soundManager.playClick();
     if (onExit) {
       onExit();
@@ -296,10 +315,18 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
         )}
       </AnimatePresence>
 
-      <ChestModal 
-        isOpen={showChest} 
-        onClose={handleChestClose} 
-        gameTitle={title} 
+      <ChestModal
+        isOpen={showChest}
+        onClose={handleChestClose}
+        gameTitle={title}
+      />
+
+      <DailyQuestPopup
+        isOpen={showQuestPopup}
+        onClose={() => setShowQuestPopup(false)}
+        onClaim={claimDailyQuestReward}
+        gamesPlayed={dailyQuest.gamesPlayed}
+        isClaimed={dailyQuest.isClaimed}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bell, Check, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
-import { useStore, Notification } from '../store/useStore';
+import { Notification } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 

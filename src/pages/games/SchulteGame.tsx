@@ -2,13 +2,14 @@ import { useState, useEffect } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore } from '../../store/useStore';
+import { useStore } from '../../store/useStore.1';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const GRID_SIZE = 5;
 const TOTAL_NUMBERS = GRID_SIZE * GRID_SIZE;
 
 const SKIN_STYLES: Record<string, string> = {
-  default: "bg-white/5 text-white border border-white/10 hover:bg-white/10 backdrop-blur-sm shadow-lg shadow-black/20",
+  default: "bg-white/10 text-white border border-white/20 hover:bg-white/20 backdrop-blur-sm shadow-lg",
   neon_blue: "bg-blue-500/10 text-blue-200 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:bg-blue-500/20",
   royal_purple: "bg-purple-500/10 text-purple-200 border border-purple-500/50 shadow-[0_0_15px_rgba(168,85,247,0.3)] hover:bg-purple-500/20",
   matrix: "bg-green-500/10 text-green-400 border border-green-500/30 font-mono hover:bg-green-500/20",
@@ -86,51 +87,96 @@ export const SchulteBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string
   const skinClass = SKIN_STYLES[activeSkin] || SKIN_STYLES.default;
 
   return (
-    <div className="h-full flex flex-col items-center justify-center p-4">
-      <div className="mb-8 flex flex-col items-center">
+    <div className={clsx(
+      "h-full flex flex-col items-center justify-center p-4 transition-colors duration-500 relative",
+      theme === 'light' ? 'bg-gradient-to-br from-indigo-50 to-blue-50' : 'bg-transparent'
+    )}>
+      {theme !== 'light' && (
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-background to-background z-0" />
+      )}
+
+      <motion.div 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="mb-8 flex flex-col items-center z-10"
+      >
         <div className={clsx(
           "text-6xl font-black font-mono tracking-tighter transition-colors",
-          timeLeft < 10 ? "text-red-500 animate-pulse" : "text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400"
+          timeLeft < 10 
+            ? "text-red-500 animate-pulse-glow" 
+            : theme === 'light'
+              ? "text-transparent bg-clip-text bg-gradient-to-br from-indigo-600 to-purple-600"
+              : "text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400"
         )}>
           {timeLeft.toFixed(1)}
         </div>
-        <div className="text-xs text-primary font-bold tracking-widest uppercase mt-1">Time Left</div>
-      </div>
+        <div className={clsx("text-xs font-bold tracking-widest uppercase mt-1", theme === 'light' ? "text-indigo-400" : "text-gray-400")}>Time Left</div>
+      </motion.div>
       
-      <div className="flex items-center gap-3 mb-6 bg-white/5 px-4 py-2 rounded-full border border-white/5">
-        <span className="text-gray-400 text-sm uppercase font-bold tracking-wider">Find</span>
-        <div className="w-8 h-8 rounded-lg bg-primary text-black flex items-center justify-center font-black text-xl shadow-lg">
-           {nextNumber}
-        </div>
-      </div>
-
-      <div 
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
         className={clsx(
-          "grid grid-cols-5 gap-2 p-3 rounded-2xl transition-all duration-300 backdrop-blur-xl border border-white/5 shadow-2xl relative",
-          isError ? "bg-red-500/20 border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]" : "bg-white/5"
+          "flex items-center gap-4 mb-6 px-6 py-3 rounded-full border shadow-lg backdrop-blur-xl z-10",
+          theme === 'light' ? "bg-white/80 border-indigo-100" : "bg-white/10 border-white/20"
+        )}
+      >
+        <span className={clsx("text-sm uppercase font-bold tracking-widest", theme === 'light' ? "text-indigo-600" : "text-gray-300")}>Find</span>
+        <motion.div 
+          key={nextNumber}
+          initial={{ scale: 1.5, rotate: 180, opacity: 0 }}
+          animate={{ scale: 1, rotate: 0, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+          className={clsx(
+            "w-10 h-10 rounded-xl flex items-center justify-center font-black text-2xl shadow-lg border-2",
+            theme === 'light' 
+              ? "bg-gradient-to-br from-indigo-500 to-purple-600 text-white border-white/50" 
+              : "bg-white text-indigo-900 border-white/20"
+          )}
+        >
+           {nextNumber}
+        </motion.div>
+      </motion.div>
+
+      <motion.div 
+        animate={isError ? { x: [-10, 10, -10, 10, 0] } : {}}
+        transition={{ duration: 0.4 }}
+        className={clsx(
+          "grid grid-cols-5 gap-2 p-4 rounded-[2.5rem] transition-all duration-300 backdrop-blur-2xl border shadow-2xl relative z-10",
+          isError 
+            ? "bg-red-500/20 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.4)]" 
+            : theme === 'light'
+              ? "bg-white/60 border-white shadow-[0_8px_32px_rgba(0,0,0,0.1)]"
+              : "bg-white/5 border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]"
         )}
         style={{ width: 'min(90vw, 400px)', height: 'min(90vw, 400px)' }}
       >
         {/* Central Focus Dot */}
-        <div className="absolute top-1/2 left-1/2 w-3 h-3 bg-red-500 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse" />
+        <div className="absolute top-1/2 left-1/2 w-4 h-4 bg-red-500 rounded-full -translate-x-1/2 -translate-y-1/2 pointer-events-none z-50 shadow-[0_0_15px_rgba(239,68,68,0.8)] animate-pulse border-2 border-white/50" />
 
         {numbers.map((num) => (
-          <button
+          <motion.button
             key={num}
+            whileHover={num >= nextNumber ? { scale: 1.1, zIndex: 10 } : {}}
+            whileTap={num >= nextNumber ? { scale: 0.9 } : {}}
             onClick={() => handleCellClick(num)}
             className={clsx(
-              "flex items-center justify-center text-xl sm:text-2xl font-bold rounded-xl transition-all active:scale-90 relative overflow-hidden",
+              "flex items-center justify-center text-2xl sm:text-3xl font-black rounded-2xl transition-colors relative overflow-hidden shadow-sm border",
               num < nextNumber 
-                ? "opacity-50 grayscale text-gray-500 bg-black/20" 
-                : skinClass
+                ? theme === 'light'
+                  ? "opacity-50 bg-gray-200/50 text-gray-400 border-transparent"
+                  : "opacity-30 bg-black/40 text-gray-500 border-transparent" 
+                : theme === 'light'
+                  ? "bg-white border-indigo-50 text-gray-800 hover:bg-indigo-50"
+                  : skinClass
             )}
           >
-            {num}
-             {/* Subtle reflection */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
-          </button>
+            <span className="relative z-10 drop-shadow-sm">{num}</span>
+            {/* Subtle reflection */}
+            <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent pointer-events-none" />
+          </motion.button>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 };

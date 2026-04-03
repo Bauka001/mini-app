@@ -1,228 +1,365 @@
-import { Users, MessageSquare, Ticket, ShieldCheck, Coins, AlertCircle, Send, Search } from 'lucide-react';
-import { useStore } from '../../store/useStore';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { AlertCircle, MessageSquare, RefreshCcw, Send, ShieldCheck, Ticket, Users } from 'lucide-react';
+import {
+  AdminDashboardFeedback,
+  AdminDashboardResponse,
+  getAdminDashboard,
+  replyAdminFeedback,
+  updateAdminFeedbackStatus,
+} from '../../utils/adminApi';
+
+const statusLabel: Record<AdminDashboardFeedback['status'], string> = {
+  new: 'Жаңа',
+  read: 'Оқылды',
+  resolved: 'Шешілді',
+};
+
+const statusClass: Record<AdminDashboardFeedback['status'], string> = {
+  new: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+  read: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+  resolved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+};
+
+const formatDate = (value: string) =>
+  new Date(value).toLocaleString('ru-RU', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
 export const AdminDashboard = () => {
-  const { user, adminIds, feedbacks, updateFeedbackStatus, replyToFeedback, tickets, eventParticipants, coins, plan, verifyTicket } = useStore();
+  const [data, setData] = useState<AdminDashboardResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'new' | 'read' | 'resolved'>('all');
-  const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
-  const [ticketNumber, setTicketNumber] = useState('');
-  const [verifyResult, setVerifyResult] = useState<'idle' | 'success' | 'fail'>('idle');
+  const [replyDrafts, setReplyDrafts] = useState<Record<number, string>>({});
+  const [busyFeedbackId, setBusyFeedbackId] = useState<number | null>(null);
 
-  if (!adminIds.includes(user.id)) {
+  const loadDashboard = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const nextData = await getAdminDashboard();
+      setData(nextData);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'Dashboard жүктелмеді');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadDashboard();
+  }, []);
+
+  const filteredFeedbacks = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    return data.feedbacks.filter((feedback) => filter === 'all' || feedback.status === filter);
+  }, [data, filter]);
+
+  const patchFeedback = (feedback: AdminDashboardFeedback | null | undefined) => {
+    if (!feedback) {
+      return;
+    }
+
+    setData((current) => {
+      if (!current) {
+        return current;
+      }
+
+      return {
+        ...current,
+        feedbacks: current.feedbacks.map((item) => (item.id === feedback.id ? feedback : item)),
+      };
+    });
+  };
+
+  const handleReply = async (feedbackId: number) => {
+    const reply = replyDrafts[feedbackId]?.trim();
+
+    if (!reply) {
+      return;
+    }
+
+    try {
+      setBusyFeedbackId(feedbackId);
+      const response = await replyAdminFeedback(feedbackId, reply);
+      patchFeedback(response.feedback);
+      setReplyDrafts((current) => ({ ...current, [feedbackId]: '' }));
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'Reply сақталмады');
+    } finally {
+      setBusyFeedbackId(null);
+    }
+  };
+
+  const handleStatusUpdate = async (feedbackId: number, status: 'read' | 'resolved') => {
+    try {
+      setBusyFeedbackId(feedbackId);
+      const response = await updateAdminFeedbackStatus(feedbackId, status);
+      patchFeedback(response.feedback);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : 'Status жаңартылмады');
+    } finally {
+      setBusyFeedbackId(null);
+    }
+  };
+
+  if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-950">
-        <div className="text-center bg-white dark:bg-gray-900 p-12 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800">
-          <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
-            <AlertCircle size={48} className="text-red-500" />
-          </div>
-          <h2 className="text-2xl font-black text-gray-900 dark:text-white mb-2 tracking-tight">Кіруге рұқсат жоқ</h2>
-          <p className="text-gray-500 max-w-xs mx-auto">Бұл бөлім тек әкімшілерге арналған. Рұқсатыңыз жоқ.</p>
-        </div>
+      <div className="rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-sm dark:border-gray-800 dark:bg-gray-900">
+        <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Admin деректері жүктелуде</h2>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Server-side dashboard дайындалып жатыр</p>
       </div>
     );
   }
 
-  const handleReply = (id: string) => {
-    const text = replyText[id];
-    if (!text?.trim()) return;
-    
-    replyToFeedback(id, text);
-    setReplyText(prev => ({ ...prev, [id]: '' }));
-  };
+  if (error && !data) {
+    return (
+      <div className="rounded-3xl border border-red-200 bg-red-50 p-8 text-center shadow-sm dark:border-red-900/40 dark:bg-red-950/30">
+        <AlertCircle className="mx-auto mb-4 h-10 w-10 text-red-500" />
+        <h2 className="text-lg font-bold text-red-700 dark:text-red-300">Dashboard ашылмады</h2>
+        <p className="mt-2 text-sm text-red-600/80 dark:text-red-300/80">{error}</p>
+        <button
+          onClick={() => void loadDashboard()}
+          className="mx-auto mt-4 inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
+        >
+          <RefreshCcw className="h-4 w-4" />
+          Қайта жүктеу
+        </button>
+      </div>
+    );
+  }
 
-  const filteredFeedbacks = feedbacks.filter(f => filter === 'all' || f.status === filter);
+  const stats = data?.stats;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <h2 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">Әкімші тақтасы</h2>
-          <p className="text-gray-500 font-medium">Focus Mini App басқару және мониторинг</p>
+          <h2 className="text-3xl font-black tracking-tight text-gray-900 dark:text-white">Admin дашборд</h2>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            Backend-validated role, audit trail және production data бір жерге жиналды
+          </p>
         </div>
-        <div className="flex items-center gap-3 bg-white dark:bg-gray-800 p-2 rounded-2xl border border-gray-100 dark:border-gray-700">
-          <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white font-black">A</div>
-          <div className="pr-4">
-            <p className="text-xs font-bold text-gray-900 dark:text-white leading-none">{user.username || 'Admin'}</p>
-            <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">Бас Әкімші</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-4 rounded-2xl bg-blue-600">
-              <Ticket className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">Тікеттер</h3>
-          <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{tickets.length.toString()}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-4 rounded-2xl bg-green-600">
-              <ShieldCheck className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">Қатысушылар</h3>
-          <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{eventParticipants.length.toString()}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-4 rounded-2xl bg-purple-600">
-              <MessageSquare className="w-6 h-6 text-white" />
-            </div>
-          </div>
-          <h3 className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">Шағымдар</h3>
-          <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{feedbacks.length.toString()}</p>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-100 dark:border-gray-700">
-          <div className="flex items-center justify-between mb-4">
-            <div className="p-4 rounded-2xl bg-yellow-500">
-              <Coins className="w-6 h-6 text-black" />
-            </div>
-          </div>
-          <h3 className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase tracking-wider">Баланс</h3>
-          <p className="text-2xl font-black text-gray-900 dark:text-white mt-1">{coins.toLocaleString()} coins • {plan.toUpperCase()}</p>
+        <div className="flex gap-3">
+          <Link
+            to="/admin/tickets"
+            className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition hover:border-blue-500 hover:text-blue-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+          >
+            <Ticket className="h-4 w-4" />
+            Тікеттерге өту
+          </Link>
+          <button
+            onClick={() => void loadDashboard()}
+            className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+          >
+            <RefreshCcw className="h-4 w-4" />
+            Жаңарту
+          </button>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden">
-        <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex flex-col md:flex-row items-center justify-between gap-6">
-           <div>
-             <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">Кері байланыс және шағымдар</h3>
-             <p className="text-sm text-gray-500">Қолданушылар жіберген хабарламалар тізімі</p>
-           </div>
-           <div className="flex bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl gap-1">
-             <button onClick={() => setFilter('all')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${filter === 'all' ? 'bg-white dark:bg-gray-700 text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>БАРЛЫҒЫ</button>
-             <button onClick={() => setFilter('new')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${filter === 'new' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'text-gray-500 hover:text-gray-700'}`}>ЖАҢА</button>
-             <button onClick={() => setFilter('resolved')} className={`px-4 py-2 rounded-lg text-xs font-black transition-all ${filter === 'resolved' ? 'bg-green-500 text-white shadow-lg shadow-green-500/20' : 'text-gray-500 hover:text-gray-700'}`}>ШЕШІЛДІ</button>
-           </div>
+      {error ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
+          {error}
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-4 inline-flex rounded-2xl bg-blue-600 p-3 text-white">
+            <Users className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Пайдаланушылар</p>
+          <p className="mt-1 text-3xl font-black text-gray-900 dark:text-white">{stats?.totalUsers ?? 0}</p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Блоктауда: {stats?.blockedUsers ?? 0}</p>
         </div>
 
-        <div className="p-8 max-h-[600px] overflow-y-auto custom-scrollbar">
-          {filteredFeedbacks.length === 0 ? (
-            <div className="text-center py-20">
-              <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MessageSquare size={32} className="text-gray-300" />
-              </div>
-              <p className="text-gray-400 font-bold">Әзірге шағымдар жоқ</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-6">
-              {filteredFeedbacks.map((fb) => (
-                <div key={fb.id} className="group bg-gray-50/50 dark:bg-gray-800/30 border border-gray-100 dark:border-gray-700 rounded-3xl p-6 transition-all hover:bg-white dark:hover:bg-gray-800 hover:shadow-xl hover:border-transparent">
-                   <div className="flex flex-col md:flex-row gap-8">
-                     {fb.imageUrl && (
-                       <div className="w-full md:w-56 h-40 rounded-2xl overflow-hidden bg-gray-200 shadow-inner flex-shrink-0">
-                         <img src={fb.imageUrl} alt="Feedback" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                       </div>
-                     )}
-                     <div className="flex-1 flex flex-col">
-                       <div className="flex justify-between items-start mb-4">
-                         <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 flex items-center justify-center text-blue-600 font-bold">
-                             {fb.username[0].toUpperCase()}
-                           </div>
-                           <div>
-                             <h4 className="font-black text-gray-900 dark:text-white leading-none">{fb.username}</h4>
-                             <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">USER ID: {fb.userId}</p>
-                           </div>
-                         </div>
-                         <div className="flex flex-col items-end gap-2">
-                           <span className={`text-[10px] px-3 py-1 rounded-full font-black uppercase tracking-tighter ${
-                             fb.status === 'new' ? 'bg-red-100 text-red-600 border border-red-200' : 
-                             fb.status === 'read' ? 'bg-yellow-100 text-yellow-600 border border-yellow-200' : 
-                             'bg-green-100 text-green-600 border border-green-200'
-                           }`}>
-                             {fb.status === 'new' ? 'Жаңа' : fb.status === 'read' ? 'Оқылды' : 'Шешілді'}
-                           </span>
-                           <span className="text-[10px] text-gray-400 font-bold">{new Date(fb.date).toLocaleString()}</span>
-                         </div>
-                       </div>
-                       
-                       <div className="bg-white dark:bg-gray-900/50 rounded-2xl p-4 mb-6 border border-gray-100 dark:border-gray-800 shadow-sm">
-                         <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">{fb.text}</p>
-                       </div>
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-4 inline-flex rounded-2xl bg-purple-600 p-3 text-white">
+            <MessageSquare className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Feedback queue</p>
+          <p className="mt-1 text-3xl font-black text-gray-900 dark:text-white">{stats?.totalFeedbacks ?? 0}</p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Ашық queue: {stats?.pendingFeedbacks ?? 0}</p>
+        </div>
 
-                       {fb.adminReply ? (
-                         <div className="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-4 border border-blue-100 dark:border-blue-900/40 relative">
-                           <div className="absolute -top-3 left-6 px-3 py-1 bg-blue-600 text-white text-[10px] font-black rounded-full shadow-lg">АДМИН ЖАУАБЫ</div>
-                           <p className="text-blue-900 dark:text-blue-300 text-sm italic">{fb.adminReply}</p>
-                           <p className="text-[10px] text-blue-400 mt-2 font-bold">{new Date(fb.replyDate!).toLocaleString()}</p>
-                         </div>
-                       ) : (
-                         <div className="mt-auto">
-                            <div className="relative">
-                              <textarea
-                                value={replyText[fb.id] || ''}
-                                onChange={(e) => setReplyText(prev => ({ ...prev, [fb.id]: e.target.value }))}
-                                placeholder="Жауап жазу..."
-                                className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-4 pr-16 text-sm outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-h-[100px] resize-none"
-                              />
-                              <button 
-                                onClick={() => handleReply(fb.id)}
-                                disabled={!replyText[fb.id]?.trim()}
-                                className="absolute bottom-4 right-4 p-3 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-600/30 hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100"
-                              >
-                                <Send size={18} />
-                              </button>
-                            </div>
-                            <div className="flex gap-2 mt-3">
-                               <button onClick={() => updateFeedbackStatus(fb.id, 'read')} className="text-[10px] font-black text-gray-400 hover:text-blue-500 transition-colors uppercase tracking-widest">ОҚЫЛДЫ ДЕП БЕЛГІЛЕУ</button>
-                               <span className="text-gray-300">•</span>
-                               <button onClick={() => updateFeedbackStatus(fb.id, 'resolved')} className="text-[10px] font-black text-gray-400 hover:text-green-500 transition-colors uppercase tracking-widest">ШЕШІЛДІ ДЕП БЕЛГІЛЕУ</button>
-                            </div>
-                         </div>
-                       )}
-                     </div>
-                   </div>
-                </div>
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-4 inline-flex rounded-2xl bg-emerald-600 p-3 text-white">
+            <Ticket className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Тікеттер</p>
+          <p className="mt-1 text-3xl font-black text-gray-900 dark:text-white">{stats?.totalTickets ?? 0}</p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Pending verify: {stats?.pendingTickets ?? 0}</p>
+        </div>
+
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-4 inline-flex rounded-2xl bg-amber-500 p-3 text-black">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Админ бақылау</p>
+          <p className="mt-1 text-3xl font-black text-gray-900 dark:text-white">{stats?.activeAdmins ?? 0}</p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Chat reports pending: {stats?.pendingChatReports ?? 0}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.3fr_0.7fr]">
+        <section className="rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex flex-col gap-4 border-b border-gray-100 p-6 dark:border-gray-800 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-xl font-black text-gray-900 dark:text-white">Feedback moderation</h3>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">User шағымдары мен ұсыныстары</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {(['all', 'new', 'read', 'resolved'] as const).map((item) => (
+                <button
+                  key={item}
+                  onClick={() => setFilter(item)}
+                  className={`rounded-xl px-3 py-2 text-xs font-bold transition ${
+                    filter === item
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {item === 'all' ? 'Барлығы' : statusLabel[item]}
+                </button>
               ))}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 overflow-hidden mt-12">
-        <div className="p-8 border-b border-gray-50 dark:border-gray-800 flex items-center justify-between">
-          <h3 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">Тікет верификация</h3>
-        </div>
-        <div className="p-8 flex flex-col md:flex-row gap-4 items-center">
-          <div className="flex items-center gap-2 w-full max-w-md">
-            <Search size={18} className="text-gray-400" />
-            <input value={ticketNumber} onChange={(e) => setTicketNumber(e.target.value)} placeholder="Тікет нөмірі" className="flex-1 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+          <div className="space-y-4 p-6">
+            {filteredFeedbacks.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center dark:border-gray-700">
+                <MessageSquare className="mx-auto mb-3 h-10 w-10 text-gray-400" />
+                <p className="font-medium text-gray-600 dark:text-gray-300">Фильтрге сай feedback жоқ</p>
+              </div>
+            ) : (
+              filteredFeedbacks.map((feedback) => (
+                <article
+                  key={feedback.id}
+                  className="rounded-3xl border border-gray-200 bg-gray-50/60 p-5 dark:border-gray-800 dark:bg-gray-950/40"
+                >
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-100 font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                          {(feedback.username || 'U').slice(0, 1).toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-bold text-gray-900 dark:text-white">{feedback.username}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Telegram ID: {feedback.userTelegramId}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass[feedback.status]}`}>
+                          {statusLabel[feedback.status]}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(feedback.createdAt)}</span>
+                      </div>
+                    </div>
+                    {feedback.imageUrl ? (
+                      <img
+                        src={feedback.imageUrl}
+                        alt={feedback.username}
+                        className="h-32 w-full rounded-2xl object-cover lg:w-44"
+                      />
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4 text-sm leading-6 text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                    {feedback.text}
+                  </div>
+
+                  {feedback.latestReply ? (
+                    <div className="mt-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/30 dark:text-blue-200">
+                      <p className="font-bold">Админ жауабы</p>
+                      <p className="mt-2">{feedback.latestReply.reply}</p>
+                      <p className="mt-2 text-xs text-blue-700/80 dark:text-blue-300/80">
+                        {formatDate(feedback.latestReply.createdAt)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 space-y-3">
+                      <textarea
+                        value={replyDrafts[feedback.id] || ''}
+                        onChange={(event) =>
+                          setReplyDrafts((current) => ({ ...current, [feedback.id]: event.target.value }))
+                        }
+                        placeholder="Жауап жазыңыз..."
+                        className="min-h-[96px] w-full rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 outline-none transition focus:border-blue-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      />
+                      <div className="flex flex-wrap gap-3">
+                        <button
+                          onClick={() => void handleReply(feedback.id)}
+                          disabled={busyFeedbackId === feedback.id || !replyDrafts[feedback.id]?.trim()}
+                          className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <Send className="h-4 w-4" />
+                          Жауап жіберу
+                        </button>
+                        <button
+                          onClick={() => void handleStatusUpdate(feedback.id, 'read')}
+                          disabled={busyFeedbackId === feedback.id}
+                          className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:border-blue-500 hover:text-blue-600 dark:border-gray-700 dark:text-gray-200"
+                        >
+                          Оқылды деп белгілеу
+                        </button>
+                        <button
+                          onClick={() => void handleStatusUpdate(feedback.id, 'resolved')}
+                          disabled={busyFeedbackId === feedback.id}
+                          className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:border-emerald-500 hover:text-emerald-600 dark:border-gray-700 dark:text-gray-200"
+                        >
+                          Шешілді деп жабу
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              ))
+            )}
           </div>
-          <button onClick={() => { const ok = verifyTicket(Number(ticketNumber)); setVerifyResult(ok ? 'success' : 'fail'); }} className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition">Тексеру</button>
-          {verifyResult !== 'idle' && (
-            <span className={`${verifyResult === 'success' ? 'text-green-600' : 'text-red-600'} font-bold text-sm`}>{verifyResult === 'success' ? 'Расталды' : 'Қате немесе қолданылған'}</span>
-          )}
-        </div>
-        <div className="px-8 pb-8">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500">
-                  <th className="py-2">Ticket</th>
-                  <th className="py-2">User</th>
-                  <th className="py-2">Verified</th>
-                  <th className="py-2">Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {eventParticipants.slice(0, 20).map(p => (
-                  <tr key={p.ticketId} className="border-t border-gray-100 dark:border-gray-800">
-                    <td className="py-2 font-bold">{p.ticketNumber}</td>
-                    <td className="py-2">{p.userName}</td>
-                    <td className={`py-2 ${p.isVerified ? 'text-green-600' : 'text-gray-500'}`}>{p.isVerified ? 'Иә' : 'Жоқ'}</td>
-                    <td className="py-2 text-gray-500">{new Date(p.purchaseDate).toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        </section>
+
+        <section className="rounded-3xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+          <div className="border-b border-gray-100 p-6 dark:border-gray-800">
+            <h3 className="text-xl font-black text-gray-900 dark:text-white">Audit trail</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Соңғы admin әрекеттері</p>
           </div>
-        </div>
+
+          <div className="space-y-3 p-6">
+            {data?.auditLogs.length ? (
+              data.auditLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="rounded-2xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/40"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-bold text-gray-900 dark:text-white">{log.action}</p>
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        actor #{log.actorTelegramId} • {log.entityType} • {log.entityId || 'n/a'}
+                      </p>
+                    </div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{formatDate(log.createdAt)}</span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center dark:border-gray-700">
+                <ShieldCheck className="mx-auto mb-3 h-10 w-10 text-gray-400" />
+                <p className="font-medium text-gray-600 dark:text-gray-300">Әзірге audit log жоқ</p>
+              </div>
+            )}
+          </div>
+        </section>
       </div>
     </div>
   );

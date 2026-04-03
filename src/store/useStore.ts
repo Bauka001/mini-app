@@ -1,7 +1,4 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
 import { getTelegramUser, MOCK_USER } from '../utils/telegram';
-import { telegramStorage } from './storage';
 
 export type Language = 'en' | 'ru' | 'kz';
 export type Theme = 'dark' | 'light' | 'gold' | 'blue';
@@ -66,6 +63,14 @@ export interface Notification {
   actionUrl?: string;
 }
 
+export interface DailyQuest {
+  id: string;
+  gamesPlayed: string[];
+  isCompleted: boolean;
+  isClaimed: boolean;
+  lastResetDate: string | null;
+}
+
 export interface Ticket {
   id: string;
   ticketNumber: number;
@@ -96,7 +101,7 @@ export interface BrainStats {
   flexibility: number;
 }
 
-interface UserState {
+export interface UserState {
   language: Language;
   soundEnabled: boolean;
   theme: Theme;
@@ -124,7 +129,6 @@ interface UserState {
 
   socialTasks: SocialTask[];
 
-  adminIds: number[];
   feedbacks: Feedback[];
   notifications: Notification[];
 
@@ -138,6 +142,8 @@ interface UserState {
   planExpiry: number | null;
 
   promotionEndISO: string | null;
+
+  dailyQuest: DailyQuest;
 
   inventory: {
     freezes: number;
@@ -189,27 +195,24 @@ interface UserState {
   updateTicketsEventDate: (newDateISO: string) => void;
   setPromotionEndISO: (newDateISO: string) => void;
   extendPromotionEnd: (days: number, hour?: number) => void;
+  checkDailyQuestComplete: () => boolean;
+  claimDailyQuestReward: () => void;
   logout: () => void;
-  grantAdmin: (code: string) => boolean;
-  revokeAdmin: (userId: number) => void;
 }
 
 const tgUser = getTelegramUser();
-const initialUserRaw = tgUser || (import.meta.env.DEV ? MOCK_USER : {
+export const initialUserRaw = tgUser || (import.meta.env.DEV ? MOCK_USER : {
   id: 0,
   first_name: 'Guest',
   last_name: '',
   username: '',
   photo_url: ''
 });
-// Тек нақты әкімші ID-лері — кез келген пайдаланушы автоматты түрде admin болмайды
-const ADMIN_IDS = [17096844];
-
-const generateGameId = () => {
+export const generateGameId = () => {
   return Math.floor(10000000 + Math.random() * 90000000).toString();
 };
 
-const generateDailyChallenges = (): Challenge[] => [
+export const generateDailyChallenges = (): Challenge[] => [
   {
     id: '1',
     description: 'Play 5 games',
@@ -239,7 +242,7 @@ const generateDailyChallenges = (): Challenge[] => [
   }
 ];
 
-const initialSocialTasks: SocialTask[] = [
+export const initialSocialTasks: SocialTask[] = [
   {
     id: 'ig_bauka',
     platform: 'instagram',
@@ -263,686 +266,42 @@ const initialSocialTasks: SocialTask[] = [
   }
 ];
 
-export const useStore = create<UserState>()(
-  persist(
-    (set, get) => ({
-      language: 'ru',
-      soundEnabled: true,
-      theme: 'light',
+export const initialState = {
+  language: 'ru' as Language,
+  soundEnabled: true,
+  theme: 'light' as Theme,
+  brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
+  coins: 100,
+  gems: 0,
+  fecBalance: 0,
+  skinInventory: ['default'],
+  activeSkin: 'default',
+  unclaimedLevelRewards: [],
+  usedPromocodes: [],
+  dailyGoalMinutes: 10,
+  streak: 0,
+  history: [],
+  lastDailyRewardDate: null,
+  challenges: generateDailyChallenges(),
+  lastChallengeDate: new Date().toISOString().split('T')[0],
+  socialTasks: initialSocialTasks,
+  feedbacks: [],
+  notifications: [],
+  plan: 'free' as 'free' | 'silver' | 'gold' | 'premium',
+  planExpiry: null,
+  hp: 100,
+  maxHp: 100,
+  dailyRewardStreak: 0,
+  tickets: [],
+  eventParticipants: [],
+  promotionEndISO: '2026-04-26T08:00:00.000Z',
+  dailyQuest: {
+    id: 'daily_quest_3games',
+    gamesPlayed: [],
+    isCompleted: false,
+    isClaimed: false,
+    lastResetDate: null
+  },
+  inventory: { freezes: 0, hints: 0, shields: 0 }
+};
 
-      brainStats: {
-        focus: 20,
-        memory: 20,
-        logic: 20,
-        speed: 20,
-        flexibility: 20
-      },
-
-      user: {
-        id: initialUserRaw.id || 0,
-        gameId: initialUserRaw.id ? generateGameId() : `G-${Math.floor(Math.random() * 1000000)}`,
-        firstName: initialUserRaw.first_name || 'Guest',
-        lastName: initialUserRaw.last_name || '',
-        username: initialUserRaw.username || '',
-        photoUrl: initialUserRaw.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${initialUserRaw.first_name || 'Guest'}`,
-        level: 1,
-        xp: 0,
-        achievements: []
-      },
-
-      syncUserFromTelegram: () => {
-        const currentUser = getTelegramUser();
-        if (currentUser) {
-          set((state) => {
-            const isDifferentUser = state.user.id !== 0 && state.user.id !== currentUser.id;
-            
-            if (isDifferentUser) {
-              console.log('[Store] User switch detected, resetting state');
-              // Return initial state but with the new user's data
-              return {
-                ...initialState,
-                user: {
-                  id: currentUser.id,
-                  gameId: generateGameId(),
-                  firstName: currentUser.first_name,
-                  lastName: currentUser.last_name,
-                  username: currentUser.username,
-                  photoUrl: currentUser.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${currentUser.first_name}`,
-                  level: 1,
-                  xp: 0,
-                  achievements: []
-                }
-              };
-            }
-
-            // Update user details if it's the same user or if current state is guest
-            return {
-              user: {
-                ...state.user,
-                id: currentUser.id,
-                gameId: state.user.id === 0 ? generateGameId() : state.user.gameId,
-                firstName: currentUser.first_name,
-                lastName: currentUser.last_name,
-                username: currentUser.username,
-                photoUrl: currentUser.photo_url || state.user.photoUrl
-              }
-            };
-          });
-        }
-      },
-
-      coins: 100,
-      gems: 0,
-      fecBalance: 0,
-      skinInventory: ['default'],
-      activeSkin: 'default',
-      unclaimedLevelRewards: [],
-      usedPromocodes: [],
-
-      dailyGoalMinutes: 10,
-      streak: 0,
-      history: [],
-      lastDailyGoalClaimDate: null,
-      challenges: generateDailyChallenges(),
-      lastChallengeDate: new Date().toISOString().split('T')[0],
-
-      socialTasks: initialSocialTasks,
-
-      adminIds: ADMIN_IDS,
-      feedbacks: [],
-      notifications: [],
-
-      plan: 'free',
-      planExpiry: null,
-      hp: 100,
-      maxHp: 100,
-
-      dailyRewardStreak: 0,
-      lastDailyRewardDate: null,
-
-      tickets: [],
-      eventParticipants: [],
-                promotionEndISO: '2026-04-26T08:00:00.000Z',
-
-      setLanguage: (language) => set({ language }),
-      toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
-      setTheme: (theme) => set({ theme }),
-
-      updateUserProfile: (data) => set((state) => ({
-        user: { ...state.user, ...data }
-      })),
-
-      addGameResult: (result) => set((state) => {
-        const xpGained = result.coinsEarned;
-        const newXp = state.user.xp + xpGained;
-        const newLevel = Math.floor(newXp / 1000) + 1;
-
-        const newStats = { ...state.brainStats };
-        const increment = 1;
-
-        switch (result.gameId) {
-          case 'schulte':
-          case 'odd_one':
-            newStats.focus = Math.min(100, newStats.focus + increment);
-            newStats.speed = Math.min(100, newStats.speed + increment);
-            break;
-          case 'memory':
-          case 'pairs':
-            newStats.memory = Math.min(100, newStats.memory + increment);
-            newStats.focus = Math.min(100, newStats.focus + increment);
-            break;
-          case 'math':
-          case '2048':
-            newStats.logic = Math.min(100, newStats.logic + increment);
-            newStats.speed = Math.min(100, newStats.speed + increment);
-            break;
-          case 'stroop':
-          case 'tetris':
-            newStats.flexibility = Math.min(100, newStats.flexibility + increment);
-            newStats.focus = Math.min(100, newStats.focus + increment);
-            break;
-        }
-
-        let newUnclaimedRewards = [...(state.unclaimedLevelRewards || [])];
-        if (newLevel > state.user.level) {
-          for (let l = state.user.level + 1; l <= newLevel; l++) {
-            if (!newUnclaimedRewards.includes(l)) {
-              newUnclaimedRewards.push(l);
-            }
-          }
-        }
-
-        const newAchievements = [...(state.user.achievements || [])];
-        const gameCount = state.history.length + 1;
-
-        if (gameCount >= 1 && !newAchievements.includes('first_game')) {
-          newAchievements.push('first_game');
-        }
-        if (gameCount >= 10 && !newAchievements.includes('gamer_10')) {
-          newAchievements.push('gamer_10');
-        }
-        if (gameCount >= 50 && !newAchievements.includes('pro_gamer')) {
-          newAchievements.push('pro_gamer');
-        }
-        if (newXp >= 5000 && !newAchievements.includes('xp_master')) {
-          newAchievements.push('xp_master');
-        }
-
-        const updatedChallenges = state.challenges.map(ch => {
-          if (ch.isClaimed) return ch;
-          if (ch.type === 'play_count') return { ...ch, current: ch.current + 1 };
-          if (ch.type === 'total_coins') return { ...ch, current: ch.current + result.coinsEarned };
-          return ch;
-        });
-
-        return {
-          coins: state.coins + result.coinsEarned,
-          history: [
-            ...state.history,
-            {
-              ...result,
-              date: new Date().toISOString().split('T')[0],
-              timestamp: Date.now(),
-            }
-          ],
-          user: {
-            ...state.user,
-            xp: newXp,
-            level: newLevel,
-            achievements: newAchievements
-          },
-          challenges: updatedChallenges,
-          unclaimedLevelRewards: newUnclaimedRewards,
-          brainStats: newStats
-        };
-      }),
-
-      upgradePlan: (plan, days) => set((state) => {
-        const currentPlan = state.plan;
-        const currentExpiry = state.planExpiry || Date.now();
-        let newExpiry = currentExpiry;
-
-        if (plan !== currentPlan) {
-          newExpiry = Date.now() + days * 24 * 60 * 60 * 1000;
-        } else {
-          newExpiry = currentExpiry + days * 24 * 60 * 60 * 1000;
-        }
-
-        const ticketNumber = Math.floor(Math.random() * 90000000) + 10000000;
-        const newTicket: Ticket = {
-          id: Date.now().toString(),
-          ticketNumber,
-          eventName: plan === 'gold' ? 'Gold Premium Event' : plan === 'silver' ? 'Silver Premium Event' : 'Premium Event',
-          eventDate: new Date(newExpiry).toISOString(),
-          price: 0,
-          purchaseDate: new Date().toISOString(),
-          userId: state.user.id,
-          userName: state.user.firstName,
-          isUsed: false
-        };
-
-        const newParticipant: EventParticipant = {
-          ticketId: newTicket.id,
-          ticketNumber,
-          userId: state.user.id,
-          userName: state.user.firstName,
-          userPhoto: state.user.photoUrl,
-          purchaseDate: new Date().toISOString(),
-          isVerified: false
-        };
-
-        return {
-          plan,
-          planExpiry: newExpiry,
-          hp: state.maxHp,
-          tickets: [...state.tickets, newTicket],
-          eventParticipants: [...state.eventParticipants, newParticipant]
-        };
-      }),
-
-      buySkin: (skinId, cost) => {
-        const { coins, skinInventory } = get();
-        if (coins >= cost && !skinInventory.includes(skinId)) {
-          set({
-            coins: coins - cost,
-            skinInventory: [...skinInventory, skinId]
-          });
-          return true;
-        }
-        return false;
-      },
-
-      equipSkin: (skinId) => set({ activeSkin: skinId }),
-
-      inventory: {
-        freezes: 0,
-        hints: 0,
-        shields: 0
-      },
-
-      buyBooster: (type, cost) => {
-        const state = get();
-        if (state.coins >= cost) {
-          set({
-            coins: state.coins - cost,
-            inventory: {
-              ...state.inventory,
-              [type]: state.inventory[type] + 1
-            }
-          });
-          return true;
-        }
-        return false;
-      },
-
-      consumeBooster: (type) => {
-        const state = get();
-        if (state.inventory[type] > 0) {
-          set({
-            inventory: {
-              ...state.inventory,
-              [type]: state.inventory[type] - 1
-            }
-          });
-          return true;
-        }
-        return false;
-      },
-
-      redeemPromocode: (code) => {
-        const { usedPromocodes, coins } = get();
-        const normalizedCode = code.trim().toUpperCase();
-
-        if (usedPromocodes.includes(normalizedCode)) {
-          return { success: false, message: 'Promocode already used' };
-        }
-
-        if (normalizedCode === 'STARTUP') {
-          set((state) => {
-             const currentPlan = state.plan;
-             const currentExpiry = state.planExpiry || Date.now();
-             let newExpiry = currentExpiry;
-             let newPlan = currentPlan;
-
-             if (currentPlan === 'free') {
-                 newPlan = 'silver';
-                 newExpiry = Date.now() + (3 * 24 * 60 * 60 * 1000);
-             } else {
-                 newExpiry = currentExpiry + (3 * 24 * 60 * 60 * 1000);
-             }
-
-             return {
-                 coins: coins + 500,
-                 plan: newPlan,
-                 planExpiry: newExpiry,
-                 usedPromocodes: [...usedPromocodes, normalizedCode]
-             };
-          });
-          return { success: true, message: 'Startup Bonus: 500 Coins + 3 Days Silver!' };
-        }
-
-        return { success: false, message: 'Invalid promocode' };
-      },
-
-      claimDailyLoginReward: () => {
-        const { lastDailyRewardDate, dailyRewardStreak, coins, gems, user } = get();
-        const today = new Date().toISOString().split('T')[0];
-
-        if (lastDailyRewardDate === today) {
-          return { success: false, reward: { coins: 0, gems: 0, xp: 0 } };
-        }
-
-        let newStreak = dailyRewardStreak;
-        const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-
-        if (lastDailyRewardDate === yesterday) {
-          newStreak += 1;
-        } else {
-          newStreak = 1;
-        }
-
-        const dayInCycle = ((newStreak - 1) % 7) + 1;
-
-        let rewardCoins = 50 * dayInCycle;
-        let rewardGems = dayInCycle === 7 ? 10 : (dayInCycle >= 3 ? 2 : 0);
-        let rewardXp = 20 * dayInCycle;
-
-        if (dayInCycle === 7) {
-          rewardCoins = 1000;
-          rewardGems = 20;
-          rewardXp = 500;
-        }
-
-        set({
-          coins: coins + rewardCoins,
-          gems: (gems || 0) + rewardGems,
-          user: { ...user, xp: user.xp + rewardXp },
-          dailyRewardStreak: newStreak,
-          lastDailyRewardDate: today
-        });
-
-        return { success: true, reward: { coins: rewardCoins, gems: rewardGems, xp: rewardXp } };
-      },
-
-      refreshChallenges: () => {
-        const today = new Date().toISOString().split('T')[0];
-        const { lastChallengeDate } = get();
-        if (lastChallengeDate !== today) {
-          set({
-            challenges: generateDailyChallenges(),
-            lastChallengeDate: today
-          });
-        }
-      },
-
-      claimChallengeReward: (challengeId) => set((state) => {
-        const challenge = state.challenges.find(c => c.id === challengeId);
-        if (!challenge || challenge.isClaimed || challenge.current < challenge.target) return state;
-
-        return {
-          coins: state.coins + challenge.reward,
-          challenges: state.challenges.map(c =>
-            c.id === challengeId ? { ...c, isClaimed: true } : c
-          )
-        };
-      }),
-
-      watchAd: (reward) => set((state) => ({
-        coins: state.coins + reward
-      })),
-
-      claimSocialReward: (taskId) => set((state) => {
-        const task = state.socialTasks.find(t => t.id === taskId);
-        if (!task || task.isClaimed) return state;
-
-        return {
-          gems: (state.gems || 0) + task.reward,
-          socialTasks: state.socialTasks.map(t =>
-            t.id === taskId ? { ...t, isClaimed: true } : t
-          )
-        };
-      }),
-
-      addFec: (amount) => set((state) => ({
-        fecBalance: (state.fecBalance || 0) + amount
-      })),
-      addCoins: (amount) => set((state) => ({
-        coins: (state.coins || 0) + amount
-      })),
-
-      spendCoins: (amount) => {
-        const { coins } = get();
-        if (coins >= amount) {
-          set({ coins: coins - amount });
-          return true;
-        }
-        return false;
-      },
-      claimLevelReward: (level) => set((state) => ({
-        unclaimedLevelRewards: state.unclaimedLevelRewards.filter(l => l !== level),
-        coins: state.coins + 100,
-        gems: (state.gems || 0) + 5
-      })),
-      decrementHp: () => {
-        const { hp } = get();
-        if (hp > 0) {
-          set({ hp: hp - 1 });
-          return true;
-        }
-        return false;
-      },
-      restoreHp: (amount) => set((state) => ({
-        hp: Math.min(state.hp + amount, state.maxHp)
-      })),
-
-      addFeedback: (feedback) => set((state) => ({
-        feedbacks: [
-          ...state.feedbacks,
-          {
-            ...feedback,
-            id: Math.random().toString(36).substr(2, 9),
-            date: new Date().toISOString(),
-            status: 'new'
-          }
-        ]
-      })),
-
-      updateFeedbackStatus: (id, status) => set((state) => ({
-        feedbacks: state.feedbacks.map(f =>
-          f.id === id ? { ...f, status } : f
-        )
-      })),
-
-      replyToFeedback: (feedbackId, reply) => set((state) => {
-        const feedback = state.feedbacks.find(f => f.id === feedbackId);
-        if (!feedback) return state;
-
-        const newNotification: Notification = {
-          id: Math.random().toString(36).substr(2, 9),
-          title: 'Админ жауабы',
-          message: `"${feedback.text.substring(0, 20)}..." хабарламаңызға жауап: ${reply}`,
-          date: new Date().toISOString(),
-          isRead: false,
-          type: 'success'
-        };
-
-        return {
-          feedbacks: state.feedbacks.map(f =>
-            f.id === feedbackId ? { ...f, status: 'resolved', adminReply: reply, replyDate: new Date().toISOString() } : f
-          ),
-          notifications: [newNotification, ...state.notifications]
-        };
-      }),
-
-      markNotificationRead: (id) => set((state) => ({
-        notifications: state.notifications.map(n =>
-          n.id === id ? { ...n, isRead: true } : n
-        )
-      })),
-      updateBrainStats: (gameId, score) => set((state) => {
-        const newStats = { ...state.brainStats };
-        const increment = Math.min(5, Math.floor(score / 100));
-
-        switch (gameId) {
-          case 'schulte':
-          case 'odd_one':
-            newStats.focus = Math.min(100, newStats.focus + increment);
-            newStats.speed = Math.min(100, newStats.speed + increment);
-            break;
-          case 'memory':
-          case 'pairs':
-            newStats.memory = Math.min(100, newStats.memory + increment);
-            break;
-          case 'math':
-            newStats.logic = Math.min(100, newStats.logic + increment);
-            break;
-          case 'stroop':
-            newStats.flexibility = Math.min(100, newStats.flexibility + increment);
-            break;
-        }
-
-        return { brainStats: newStats };
-      }),
-
-      addNotification: (notification) => set((state) => ({
-        notifications: [
-          {
-            ...notification,
-            id: Math.random().toString(36).substr(2, 9),
-            date: new Date().toISOString(),
-            isRead: false
-          },
-          ...state.notifications
-        ]
-      })),
-
-      markAllNotificationsRead: () => set((state) => ({
-        notifications: state.notifications.map(n => ({ ...n, isRead: true }))
-      })),
-
-      clearNotifications: () => set({ notifications: [] }),
-
-      purchaseTicket: (eventName, eventDate, price) => {
-        const state = get();
-        if (state.coins < price) {
-          return { success: false };
-        }
-
-        const ticketNumber = Math.floor(Math.random() * 90000000) + 10000000;
-        const newTicket: Ticket = {
-          id: Date.now().toString(),
-          ticketNumber,
-          eventName,
-          eventDate,
-          price,
-          purchaseDate: new Date().toISOString(),
-          userId: state.user.id,
-          userName: state.user.firstName,
-          isUsed: false
-        };
-
-        const newParticipant: EventParticipant = {
-          ticketId: newTicket.id,
-          ticketNumber,
-          userId: state.user.id,
-          userName: state.user.firstName,
-          userPhoto: state.user.photoUrl,
-          purchaseDate: new Date().toISOString(),
-          isVerified: false
-        };
-
-        set((state) => ({
-          coins: state.coins - price,
-          tickets: [...state.tickets, newTicket],
-          eventParticipants: [...state.eventParticipants, newParticipant]
-        }));
-
-        return { success: true, ticketNumber };
-      },
-
-      verifyTicket: (ticketNumber) => {
-        const state = get();
-        const ticket = state.tickets.find(t => t.ticketNumber === ticketNumber);
-
-        if (!ticket || ticket.isUsed) {
-          return false;
-        }
-
-        set((state) => ({
-          tickets: state.tickets.map(t =>
-            t.ticketNumber === ticketNumber ? { ...t, isUsed: true } : t
-          ),
-          eventParticipants: state.eventParticipants.map(p =>
-            p.ticketNumber === ticketNumber ? { ...p, isVerified: true } : p
-          )
-        }));
-
-        return true;
-      },
-
-      getEventParticipants: () => {
-        return get().eventParticipants;
-      },
-
-      updateTicketsEventDate: (newDateISO) => set((state) => {
-        const allSame = state.tickets.every(t => t.eventDate === newDateISO);
-        if (allSame) return state;
-        return {
-          tickets: state.tickets.map(t => ({ ...t, eventDate: newDateISO }))
-        };
-      }),
-
-      setPromotionEndISO: (newDateISO) => set((state) => {
-        if (state.promotionEndISO === newDateISO) return state;
-        // Only set the promotion end; ticket dates can be synced separately
-        return { promotionEndISO: newDateISO };
-      }),
-
-      extendPromotionEnd: (days, hour) => set((state) => {
-        const base = state.promotionEndISO ? new Date(state.promotionEndISO) : new Date();
-        const extended = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
-        if (typeof hour === 'number') {
-          extended.setHours(hour, 0, 0, 0);
-        }
-        const newISO = extended.toISOString();
-        const ticketsAllSame = state.tickets.every(t => t.eventDate === newISO);
-        return {
-          promotionEndISO: newISO,
-          tickets: ticketsAllSame ? state.tickets : state.tickets.map(t => ({ ...t, eventDate: newISO }))
-        };
-      }),
-
-      grantAdmin: (code: string) => {
-        const ADMIN_CODE = 'FOCUS_ADMIN_2024';
-        if (code !== ADMIN_CODE) return false;
-        const { user } = get();
-        if (!user.id || user.id === 0) return false;
-        set((state) => ({
-          adminIds: state.adminIds.includes(user.id)
-            ? state.adminIds
-            : [...state.adminIds, user.id]
-        }));
-        return true;
-      },
-
-      revokeAdmin: (userId: number) => set((state) => ({
-        adminIds: state.adminIds.filter(id => id !== userId || ADMIN_IDS.includes(id))
-      })),
-
-      logout: () => set((state) => {
-        // Clear Telegram storage
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('focus-storage-v17');
-        }
-        
-        // Reset to initial state
-        return {
-          language: 'ru',
-          soundEnabled: true,
-          theme: 'light',
-          brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
-          user: {
-            id: 0,
-            firstName: 'Guest',
-            lastName: '',
-            username: '',
-            photoUrl: '',
-            level: 1,
-            xp: 0,
-            achievements: []
-          },
-          coins: 100,
-          gems: 0,
-          fecBalance: 0,
-          skinInventory: ['default'],
-          activeSkin: 'default',
-          unclaimedLevelRewards: [],
-          usedPromocodes: [],
-          dailyGoalMinutes: 10,
-          streak: 0,
-          history: [],
-          lastDailyRewardDate: null,
-          challenges: generateDailyChallenges(),
-          lastChallengeDate: new Date().toISOString().split('T')[0],
-          socialTasks: initialSocialTasks,
-          adminIds: ADMIN_IDS,
-          feedbacks: [],
-          notifications: [],
-          plan: 'free',
-          planExpiry: null,
-          hp: 100,
-          maxHp: 100,
-          dailyRewardStreak: 0,
-          tickets: [],
-          eventParticipants: [],
-          promotionEndISO: '2026-04-26T08:00:00.000Z',
-          inventory: { freezes: 0, hints: 0, shields: 0 }
-        };
-      })
-    }),
-    {
-      name: `focus-app-v30-prod`,
-      storage: createJSONStorage(() => telegramStorage),
-    }
-  )
-);

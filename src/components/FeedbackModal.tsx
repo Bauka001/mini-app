@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Send, Image as ImageIcon, AlertCircle } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
 import WebApp from '@twa-dev/sdk';
 
 interface FeedbackModalProps {

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore, Theme } from '../../store/useStore';
+import { Theme } from '../../store/useStore';
+import { useStore } from '../../store/useStore.1';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
 import { ReviveModal } from '../../components/modals/ReviveModal';
@@ -193,15 +194,15 @@ const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, co
   };
 
   // Theme Styles
-  const bgStyle = theme === 'light' ? 'bg-white' : 'bg-transparent';
-  const gridBg = theme === 'light' ? 'bg-gray-200/80 border-gray-300' : 'bg-white/5 border-white/10';
-  const tileDefault = theme === 'light' ? 'bg-white hover:bg-gray-50 border-gray-200' : 'bg-white/5 hover:bg-white/10 border-white/5';
+  const bgStyle = theme === 'light' ? 'bg-gradient-to-br from-indigo-50 to-purple-50' : 'bg-transparent';
+  const gridBg = theme === 'light' ? 'bg-white/60 border-white/80 shadow-[0_8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl' : 'bg-white/5 border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-2xl';
+  const tileDefault = theme === 'light' ? 'bg-white hover:bg-indigo-50 border-indigo-100 shadow-sm' : 'bg-white/10 hover:bg-white/20 border-white/10 shadow-sm';
 
   return (
-    <div ref={containerRef} className={`h-full flex flex-col items-center justify-center p-4 relative overflow-hidden ${bgStyle}`}>
+    <div ref={containerRef} className={`h-full flex flex-col items-center justify-center p-4 relative overflow-hidden ${bgStyle} transition-colors duration-500`}>
       {/* Background Ambience */}
       {theme !== 'light' && (
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-gray-900 via-gray-900 to-black z-0" />
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-background to-background z-0" />
       )}
       
       <ParticleSystem particles={particles} />
@@ -214,29 +215,52 @@ const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, co
         onRestart={handleRestart}
       />
 
-      <div className="mb-8 relative flex flex-col items-center z-10">
+      <motion.div 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="mb-12 relative flex flex-col items-center z-10 w-full max-w-sm"
+      >
+         <div className="flex justify-between w-full px-4 mb-6">
+           <div className={clsx(
+             "px-4 py-1.5 rounded-xl text-xs backdrop-blur-md border shadow-sm font-mono tracking-wider",
+             theme === 'light' ? "bg-white/80 border-indigo-100 text-indigo-600" : "bg-white/10 border-white/10 text-white/60"
+           )}>
+             Level {level}
+           </div>
+           {gameState === 'playing' && (
+              <div className={clsx(
+                "px-4 py-1.5 rounded-xl text-xs backdrop-blur-md border shadow-sm font-mono tracking-wider transition-colors",
+                timeLeft < 3 ? "bg-red-500/20 border-red-500/40 text-red-500 animate-pulse-glow" : theme === 'light' ? "bg-white/80 border-indigo-100 text-indigo-600" : "bg-white/10 border-white/10 text-white/60"
+              )}>
+                 ⏱ {timeLeft.toFixed(1)}s
+              </div>
+           )}
+         </div>
+
          <motion.div 
-           key={level}
-           initial={{ scale: 1.5, opacity: 0 }}
+           key={`title-${level}`}
+           initial={{ scale: 1.2, opacity: 0 }}
            animate={{ scale: 1, opacity: 1 }}
-           className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-lg"
+           className="text-5xl font-black tracking-tighter text-transparent bg-clip-text drop-shadow-2xl text-center"
+           style={{
+             backgroundImage: theme === 'light' ? 'linear-gradient(to right, #4f46e5, #ec4899)' : 'linear-gradient(to right, #818cf8, #f472b6)'
+           }}
          >
-            Level {level}
+            Memory Matrix
          </motion.div>
          {gameState === 'showing' && (
-            <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-sm text-purple-300 animate-pulse whitespace-nowrap">
-               Memorize...
-            </div>
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={clsx(
+                "absolute -bottom-8 left-1/2 -translate-x-1/2 text-sm font-bold tracking-widest uppercase animate-pulse whitespace-nowrap",
+                theme === 'light' ? "text-indigo-500" : "text-indigo-400"
+              )}
+            >
+               Memorize Pattern
+            </motion.div>
          )}
-         {gameState === 'playing' && (
-            <div className={clsx(
-              "absolute -bottom-8 left-1/2 -translate-x-1/2 text-sm font-bold transition-colors",
-              timeLeft < 3 ? "text-red-500 animate-pulse" : theme === 'light' ? "text-gray-800" : "text-white"
-            )}>
-               {timeLeft.toFixed(1)}s
-            </div>
-         )}
-      </div>
+      </motion.div>
       
       <motion.div 
         animate={shake ? { x: [-5, 5, -5, 5, 0] } : {}}

@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore } from '../../store/useStore';
+import { useStore } from '../../store/useStore.1';
 import { SKIN_STYLES } from '../../utils/skins';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export const MathGame = () => {
   const { t } = useTranslation();
@@ -112,72 +113,111 @@ export const MathBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, c
 
   return (
     <div className={clsx(
-      "h-full flex flex-col items-center justify-between p-6 pb-20 relative transition-colors duration-300",
-      theme === 'light' ? 'bg-gray-100' : 'bg-transparent'
+      "h-full flex flex-col items-center justify-between p-6 pb-20 relative transition-colors duration-500",
+      theme === 'light' ? 'bg-gradient-to-br from-blue-50 to-indigo-50' : 'bg-transparent'
     )}>
-      <div className="w-full flex justify-between items-center text-lg font-bold mb-4">
-        <div className="flex flex-col gap-1">
+      {/* Top Bar Stats */}
+      <motion.div 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="w-full flex justify-between items-center text-lg font-bold mb-4 z-10"
+      >
+        <div className="flex flex-col gap-2">
           <div className={clsx(
-            "px-3 py-1 rounded-lg text-[10px] backdrop-blur-md border",
-            theme === 'light' ? "bg-white/50 border-gray-200 text-gray-500" : "bg-white/5 border-white/5 text-white/40"
+            "px-4 py-1.5 rounded-xl text-xs backdrop-blur-md border shadow-sm font-mono tracking-wider",
+            theme === 'light' ? "bg-white/80 border-gray-200 text-gray-600" : "bg-white/10 border-white/10 text-white/60"
           )}>
-            ID: {user.gameId || '17096844'}
+            ID: {user?.gameId || '17096844'}
           </div>
           <div className={clsx(
-            "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg",
-            theme === 'light' ? "bg-white border-gray-200 text-primary" : "bg-white/10 border-white/5 text-primary"
+            "px-5 py-2 rounded-2xl backdrop-blur-xl border shadow-lg flex items-center gap-2",
+            theme === 'light' ? "bg-white/90 border-indigo-100 text-indigo-600" : "bg-indigo-500/20 border-indigo-500/30 text-indigo-300"
           )}>
-            Correct: {correctCount}/10
+            <span className="text-xl">✨</span> {correctCount}/10
           </div>
         </div>
-        <div className={clsx(
-           "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg transition-colors",
-           timeLeft < 10 ? "bg-red-500/20 text-red-500 animate-pulse border-red-500/20" : 
-           theme === 'light' ? "bg-white border-gray-200 text-gray-800" : "bg-white/10 border-white/5 text-white"
-        )}>
-          {timeLeft.toFixed(1)}s
-        </div>
-        <div className={clsx(
-          "px-4 py-2 rounded-full backdrop-blur-md border shadow-lg",
-          theme === 'light' ? "bg-white border-gray-200 text-gray-800" : "bg-white/10 border-white/5 text-white"
-        )}>
-          Q: {questionsAnswered + 1}/10
-        </div>
-      </div>
 
-      <div className={clsx(
-        "flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 rounded-3xl mb-8 border relative overflow-hidden",
-        isWrong 
-          ? "bg-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.4)] border-red-500/20" 
-          : theme === 'light'
-            ? "bg-white border-gray-200 shadow-xl"
-            : "bg-white/5 backdrop-blur-xl shadow-2xl border-white/5"
-      )}>
-        <h2 className={clsx(
-          "text-7xl font-black tracking-wider text-transparent bg-clip-text drop-shadow-2xl",
-          theme === 'light' ? "bg-gradient-to-br from-gray-800 to-gray-600" : "bg-gradient-to-br from-white to-gray-400"
-        )}>
-          {question.text}
-        </h2>
-        <div className={clsx(
-          "mt-4 text-2xl font-bold",
-          theme === 'light' ? "text-gray-500" : "text-gray-400"
-        )}>= ?</div>
-      </div>
+        <div className="flex flex-col gap-2 items-end">
+          <motion.div 
+            animate={timeLeft < 10 ? { scale: [1, 1.1, 1], color: ['#ef4444', '#f87171', '#ef4444'] } : {}}
+            transition={{ repeat: timeLeft < 10 ? Infinity : 0, duration: 0.5 }}
+            className={clsx(
+              "px-5 py-2 rounded-2xl backdrop-blur-xl border shadow-lg tabular-nums tracking-wider",
+              timeLeft < 10 
+                ? "bg-red-500/20 border-red-500/40 text-red-500 animate-pulse-glow" 
+                : theme === 'light' 
+                  ? "bg-white/90 border-blue-100 text-blue-600" 
+                  : "bg-blue-500/20 border-blue-500/30 text-blue-300"
+            )}
+          >
+            ⏱ {timeLeft.toFixed(1)}s
+          </motion.div>
+          <div className={clsx(
+            "px-4 py-1.5 rounded-xl backdrop-blur-md border shadow-sm text-sm font-medium",
+            theme === 'light' ? "bg-white/80 border-gray-200 text-gray-600" : "bg-white/10 border-white/10 text-white/80"
+          )}>
+            Q: {questionsAnswered + 1}/10
+          </div>
+        </div>
+      </motion.div>
 
-      <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
+      {/* Main Question Display */}
+      <AnimatePresence mode="wait">
+        <motion.div 
+          key={question.text}
+          initial={{ scale: 0.8, opacity: 0, rotateX: -20 }}
+          animate={{ scale: 1, opacity: 1, rotateX: 0 }}
+          exit={{ scale: 1.1, opacity: 0, filter: "blur(10px)" }}
+          transition={{ type: "spring", bounce: 0.5, duration: 0.5 }}
+          className={clsx(
+            "flex-1 flex flex-col items-center justify-center w-full rounded-[2.5rem] mb-8 border relative overflow-hidden group",
+            isWrong 
+              ? "bg-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.4)] border-red-500/50 animate-shake" 
+              : theme === 'light'
+                ? "bg-white/60 border-white shadow-2xl backdrop-blur-xl"
+                : "bg-white/5 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] border-white/10"
+          )}
+        >
+          {/* Decorative background glow */}
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-50 pointer-events-none group-hover:opacity-100 transition-opacity duration-500" />
+          
+          <h2 className={clsx(
+            "text-7xl sm:text-8xl font-black tracking-tighter text-transparent bg-clip-text drop-shadow-2xl z-10",
+            theme === 'light' ? "bg-gradient-to-br from-gray-800 to-gray-500" : "bg-gradient-to-br from-white via-blue-100 to-gray-400"
+          )}>
+            {question.text}
+          </h2>
+          <div className={clsx(
+            "mt-6 text-3xl font-bold z-10",
+            theme === 'light' ? "text-indigo-400" : "text-indigo-400/80"
+          )}>= ?</div>
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Answer Options */}
+      <div className="grid grid-cols-2 gap-4 w-full max-w-sm z-10">
         {question.options.map((opt, idx) => (
-          <button
-            key={idx}
+          <motion.button
+            key={`${question.text}-${idx}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            whileHover={{ scale: 1.05, y: -2 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => handleAnswer(opt)}
             className={clsx(
-              "text-4xl font-bold py-8 rounded-2xl active:scale-95 transition-all duration-200 shadow-lg relative overflow-hidden group",
+              "text-4xl sm:text-5xl font-black py-8 rounded-[2rem] transition-all duration-300 shadow-xl relative overflow-hidden group border",
+              theme === 'light' 
+                ? "bg-white text-gray-800 border-gray-100 hover:shadow-indigo-200 hover:border-indigo-200" 
+                : "bg-white/10 text-white border-white/10 hover:bg-white/20 hover:border-white/20 hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]",
               skinClass
             )}
           >
-             <span className="relative z-10">{opt}</span>
-             <div className="absolute inset-0 bg-gradient-to-tr from-white/10 to-transparent pointer-events-none" />
-          </button>
+             <span className="relative z-10 drop-shadow-md">{opt}</span>
+             <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+             {/* Glossy reflection */}
+             <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent rounded-t-[2rem] pointer-events-none" />
+          </motion.button>
         ))}
       </div>
     </div>

@@ -1,6 +1,7 @@
 export async function verifyTelegramInitData(initData: string) {
   try {
-    const resp = await fetch('http://localhost:3001/auth/verify', {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+    const resp = await fetch(`${apiUrl}/auth/verify`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ initData }),

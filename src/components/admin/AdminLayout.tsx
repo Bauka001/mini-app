@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, MessageSquare, Gamepad2, Settings, LogOut, ArrowLeft } from 'lucide-react';
+import { LayoutDashboard, Users, MessageSquare, Gamepad2, Settings, LogOut, ArrowLeft, Ticket } from 'lucide-react';
 import { clsx } from 'clsx';
 
 export const AdminLayout = () => {
@@ -9,12 +9,17 @@ export const AdminLayout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
-    { icon: Users, label: 'Users', path: '/admin/users' },
-    { icon: MessageSquare, label: 'Chat Moderation', path: '/admin/chat' },
-    { icon: Gamepad2, label: 'Games', path: '/admin/games' },
-    { icon: Settings, label: 'Settings', path: '/admin/settings' },
+    { icon: LayoutDashboard, label: 'Дашборд', path: '/admin' },
+    { icon: Users, label: 'Пайдаланушылар', path: '/admin/users' },
+    { icon: MessageSquare, label: 'Чат модерациясы', path: '/admin/chat' },
+    { icon: Ticket, label: 'Тікеттер', path: '/admin/tickets' },
+    { icon: Gamepad2, label: 'Ойын аналитикасы', path: '/admin/games' },
+    { icon: Settings, label: 'Баптаулар', path: '/admin/settings' },
   ];
+
+  const currentItem = menuItems.find((item) =>
+    item.path === '/admin' ? location.pathname === '/admin' : location.pathname.startsWith(item.path)
+  );
 
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
@@ -26,14 +31,17 @@ export const AdminLayout = () => {
           >
             <ArrowLeft className={clsx('w-5 h-5 transition-transform', !sidebarOpen && 'rotate-180')} />
           </button>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">Admin Panel</h1>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Admin Panel</h1>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{currentItem?.label || 'Басқару орталығы'}</p>
+          </div>
         </div>
         <button
           onClick={() => navigate('/')}
           className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors"
         >
           <LogOut className="w-4 h-4" />
-          Exit
+          Шығу
         </button>
       </nav>
 
@@ -43,7 +51,9 @@ export const AdminLayout = () => {
             <ul className="py-4">
               {menuItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.path;
+                const isActive = item.path === '/admin'
+                  ? location.pathname === '/admin'
+                  : location.pathname.startsWith(item.path);
                 return (
                   <li key={item.path}>
                     <button

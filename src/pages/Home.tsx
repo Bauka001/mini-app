@@ -1,84 +1,99 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Brain, Calculator, Type, Grid, Trophy, Bell,
+import { motion } from 'framer-motion';
+import {
+  Brain, Calculator, Type, Trophy, Bell,
   Video, Zap, Eye, Copy,
   Settings, Gift, User, ChevronRight, ShoppingCart,
-  Wallet, Grid3x3
+  Wallet, Grid, Blocks, Grid2x2
 } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
 import { clsx } from 'clsx';
 import AdModal from '../components/AdModal';
 import { DailyRewardModal } from '../components/DailyRewardModal';
 import { NotificationsModal } from '../components/NotificationsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import { hapticFeedback } from '../utils/telegram';
 
-const GameGridItem = ({ 
-  title, 
-  icon: Icon, 
-  onClick,
-  isLight
-}: { 
-  title: string, 
-  icon: any, 
-  onClick: () => void,
-  isLight: boolean
-}) => (
-  <button 
-    onClick={onClick}
-    className="flex flex-col items-center gap-2 p-3"
-  >
-    <div className="w-12 h-12 flex items-center justify-center">
-      <Icon size={28} className={isLight ? "text-gray-800" : "text-gray-100"} />
-    </div>
-    <span className={clsx("text-xs text-center", isLight ? "text-gray-700" : "text-gray-300")}>{title}</span>
-  </button>
-);
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.05 }
+  }
+};
 
-const ListItem = ({ 
-  icon: Icon, 
-  title, 
+const itemVariants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } }
+};
+
+const gameButtons = [
+  { title: 'game_memory', icon: Grid, path: '/game/memory' },
+  { title: 'game_schulte', icon: Brain, path: '/game/schulte' },
+  { title: 'game_math', icon: Calculator, path: '/game/math' },
+  { title: 'game_pairs', icon: Copy, path: '/game/pairs' },
+  { title: 'game_odd_one', icon: Eye, path: '/game/odd-one' },
+  { title: 'game_stroop', icon: Type, path: '/game/stroop' },
+  { title: 'game_tetris', icon: Blocks, path: '/game/tetris' },
+  { title: 'game_2048', icon: Grid2x2, path: '/game/2048' },
+];
+
+const ListItem = ({
+  icon: Icon,
+  title,
   subtitle,
   onClick,
   styles
-}: { 
-  icon: any, 
-  title: string, 
+}: {
+  icon: React.ElementType,
+  title: string,
   subtitle?: string,
   onClick: () => void,
-  styles: any
+  styles: ReturnType<typeof useThemeStyles>
 }) => (
-  <button 
-    onClick={onClick}
+  <motion.button
+    whileTap={{ scale: 0.98 }}
+    variants={itemVariants}
+    onClick={() => { hapticFeedback.click(); onClick(); }}
     className={clsx(
-      "w-full p-4 flex items-center justify-between border-b last:border-0",
-      styles.isLight ? "bg-white border-gray-100" : "bg-transparent border-gray-800"
+      "w-full p-4 flex items-center justify-between border-b last:border-0 transition-colors duration-300",
+      styles.isLight ? "bg-white border-slate-100 hover:bg-slate-50" :
+      styles.isBlue ? "bg-transparent border-blue-400/20 hover:bg-blue-800/30" :
+      styles.isGold ? "bg-transparent border-amber-500/20 hover:bg-amber-900/30" :
+      "bg-transparent border-zinc-800 hover:bg-zinc-800/50"
     )}
   >
     <div className="flex items-center gap-4">
-      <div className={clsx("w-10 h-10 rounded flex items-center justify-center", styles.isLight ? "bg-gray-100" : "bg-gray-800")}>
-        <Icon size={20} className={styles.isLight ? "text-gray-700" : "text-gray-300"} />
+      <div className={clsx(
+        "w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-300",
+        styles.isLight ? "bg-indigo-50" :
+        styles.isBlue ? "bg-blue-900/40" :
+        styles.isGold ? "bg-amber-900/40" :
+        "bg-white/10"
+      )}>
+        <Icon size={20} className={styles.textAccent} />
       </div>
       <div className="text-left">
-        <div className={clsx("text-sm", styles.textPrimary)}>{title}</div>
-        {subtitle && <div className={clsx("text-xs", styles.textSecondary)}>{subtitle}</div>}
+        <div className={clsx("text-sm font-medium", styles.textPrimary)}>{title}</div>
+        {subtitle && <div className={clsx("text-xs mt-0.5", styles.textSecondary)}>{subtitle}</div>}
       </div>
     </div>
-    <ChevronRight size={16} className={styles.textSecondary} />
-  </button>
+    <ChevronRight size={18} className={styles.textSecondary} />
+  </motion.button>
 );
 
 const Home = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  
+
   const watchAd = useStore(state => state.watchAd);
   const lastDailyRewardDate = useStore(state => state.lastDailyRewardDate);
   const user = useStore(state => state.user);
 
   const styles = useThemeStyles();
-  const { isLight, textPrimary, textSecondary } = styles;
+  const { isLight, isBlue, isGold, textPrimary, textSecondary, bgClass, headerClass, panelClass } = styles;
 
   const [showAdModal, setShowAdModal] = useState(false);
   const [showDailyReward, setShowDailyReward] = useState(false);
@@ -98,6 +113,7 @@ const Home = () => {
   }, [lastDailyRewardDate]);
 
   const handleWatchAd = () => {
+    hapticFeedback.click();
     console.log('Watch Ad clicked');
     setShowAdModal(true);
   };
@@ -107,141 +123,194 @@ const Home = () => {
     watchAd(50);
   };
 
+  const handleGameClick = (path: string) => {
+    hapticFeedback.click();
+    navigate(path);
+  };
+
   return (
     <div className={clsx("min-h-screen pb-20 font-sans transition-colors duration-500", bgClass)}>
 
-      {/* Header */}
-      <header className={clsx(
-        "px-4 py-4 flex justify-between items-center border-b",
-        isLight ? "bg-white border-gray-200" : "bg-black border-gray-800"
-      )}>
+      <motion.header
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={clsx(
+          "px-4 py-4 flex justify-between items-center border-b sticky top-0 z-10 backdrop-blur-md transition-colors duration-500",
+          headerClass
+        )}
+      >
         <div className="flex flex-col">
-          <h1 className={clsx("text-lg font-semibold", isLight ? "text-gray-900" : "text-white")}>Focus App</h1>
-          <span className={clsx("text-xs", isLight ? "text-gray-500" : "text-gray-400")}>ID: {user.gameId || '17096844'}</span>
+          <h1 className={clsx("text-lg font-bold tracking-tight", textPrimary)}>Focus App</h1>
+          <span className={clsx("text-xs font-medium", textSecondary)}>ID: {user.gameId || '17096844'}</span>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={() => setShowNotifications(true)} className="relative">
-            <Bell size={20} className={isLight ? "text-gray-600" : "text-gray-400"} />
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => { hapticFeedback.click(); setShowNotifications(true); }} className="relative p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
+            <Bell size={22} className={textPrimary} />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
+              <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-black" />
             )}
-          </button>
-          <button onClick={() => navigate('/profile')}>
-            <User size={20} className={isLight ? "text-gray-600" : "text-gray-400"} />
-          </button>
+          </motion.button>
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => { hapticFeedback.click(); navigate('/profile'); }} className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
+            <User size={22} className={textPrimary} />
+          </motion.button>
         </div>
-      </header>
+      </motion.header>
 
-      {/* Stories Area */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.1 }}
+        className={clsx(
+          "px-4 py-5 border-b transition-colors duration-500",
+          panelClass
+        )}
+      >
+        <div className="flex justify-between gap-4">
+          <motion.button whileTap={{ scale: 0.92 }} onClick={() => { hapticFeedback.click(); setShowDailyReward(true); }} className="flex flex-col items-center gap-2 flex-1">
+            <div className={clsx("w-16 h-16 rounded-full flex items-center justify-center shadow-sm transition-transform duration-300",
+              isLight ? "bg-white border-2 border-indigo-100" :
+              isBlue ? "bg-blue-900/40 border-2 border-blue-400/30" :
+              isGold ? "bg-[#292524]/60 border-2 border-amber-500/30" :
+              "bg-zinc-900/50 border-2 border-zinc-700/50"
+            )}>
+               <Gift size={24} className={isLight ? "text-indigo-500" : isBlue ? "text-blue-300" : isGold ? "text-amber-300" : "text-cyan-400"} />
+            </div>
+            <span className={clsx("text-xs font-medium", textPrimary)}>{t('daily_bonus')}</span>
+          </motion.button>
+
+          <motion.button whileTap={{ scale: 0.92 }} onClick={() => { hapticFeedback.click(); navigate('/leaderboard'); }} className="flex flex-col items-center gap-2 flex-1">
+            <div className={clsx("w-16 h-16 rounded-full flex items-center justify-center shadow-sm transition-transform duration-300",
+              isLight ? "bg-white border-2 border-orange-100" :
+              isBlue ? "bg-blue-900/40 border-2 border-orange-400/30" :
+              isGold ? "bg-[#292524]/60 border-2 border-amber-500/30" :
+              "bg-zinc-900/50 border-2 border-zinc-700/50"
+            )}>
+               <Trophy size={24} className={isLight ? "text-orange-500" : isBlue ? "text-orange-300" : isGold ? "text-amber-400" : "text-orange-400"} />
+            </div>
+            <span className={clsx("text-xs font-medium", textPrimary)}>{t('top_players')}</span>
+          </motion.button>
+
+          <motion.button whileTap={{ scale: 0.92 }} onClick={handleWatchAd} className="flex flex-col items-center gap-2 flex-1">
+            <div className={clsx("w-16 h-16 rounded-full flex items-center justify-center shadow-sm transition-transform duration-300",
+              isLight ? "bg-white border-2 border-purple-100" :
+              isBlue ? "bg-blue-900/40 border-2 border-purple-400/30" :
+              isGold ? "bg-[#292524]/60 border-2 border-purple-400/30" :
+              "bg-zinc-900/50 border-2 border-zinc-700/50"
+            )}>
+               <Video size={24} className={isLight ? "text-purple-500" : isBlue ? "text-purple-300" : isGold ? "text-purple-300" : "text-purple-400"} />
+            </div>
+            <span className={clsx("text-xs font-medium", textPrimary)}>{t('watch_ad')}</span>
+          </motion.button>
+
+          <motion.button whileTap={{ scale: 0.92 }} onClick={() => { hapticFeedback.click(); navigate('/airdrop'); }} className="flex flex-col items-center gap-2 flex-1">
+            <div className={clsx("w-16 h-16 rounded-full flex items-center justify-center shadow-sm transition-transform duration-300",
+              isLight ? "bg-white border-2 border-emerald-100" :
+              isBlue ? "bg-blue-900/40 border-2 border-emerald-400/30" :
+              isGold ? "bg-[#292524]/60 border-2 border-emerald-400/30" :
+              "bg-zinc-900/50 border-2 border-zinc-700/50"
+            )}>
+               <span className={clsx("text-sm font-bold", isLight ? "text-emerald-500" : isBlue ? "text-emerald-300" : isGold ? "text-emerald-300" : "text-emerald-400")}>$FEC</span>
+            </div>
+            <span className={clsx("text-xs font-medium", textPrimary)}>{t('my_wallet')}</span>
+          </motion.button>
+        </div>
+      </motion.div>
+
       <div className={clsx(
-        "px-4 py-4 border-b",
-        isLight ? "bg-gray-50 border-gray-200" : "bg-gray-900 border-gray-800"
+        "p-4 mt-4 rounded-2xl mx-4 transition-colors duration-500",
+        panelClass
       )}>
-        <div className="flex gap-6">
-          <button onClick={() => setShowDailyReward(true)} className="flex flex-col items-center gap-2">
-            <div className={clsx("w-14 h-14 rounded-full flex items-center justify-center", isLight ? "bg-white border-2 border-gray-200" : "bg-gray-800 border-2 border-gray-700")}>
-               <Gift size={20} className={isLight ? "text-gray-700" : "text-gray-300"} />
-            </div>
-            <span className={clsx("text-xs", isLight ? "text-gray-700" : "text-gray-300")}>{t('daily_bonus')}</span>
-          </button>
-
-          <button onClick={() => navigate('/leaderboard')} className="flex flex-col items-center gap-2">
-            <div className={clsx("w-14 h-14 rounded-full flex items-center justify-center", isLight ? "bg-white border-2 border-gray-200" : "bg-gray-800 border-2 border-gray-700")}>
-               <Trophy size={20} className={isLight ? "text-gray-700" : "text-gray-300"} />
-            </div>
-            <span className={clsx("text-xs", isLight ? "text-gray-700" : "text-gray-300")}>{t('top_players')}</span>
-          </button>
-
-          <button onClick={handleWatchAd} className="flex flex-col items-center gap-2">
-            <div className={clsx("w-14 h-14 rounded-full flex items-center justify-center", isLight ? "bg-white border-2 border-gray-200" : "bg-gray-800 border-2 border-gray-700")}>
-               <Video size={20} className={isLight ? "text-gray-700" : "text-gray-300"} />
-            </div>
-            <span className={clsx("text-xs", isLight ? "text-gray-700" : "text-gray-300")}>{t('watch_ad')}</span>
-          </button>
-          
-          <button onClick={() => navigate('/airdrop')} className="flex flex-col items-center gap-2">
-            <div className={clsx("w-14 h-14 rounded-full flex items-center justify-center", isLight ? "bg-white border-2 border-gray-200" : "bg-gray-800 border-2 border-gray-700")}>
-               <span className={clsx("text-xs font-bold", isLight ? "text-gray-700" : "text-gray-300")}>$FEC</span>
-            </div>
-            <span className={clsx("text-xs", isLight ? "text-gray-700" : "text-gray-300")}>{t('my_wallet')}</span>
-          </button>
-        </div>
+        <motion.div
+          className="grid grid-cols-4 gap-4"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {gameButtons.map((game) => {
+            const Icon = game.icon;
+            return (
+              <motion.button
+                key={game.title}
+                whileTap={{ scale: 0.92 }}
+                onClick={() => handleGameClick(game.path)}
+                variants={itemVariants}
+                className={clsx(
+                  "flex flex-col items-center gap-2 p-3 rounded-2xl transition-all duration-300",
+                  styles.isLight ? "hover:bg-slate-100 active:bg-slate-200" :
+                  styles.isBlue ? "hover:bg-blue-800/30 active:bg-blue-800/50" :
+                  styles.isGold ? "hover:bg-stone-800/50 active:bg-stone-800/70" :
+                  "hover:bg-zinc-800/50 active:bg-zinc-800"
+                )}
+              >
+                <div className={clsx(
+                  "w-14 h-14 flex items-center justify-center rounded-2xl shadow-sm transition-colors duration-300",
+                  styles.cardClass
+                )}>
+                  <Icon size={26} className={styles.textAccent} />
+                </div>
+                <span className={clsx("text-xs text-center font-medium", styles.textPrimary)}>{t(game.title)}</span>
+              </motion.button>
+            );
+          })}
+        </motion.div>
       </div>
 
-      {/* Main Grid Menu (Games) */}
-      <div className={clsx(
-        "p-4 mt-4",
-        isLight ? "bg-white" : "bg-black"
-      )}>
-        <div className="grid grid-cols-4 gap-4">
-          <GameGridItem title={t('game_memory')} icon={Grid} onClick={() => navigate('/game/memory')} isLight={isLight} />
-          <GameGridItem title={t('game_schulte')} icon={Brain} onClick={() => navigate('/game/schulte')} isLight={isLight} />
-          <GameGridItem title={t('game_math')} icon={Calculator} onClick={() => navigate('/game/math')} isLight={isLight} />
-          <GameGridItem title={t('game_pairs')} icon={Copy} onClick={() => navigate('/game/pairs')} isLight={isLight} />
-          
-          <GameGridItem title={t('game_odd_one')} icon={Eye} onClick={() => navigate('/game/odd-one')} isLight={isLight} />
-          <GameGridItem title={t('game_stroop')} icon={Type} onClick={() => navigate('/game/stroop')} isLight={isLight} />
-          <GameGridItem title={t('game_tetris')} icon={Grid} onClick={() => navigate('/game/tetris')} isLight={isLight} />
-          <GameGridItem title={t('game_2048')} icon={Grid3x3} onClick={() => navigate('/game/2048')} isLight={isLight} />
-        </div>
-      </div>
-
-      {/* List Menu Section */}
-      <div className={clsx(
-        "mt-4 space-y-1",
-        isLight ? "bg-white" : "bg-black"
-      )}>
-        <div className={clsx("rounded-lg overflow-hidden border", isLight ? "border-gray-200" : "border-gray-800")}>
-          <ListItem 
-            title={t('shop_title')} 
-            subtitle={t('shop_desc')} 
-            icon={ShoppingCart} 
-            onClick={() => navigate('/shop')} 
+      <motion.div
+        className="mt-4 space-y-4 px-4"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <div className={clsx("rounded-2xl overflow-hidden border transition-colors duration-500", panelClass)}>
+          <ListItem
+            title={t('shop_title')}
+            subtitle={t('shop_desc')}
+            icon={ShoppingCart}
+            onClick={() => navigate('/shop')}
             styles={styles}
           />
-          <ListItem 
-            title={t('airdrop_title')} 
-            subtitle={t('airdrop_desc')} 
-            icon={Wallet} 
-            onClick={() => navigate('/airdrop')} 
+          <ListItem
+            title={t('airdrop_title')}
+            subtitle={t('airdrop_desc')}
+            icon={Wallet}
+            onClick={() => navigate('/airdrop')}
             styles={styles}
           />
-          <ListItem 
-            title={t('profile_title')} 
-            subtitle={t('profile_desc')} 
-            icon={User} 
-            onClick={() => navigate('/profile')} 
+          <ListItem
+            title={t('profile_title')}
+            subtitle={t('profile_desc')}
+            icon={User}
+            onClick={() => navigate('/profile')}
             styles={styles}
           />
         </div>
 
-        <div className={clsx("rounded-lg overflow-hidden border", isLight ? "border-gray-200" : "border-gray-800")}>
-          <ListItem 
-            title={t('daily_workout_title')} 
-            subtitle={t('daily_workout_desc')} 
-            icon={Zap} 
-            onClick={() => navigate('/daily-workout')} 
+        <div className={clsx("rounded-2xl overflow-hidden border transition-colors duration-500", panelClass)}>
+          <ListItem
+            title={t('daily_workout_title')}
+            subtitle={t('daily_workout_desc')}
+            icon={Zap}
+            onClick={() => navigate('/daily-workout')}
             styles={styles}
           />
-          <ListItem 
-            title={t('settings_title')} 
-            icon={Settings} 
-            onClick={() => navigate('/settings')} 
+          <ListItem
+            title={t('settings_title')}
+            icon={Settings}
+            onClick={() => navigate('/settings')}
             styles={styles}
           />
         </div>
-      </div>
+      </motion.div>
 
-      {/* Bottom Info */}
-      <div className={clsx("p-6 text-center text-xs", isLight ? "text-gray-400" : "text-gray-600")}>
+      <div className={clsx("p-6 text-center text-xs transition-colors duration-500", textSecondary)}>
         <p>© 2026 Focus App. Version 1.2.0</p>
       </div>
 
       <DailyRewardModal isOpen={showDailyReward} onClose={() => setShowDailyReward(false)} />
       <NotificationsModal isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
-      <AdModal 
-        isOpen={showAdModal} 
-        onClose={() => setShowAdModal(false)} 
+      <AdModal
+        isOpen={showAdModal}
+        onClose={() => setShowAdModal(false)}
         onComplete={handleAdComplete}
         reward={50}
       />

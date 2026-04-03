@@ -1,12 +1,12 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { Home, ShoppingBag, Gift } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useStore } from '../store/useStore';
+import { useThemeStyles } from '../hooks/useThemeStyles';
 
 export const Layout = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { theme } = useStore();
+  const { bgClass, navClass, getNavItemClass } = useThemeStyles();
 
   const navItems = [
     { path: '/', icon: Home, label: 'home' }, 
@@ -14,32 +14,16 @@ export const Layout = () => {
     { path: '/shop', icon: ShoppingBag, label: 'shop' },
   ];
 
-  const getBackgroundClass = () => {
-    switch (theme) {
-      case 'blue':
-        return "bg-gradient-to-br from-blue-600 via-indigo-700 to-purple-800";
-      case 'light':
-        return "bg-white text-gray-900";
-      case 'gold':
-        return "bg-yellow-100 text-gray-900";
-      case 'dark':
-      default:
-        return "bg-black text-white";
-    }
-  };
-
-  const isLight = theme === 'light';
-
   return (
-    <div className={clsx("flex flex-col h-screen overflow-hidden relative", getBackgroundClass())}>
+    <div className={clsx("flex flex-col h-screen overflow-hidden relative transition-colors duration-500", bgClass)}>
       <div className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 80px)' }}>
         <Outlet />
       </div>
       
       <nav
         className={clsx(
-          "fixed left-0 right-0 bottom-0 border-t z-50",
-          isLight ? "bg-white border-gray-200" : "bg-black border-gray-800"
+          "fixed left-0 right-0 bottom-0 z-50 transition-colors duration-500",
+          navClass
         )}
         style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)' }}
       >
@@ -51,13 +35,11 @@ export const Layout = () => {
                 key={item.path}
                 onClick={() => navigate(item.path)}
                 className={clsx(
-                  "flex flex-col items-center justify-center w-20 h-16",
-                  isActive 
-                    ? (isLight ? "text-blue-600" : "text-blue-400")
-                    : (isLight ? "text-gray-500" : "text-gray-400")
+                  "flex flex-col items-center justify-center w-20 h-16 transition-all duration-300",
+                  getNavItemClass(isActive)
                 )}
               >
-                <item.icon size={24} />
+                <item.icon size={24} className={clsx("transition-transform duration-300", isActive && "scale-110")} />
                 <span className="text-xs mt-1">{item.label}</span>
               </button>
             );

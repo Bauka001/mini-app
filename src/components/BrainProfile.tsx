@@ -1,5 +1,5 @@
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
-import { useStore } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 

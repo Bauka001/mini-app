@@ -1,14 +1,51 @@
+import WebApp from '@twa-dev/sdk';
+
+export type HapticType = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error';
+
+export const hapticFeedback = {
+  impact: (type: 'light' | 'medium' | 'heavy' = 'medium') => {
+    try {
+      if (WebApp?.HapticFeedback) {
+        WebApp.HapticFeedback.impactOccurred(type);
+      }
+    } catch (e) {
+      console.warn('HapticFeedback not available:', e);
+    }
+  },
+
+  notification: (type: 'success' | 'warning' | 'error' = 'success') => {
+    try {
+      if (WebApp?.HapticFeedback) {
+        WebApp.HapticFeedback.notificationOccurred(type);
+      }
+    } catch (e) {
+      console.warn('HapticFeedback not available:', e);
+    }
+  },
+
+  selection: () => {
+    try {
+      if (WebApp?.HapticFeedback) {
+        WebApp.HapticFeedback.selectionChanged();
+      }
+    } catch (e) {
+      console.warn('HapticFeedback not available:', e);
+    }
+  },
+
+  click: () => {
+    hapticFeedback.impact('light');
+  }
+};
+
 export const getTelegramUser = () => {
-  // @ts-ignore
   if (window.Telegram?.WebApp?.initDataUnsafe?.user) {
-    // @ts-ignore
     return window.Telegram.WebApp.initDataUnsafe.user;
   }
   return null;
 };
 
 export const isTelegramWebApp = () => {
-  // @ts-ignore
   return !!window.Telegram?.WebApp;
 };
 

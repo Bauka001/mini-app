@@ -1,7 +1,7 @@
 import React, { ReactNode } from 'react';
-import { useTelegramAuth } from '../hooks/useTelegramAuth';
-import { useStore } from '../store/useStore';
 import WebApp from '@twa-dev/sdk';
+import { useTelegramAuth } from '../hooks/useTelegramAuth';
+import { useAdminAccess } from '../hooks/useAdminAccess';
 
 interface AuthGuardProps {
   children: ReactNode;
@@ -23,10 +23,15 @@ export const AuthGuard = ({
   adminOnly = false,
 }: AuthGuardProps) => {
   const { isAuthenticated, isLoading, error, user } = useTelegramAuth();
-  // Use adminIds from store — single source of truth
-  const adminIds = useStore((state) => state.adminIds);
+  const {
+    isAdmin,
+    isLoading: isAdminLoading,
+    error: adminError,
+  } = useAdminAccess(adminOnly && isAuthenticated);
 
   if (isLoading) return <>{fallback}</>;
+
+  if (adminOnly && isAdminLoading) return <>{fallback}</>;
 
   if (error) {
     return (
@@ -67,8 +72,25 @@ export const AuthGuard = ({
     );
   }
 
-  // Admin check — uses store adminIds (dynamic, persisted)
-  if (adminOnly && user && !adminIds.includes(user.id)) {
+  if (adminOnly && adminError) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">🛡️</div>
+          <h2 className="text-2xl font-bold text-red-500 mb-4">Admin тексерісі сәтсіз</h2>
+          <p className="text-gray-300 mb-6">{adminError}</p>
+          <button
+            onClick={() => window.history.back()}
+            className="px-6 py-3 bg-gray-600 text-white font-bold rounded-xl hover:scale-105 transition-transform"
+          >
+            Артқа қайту
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (adminOnly && user && !isAdmin) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
         <div className="text-center max-w-md">

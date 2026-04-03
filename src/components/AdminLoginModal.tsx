@@ -1,8 +1,7 @@
-import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, X, ShieldCheck } from 'lucide-react';
-import { clsx } from 'clsx';
-import { useStore } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
+import { useAdminAccess } from '../hooks/useAdminAccess';
 
 interface AdminLoginModalProps {
   isOpen: boolean;
@@ -10,34 +9,8 @@ interface AdminLoginModalProps {
 }
 
 export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
-  const { user, adminIds, grantAdmin } = useStore();
-  const [code, setCode] = useState('');
-  const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-
-  const isAlreadyAdmin = user && adminIds.includes(user.id);
-
-  const handleSubmit = () => {
-    if (!code.trim()) return;
-    setIsLoading(true);
-    setError('');
-
-    setTimeout(() => {
-      const ok = grantAdmin(code.trim());
-      if (ok) {
-        setSuccess(true);
-        setTimeout(() => {
-          onClose();
-          setSuccess(false);
-          setCode('');
-        }, 1500);
-      } else {
-        setError('Жарамсыз код немесе аккаунт деректері жоқ');
-      }
-      setIsLoading(false);
-    }, 800);
-  };
+  const user = useStore((state) => state.user);
+  const { isAdmin, isLoading, error } = useAdminAccess(isOpen);
 
   if (!isOpen) return null;
 
@@ -57,7 +30,6 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
           className="bg-gradient-to-br from-gray-900 to-black w-full max-w-sm rounded-3xl overflow-hidden border border-white/10 shadow-2xl"
         >
-          {/* Header */}
           <div className="bg-gradient-to-r from-primary to-orange-500 p-4 flex justify-between items-center">
             <div className="flex items-center gap-2">
               <ShieldCheck size={20} className="text-black" />
@@ -69,7 +41,15 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
           </div>
 
           <div className="p-6 space-y-4">
-            {isAlreadyAdmin ? (
+            {isLoading ? (
+              <div className="text-center py-6">
+                <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                </div>
+                <h3 className="text-xl font-bold text-white">Тексерілуде...</h3>
+                <p className="text-gray-400 text-sm mt-2">Server-side рөл тексерісі орындалып жатыр</p>
+              </div>
+            ) : isAdmin ? (
               <div className="text-center py-4">
                 <div className="w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-4">
                   <ShieldCheck size={32} className="text-primary" />
@@ -83,18 +63,6 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
                   Жабу
                 </button>
               </div>
-            ) : success ? (
-              <div className="text-center py-6">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-4"
-                >
-                  <ShieldCheck size={32} className="text-green-400" />
-                </motion.div>
-                <h3 className="text-xl font-bold text-green-400">Сәтті қосылды!</h3>
-                <p className="text-gray-400 text-sm mt-2">Әкімші рұқсаты берілді</p>
-              </div>
             ) : (
               <>
                 <div className="text-center mb-2">
@@ -102,7 +70,7 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
                     <Lock size={24} className="text-primary" />
                   </div>
                   <p className="text-gray-400 text-sm">
-                    Әкімшілік кіру үшін арнайы код енгізіңіз
+                    Әкімшілік құқық енді сервер жағында басқарылады
                   </p>
                   {user?.id && (
                     <p className="text-xs text-gray-600 mt-1">
@@ -111,28 +79,11 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-gray-300">Әкімшілік коды</label>
-                  <input
-                    type="password"
-                    value={code}
-                    onChange={(e) => {
-                      setCode(e.target.value.toUpperCase());
-                      setError('');
-                    }}
-                    onKeyDown={(e) => e.key === 'Enter' && code.length >= 5 && handleSubmit()}
-                    placeholder="••••••••••••"
-                    maxLength={30}
-                    className={clsx(
-                      "w-full px-4 py-3 rounded-xl bg-white/5 border text-white font-mono text-center tracking-widest focus:outline-none focus:ring-2 transition-colors",
-                      error
-                        ? "border-red-500 focus:ring-red-500/50"
-                        : "border-white/10 focus:ring-primary/50 focus:border-primary/50"
-                    )}
-                  />
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
+                  Telegram identity расталғаннан кейін админ рөлі `admin_users` кестесі арқылы беріледі.
                 </div>
 
-                {error && (
+                {error ? (
                   <motion.div
                     initial={{ opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -140,29 +91,14 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
                   >
                     {error}
                   </motion.div>
-                )}
+                ) : null}
 
                 <button
-                  onClick={handleSubmit}
-                  disabled={isLoading || code.length < 5}
-                  className={clsx(
-                    "w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2",
-                    isLoading || code.length < 5
-                      ? "bg-gray-700 text-gray-400 cursor-not-allowed"
-                      : "bg-gradient-to-r from-primary to-orange-500 text-black hover:scale-105 active:scale-95 shadow-lg shadow-primary/25"
-                  )}
+                  onClick={onClose}
+                  className="w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-orange-500 text-black hover:scale-105 active:scale-95 shadow-lg shadow-primary/25"
                 >
-                  {isLoading ? (
-                    <>
-                      <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                      Тексеруде...
-                    </>
-                  ) : (
-                    <>
-                      <Lock size={18} />
-                      Кіру
-                    </>
-                  )}
+                  <Lock size={18} />
+                  Түсінікті
                 </button>
               </>
             )}

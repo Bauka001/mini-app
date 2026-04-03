@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { BarChart2, Gamepad2, PlayCircle, TrendingUp, Coins, Clock } from 'lucide-react';
-import { useStore } from '../../store/useStore';
+import { useStore } from '../../store/useStore.1';
 import { clsx } from 'clsx';
 
 const GAME_LABELS: Record<string, string> = {

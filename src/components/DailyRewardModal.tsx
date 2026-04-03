@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Coins, Diamond, Star, Calendar, X, Check } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
 import { clsx } from 'clsx';
 
 export const DailyRewardModal = ({ 

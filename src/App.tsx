@@ -1,16 +1,17 @@
 import { HashRouter as Router, Routes, Route } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { Layout } from './components/Layout';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AuthGuard } from './components/AuthGuard';
+import { AnimatedRoutes } from './components/AnimatedRoutes';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminChat } from './pages/admin/AdminChat';
 import { AdminGames } from './pages/admin/AdminGames';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminPanel from './pages/AdminPanel';
-import { useStore } from './store/useStore';
+import { useStore } from './store/useStore.1';
 
 // Static imports to prevent lazy loading errors
 import Home from './pages/Home';
@@ -36,7 +37,6 @@ function App() {
   const addNotification = useStore((state) => state.addNotification);
   const userId = useStore((state) => state.user.id);
   const logout = useStore((state) => state.logout);
-  const [showAdminLogin, setShowAdminLogin] = useState(false);
 
   // Sync user data immediately and handle account switching
   useEffect(() => {
@@ -68,6 +68,12 @@ function App() {
     }
   }, [syncUserFromTelegram, userId, logout]);
 
+  // Sync HTML data-theme attribute with store
+  const theme = useStore((state) => state.theme);
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
   // Periodic sync check
   useEffect(() => {
     const timer = setInterval(() => {
@@ -90,52 +96,43 @@ function App() {
     }
   }, [userId, addNotification]);
 
-  const handleAdminLogin = () => {
-    const secretCode = prompt('Әкімшілік кодын енгізіңіз:');
-    if (secretCode === 'FOCUS_ADMIN_2024') {
-      // Add user ID to admin list (demo mode)
-      alert('Әкімшілік сәтті қосылды!');
-      setShowAdminLogin(false);
-    } else if (secretCode) {
-      alert('Жарамсыз код!');
-    }
-  };
-
   return (
     <AuthGuard>
       <Router>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
-            <Route path="leaderboard" element={<LeaderboardPage />} />
-            <Route path="shop" element={<ShopPage />} />
-            <Route path="airdrop" element={<AirdropPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
-          
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/daily-workout" element={<DailyWorkoutPage />} />
-          
-          {/* Games */}
-          <Route path="/game/schulte" element={<SchulteGame />} />
-          <Route path="/game/math" element={<MathGame />} />
-          <Route path="/game/stroop" element={<StroopGame />} />
-          <Route path="/game/memory" element={<MemoryGame />} />
-          <Route path="/game/odd-one" element={<OddOneOutGame />} />
-          <Route path="/game/pairs" element={<PairsGame />} />
-          <Route path="/game/tetris" element={<TetrisGame />} />
-          <Route path="/game/2048" element={<Merge2048Game />} />
+        <AnimatedRoutes>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Home />} />
+              <Route path="leaderboard" element={<LeaderboardPage />} />
+              <Route path="shop" element={<ShopPage />} />
+              <Route path="airdrop" element={<AirdropPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
 
-          {/* Admin */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AuthGuard adminOnly={true}><AdminDashboard /></AuthGuard>} />
-            <Route path="users" element={<AuthGuard adminOnly={true}><AdminUsers /></AuthGuard>} />
-            <Route path="chat" element={<AuthGuard adminOnly={true}><AdminChat /></AuthGuard>} />
-            <Route path="games" element={<AuthGuard adminOnly={true}><AdminGames /></AuthGuard>} />
-            <Route path="settings" element={<AuthGuard adminOnly={true}><AdminSettings /></AuthGuard>} />
-            <Route path="tickets" element={<AuthGuard adminOnly={true}><AdminPanel /></AuthGuard>} />
-          </Route>
-        </Routes>
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/daily-workout" element={<DailyWorkoutPage />} />
+
+            {/* Games */}
+            <Route path="/game/schulte" element={<SchulteGame />} />
+            <Route path="/game/math" element={<MathGame />} />
+            <Route path="/game/stroop" element={<StroopGame />} />
+            <Route path="/game/memory" element={<MemoryGame />} />
+            <Route path="/game/odd-one" element={<OddOneOutGame />} />
+            <Route path="/game/pairs" element={<PairsGame />} />
+            <Route path="/game/tetris" element={<TetrisGame />} />
+            <Route path="/game/2048" element={<Merge2048Game />} />
+
+            {/* Admin */}
+            <Route path="/admin" element={<AuthGuard adminOnly={true}><AdminLayout /></AuthGuard>}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="chat" element={<AdminChat />} />
+              <Route path="games" element={<AdminGames />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="tickets" element={<AdminPanel />} />
+            </Route>
+          </Routes>
+        </AnimatedRoutes>
       </Router>
     </AuthGuard>
   );

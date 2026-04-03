@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Trophy, ArrowRight, Play, Flame, Target, Star, Zap, CheckCircle, Lock, Calendar, TrendingUp, Award } from 'lucide-react';
-import { useStore } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
 import { motion } from 'framer-motion';
 
 export default function DailyWorkoutPage() {

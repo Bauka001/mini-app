@@ -8,12 +8,14 @@ import {
   Ticket as TicketIcon, Car, CheckCircle
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useStore } from '../store/useStore';
+import { useStore } from '../store/useStore.1';
 import { clsx } from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import WebApp from '@twa-dev/sdk';
 import { BrainProfile } from '../components/BrainProfile';
 import { Achievements } from '../components/Achievements';
+
+import { useThemeStyles } from '../hooks/useThemeStyles';
 
 const PLAN_CONFIG = {
   free: { icon: Star, name: 'Free', color: 'from-gray-500 to-gray-600', borderColor: 'border-gray-500' },
@@ -45,6 +47,9 @@ const ProfilePage = () => {
     planExpiry,
     tickets
   } = useStore();
+
+  const styles = useThemeStyles();
+  const { bgClass, textPrimary, textSecondary, panelClass } = styles;
   
   const currentPlan = PLAN_CONFIG[plan];
   const isPlanExpired = planExpiry ? Date.now() > planExpiry : false;
@@ -96,7 +101,7 @@ const ProfilePage = () => {
   }, [history]);
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white relative pb-24 overflow-x-hidden">
+    <div className={clsx("min-h-screen relative pb-24 overflow-x-hidden transition-colors duration-500", bgClass)}>
       {/* Background Glows */}
       <div className="fixed top-[-10%] right-[-10%] w-[400px] h-[400px] bg-primary/10 rounded-full blur-[120px] pointer-events-none z-0" />
       <div className="fixed bottom-[10%] left-[-10%] w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[100px] pointer-events-none z-0" />
@@ -108,12 +113,12 @@ const ProfilePage = () => {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => navigate(-1)} 
-            className="p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10"
+            className={clsx("p-2.5 rounded-full backdrop-blur-md border transition-colors", styles.isLight ? "bg-white/80 border-gray-200" : "bg-black/40 border-white/10")}
           >
-            <ArrowLeft size={20} />
+            <ArrowLeft size={20} className={textPrimary} />
           </motion.button>
           
-          <h1 className="text-lg font-black tracking-tight uppercase">{t('profile', 'Profile')}</h1>
+          <h1 className={clsx("text-lg font-black tracking-tight uppercase", textPrimary)}>{t('profile', 'Profile')}</h1>
 
           {isEditing ? (
             <motion.button 
@@ -129,7 +134,7 @@ const ProfilePage = () => {
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => setIsEditing(true)}
-              className="p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-primary"
+              className={clsx("p-2.5 rounded-full backdrop-blur-md border transition-colors text-primary", styles.isLight ? "bg-white/80 border-gray-200" : "bg-black/40 border-white/10")}
             >
               <Edit2 size={18} />
             </motion.button>
@@ -139,7 +144,7 @@ const ProfilePage = () => {
 
       <div className="px-4 -mt-16 relative z-10 flex flex-col gap-6">
         {/* Passport Style Info Card */}
-        <div className="bg-white/5 backdrop-blur-xl rounded-[32px] p-6 border border-white/10 shadow-2xl relative overflow-hidden">
+        <div className={clsx("rounded-[32px] p-6 border shadow-2xl relative overflow-hidden transition-colors duration-500", panelClass)}>
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20" />
           
           <div className="flex items-center gap-5 relative z-10">
@@ -210,7 +215,7 @@ const ProfilePage = () => {
                   <motion.h2 
                     initial={{ x: 10, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
-                    className="text-2xl font-black text-white truncate"
+                    className={clsx("text-2xl font-black truncate", textPrimary)}
                   >
                     {user.firstName}
                   </motion.h2>
@@ -218,14 +223,14 @@ const ProfilePage = () => {
                     initial={{ x: 10, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ delay: 0.1 }}
-                    className="text-primary font-mono text-xs opacity-80 truncate bg-primary/10 px-2 py-1 rounded-md w-fit"
+                    className={clsx("font-mono text-xs opacity-80 truncate px-2 py-1 rounded-md w-fit bg-black/5 dark:bg-white/10", textSecondary)}
                   >
                     @{user.username || 'pioneer'}
                   </motion.p>
                   
                   <div className="flex items-center gap-3 mt-2">
-                    <div className="flex items-center gap-1.5 bg-primary/10 px-2 py-1 rounded-lg border border-primary/20">
-                      <span className="text-[10px] font-bold text-primary">ID: {user.gameId || '17096844'}</span>
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg border bg-black/5 border-black/10 dark:bg-white/5 dark:border-white/10">
+                      <span className={clsx("text-[10px] font-bold", textPrimary)}>ID: {user.gameId || '17096844'}</span>
                     </div>
                     <div className="flex items-center gap-1.5 bg-orange-500/10 px-2 py-1 rounded-lg border border-orange-500/20">
                       <Flame size={12} className="text-orange-500 fill-orange-500" />
@@ -238,23 +243,23 @@ const ProfilePage = () => {
           </div>
 
           {/* Plan Info (Compact) */}
-          <div className="mt-6 pt-4 border-t border-white/5">
+          <div className="mt-6 pt-4 border-t border-gray-500/20">
              <div className="flex items-center justify-between">
                <div className="flex items-center gap-3">
                  <div className={clsx("p-2 rounded-xl bg-gradient-to-br", currentPlan.color)}>
                    <currentPlan.icon size={16} className="text-white" />
                  </div>
                  <div>
-                   <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Current Plan</div>
-                   <div className="text-sm font-black text-white">{currentPlan.name}</div>
+                   <div className={clsx("text-[10px] font-bold uppercase tracking-wider", textSecondary)}>Current Plan</div>
+                   <div className={clsx("text-sm font-black", textPrimary)}>{currentPlan.name}</div>
                  </div>
                </div>
                {plan === 'free' ? (
-                 <button onClick={() => navigate('/shop')} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] font-bold text-white transition-colors">
+                 <button onClick={() => navigate('/shop')} className={clsx("px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors", styles.btnSecondary)}>
                    UPGRADE
                  </button>
                ) : (
-                 <div className="text-[10px] font-mono text-primary bg-primary/10 px-2 py-1 rounded-md">
+                 <div className={clsx("text-[10px] font-mono px-2 py-1 rounded-md", styles.textAccent, "bg-black/5 dark:bg-white/10")}>
                    ACTIVE
                  </div>
                )}
@@ -325,24 +330,24 @@ const ProfilePage = () => {
         )}
 
         {/* Level Progress Card */}
-        <div className="w-full max-w-sm bg-white/5 backdrop-blur-xl rounded-3xl p-5 border border-white/10 mb-6 relative overflow-hidden group">
+        <div className={clsx("w-full max-w-sm rounded-3xl p-5 border mb-6 relative overflow-hidden group transition-colors duration-500", panelClass)}>
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors" />
           
           <div className="flex justify-between items-end mb-3">
             <div className="flex flex-col">
-              <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest mb-1">Current Progress</span>
+              <span className={clsx("text-[10px] font-black uppercase tracking-widest mb-1", textSecondary)}>Current Progress</span>
               <div className="flex items-center gap-2">
-                <TrendingUp size={16} className="text-primary" />
-                <span className="text-xl font-black text-white">{user.xp % 1000} <span className="text-xs text-gray-500 font-normal">/ 1000 XP</span></span>
+                <TrendingUp size={16} className={styles.textAccent} />
+                <span className={clsx("text-xl font-black", textPrimary)}>{user.xp % 1000} <span className={clsx("text-xs font-normal", textSecondary)}>/ 1000 XP</span></span>
               </div>
             </div>
             <div className="text-right">
-              <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest block mb-1">Next Level</span>
-              <span className="text-sm font-bold text-primary">{nextLevelXp} XP left</span>
+              <span className={clsx("text-[10px] font-black uppercase tracking-widest block mb-1", textSecondary)}>Next Level</span>
+              <span className={clsx("text-sm font-bold", styles.textAccent)}>{nextLevelXp} XP left</span>
             </div>
           </div>
 
-          <div className="h-3 w-full bg-white/10 rounded-full overflow-hidden p-0.5">
+          <div className="h-3 w-full bg-gray-500/20 rounded-full overflow-hidden p-0.5">
             <motion.div 
               initial={{ width: 0 }}
               animate={{ width: `${xpProgress}%` }}
@@ -354,20 +359,20 @@ const ProfilePage = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-4 w-full max-w-sm mb-8">
-          <StatCard icon={Coins} value={coins} label="Coins" color="text-yellow-400" />
-          <StatCard icon={Diamond} value={gems} label="Gems" color="text-blue-400" />
-          <StatCard icon={Star} value={user.xp} label="Total XP" color="text-purple-400" />
-          <StatCard icon={LayoutGrid} value={(history || []).length} label="Games" color="text-green-400" />
+          <StatCard icon={Coins} value={coins} label="Coins" color="text-yellow-500" styles={styles} />
+          <StatCard icon={Diamond} value={gems} label="Gems" color="text-blue-500" styles={styles} />
+          <StatCard icon={Star} value={user.xp} label="Total XP" color="text-purple-500" styles={styles} />
+          <StatCard icon={LayoutGrid} value={(history || []).length} label="Games" color="text-green-500" styles={styles} />
         </div>
 
         {/* Achievements Section */}
         <div className="w-full max-w-sm mb-8">
           <div className="flex items-center justify-between mb-4 px-2">
-            <h3 className="text-lg font-black flex items-center gap-2">
-              <Award size={20} className="text-gray-400" />
+            <h3 className={clsx("text-lg font-black flex items-center gap-2", textPrimary)}>
+              <Award size={20} className={textSecondary} />
               Achievements
             </h3>
-            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+            <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>
               {(user.achievements || []).length} / {ACHIEVEMENTS.length}
             </span>
           </div>
@@ -381,17 +386,17 @@ const ProfilePage = () => {
                   className={clsx(
                     "min-w-[100px] flex flex-col items-center p-4 rounded-3xl border transition-all duration-300",
                     isUnlocked 
-                      ? "bg-white/5 border-white/10 opacity-100" 
-                      : "bg-white/5 border-white/5 opacity-40 grayscale"
+                      ? clsx(panelClass, "opacity-100") 
+                      : clsx(panelClass, "opacity-40 grayscale")
                   )}
                 >
                   <div className={clsx(
                     "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mb-2 shadow-lg",
-                    isUnlocked ? achievement.color : "bg-gray-800"
+                    isUnlocked ? achievement.color : "bg-gray-500/20"
                   )}>
                     {achievement.icon}
                   </div>
-                  <span className="text-[10px] font-black text-center leading-tight">{achievement.name}</span>
+                  <span className={clsx("text-[10px] font-black text-center leading-tight", textPrimary)}>{achievement.name}</span>
                 </div>
               );
             })}
@@ -442,11 +447,11 @@ const ProfilePage = () => {
         {/* Recent Activity */}
         <div className="w-full max-w-sm">
           <div className="flex items-center justify-between mb-4 px-2">
-            <h3 className="text-lg font-black flex items-center gap-2">
-              <History size={20} className="text-gray-400" />
+            <h3 className={clsx("text-lg font-black flex items-center gap-2", textPrimary)}>
+              <History size={20} className={textSecondary} />
               Recent Activity
             </h3>
-            <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Last 5 Games</span>
+            <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>Last 5 Games</span>
           </div>
           
           <div className="space-y-3">
@@ -457,28 +462,28 @@ const ProfilePage = () => {
                   animate={{ x: 0, opacity: 1 }}
                   transition={{ delay: i * 0.1 }}
                   key={game.timestamp}
-                  className="bg-white/5 backdrop-blur-sm p-4 rounded-2xl border border-white/5 flex items-center justify-between group hover:bg-white/10 transition-colors"
+                  className={clsx("p-4 rounded-2xl border flex items-center justify-between group hover:scale-[1.02] transition-all duration-300", panelClass)}
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                    <div className="w-10 h-10 rounded-xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-indigo-500 dark:text-indigo-400 group-hover:scale-110 transition-transform">
                       {getGameIcon(game.gameId)}
                     </div>
                     <div>
-                      <div className="font-bold text-sm text-white capitalize">{game.gameId}</div>
-                      <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-medium">
+                      <div className={clsx("font-bold text-sm capitalize", textPrimary)}>{game.gameId}</div>
+                      <div className={clsx("flex items-center gap-1.5 text-[10px] font-medium", textSecondary)}>
                         <Calendar size={10} />
                         {game.date}
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-sm font-black text-white">{game.score}</div>
-                    <div className="text-[10px] text-primary font-bold">+{game.coinsEarned} coins</div>
+                    <div className={clsx("text-sm font-black", textPrimary)}>{game.score}</div>
+                    <div className={clsx("text-[10px] font-bold", styles.textAccent)}>+{game.coinsEarned} coins</div>
                   </div>
                 </motion.div>
               ))
             ) : (
-              <div className="bg-white/5 rounded-3xl p-10 border border-white/5 border-dashed flex flex-col items-center justify-center text-gray-500">
+              <div className={clsx("rounded-3xl p-10 border border-dashed flex flex-col items-center justify-center", panelClass, textSecondary)}>
                 <Zap size={32} className="mb-2 opacity-20" />
                 <p className="text-sm font-medium">No games played yet</p>
               </div>
@@ -490,13 +495,13 @@ const ProfilePage = () => {
   );
 };
 
-const StatCard = ({ icon: Icon, value, label, color }: any) => (
-  <div className="bg-white/5 backdrop-blur-md p-4 rounded-3xl border border-white/5 flex flex-col items-center hover:bg-white/10 transition-all group">
-    <div className={clsx("p-2 rounded-xl bg-white/5 mb-2 group-hover:scale-110 transition-transform", color)}>
+const StatCard = ({ icon: Icon, value, label, color, styles }: any) => (
+  <div className={clsx("p-4 rounded-3xl border flex flex-col items-center hover:scale-105 transition-all group duration-300", styles.panelClass)}>
+    <div className={clsx("p-2 rounded-xl mb-2 group-hover:scale-110 transition-transform bg-black/5 dark:bg-white/5", color)}>
       <Icon size={18} />
     </div>
-    <span className="text-xl font-black text-white">{typeof value === 'number' ? value.toLocaleString() : value}</span>
-    <span className="text-[9px] text-gray-500 uppercase font-black tracking-widest mt-0.5">{label}</span>
+    <span className={clsx("text-xl font-black", styles.textPrimary)}>{typeof value === 'number' ? value.toLocaleString() : value}</span>
+    <span className={clsx("text-[9px] uppercase font-black tracking-widest mt-0.5", styles.textSecondary)}>{label}</span>
   </div>
 );
 

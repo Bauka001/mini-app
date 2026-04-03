@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore } from '../../store/useStore';
+import { useStore } from '../../store/useStore.1';
 import { Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const ICONS = [Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun];
 
@@ -127,58 +128,117 @@ const PairsBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: 
 
   return (
     <div className={clsx(
-      "h-full flex flex-col items-center justify-center p-4 transition-colors duration-300",
-      theme === 'light' ? 'bg-gray-100' : 'bg-transparent'
+      "h-full flex flex-col items-center justify-center p-4 transition-colors duration-500 relative overflow-hidden",
+      theme === 'light' ? 'bg-gradient-to-br from-indigo-50 to-blue-50' : 'bg-transparent'
     )}>
-      <div className="mb-6 flex justify-between w-full max-w-sm">
-        <div className="flex flex-col items-center">
-           <span className={clsx("text-xs font-bold uppercase", theme === 'light' ? "text-gray-500" : "text-gray-400")}>Time</span>
-           <span className={clsx("text-2xl font-mono font-bold", timeLeft < 10 ? "text-red-500" : theme === 'light' ? "text-gray-800" : "text-white")}>
+      {theme !== 'light' && (
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-background to-background z-0" />
+      )}
+
+      <motion.div 
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="mb-8 flex justify-between items-center w-full max-w-sm z-10 px-4"
+      >
+        <div className={clsx(
+          "flex flex-col items-center px-6 py-3 rounded-2xl backdrop-blur-xl border shadow-lg",
+          theme === 'light' ? "bg-white/80 border-indigo-100" : "bg-white/10 border-white/10"
+        )}>
+           <span className={clsx("text-[10px] font-black uppercase tracking-widest mb-1", theme === 'light' ? "text-indigo-400" : "text-gray-400")}>Time Left</span>
+           <span className={clsx(
+             "text-3xl font-mono font-black tracking-tighter", 
+             timeLeft < 10 
+               ? "text-red-500 animate-pulse-glow" 
+               : theme === 'light' 
+                 ? "text-indigo-600" 
+                 : "text-white"
+           )}>
              {timeLeft.toFixed(0)}s
            </span>
         </div>
-        <div className="flex flex-col items-center">
-           <span className={clsx("text-xs font-bold uppercase", theme === 'light' ? "text-gray-500" : "text-gray-400")}>Moves</span>
-           <span className={clsx("text-2xl font-mono font-bold", theme === 'light' ? "text-gray-800" : "text-white")}>{moves}</span>
+        <div className={clsx(
+          "flex flex-col items-center px-6 py-3 rounded-2xl backdrop-blur-xl border shadow-lg",
+          theme === 'light' ? "bg-white/80 border-indigo-100" : "bg-white/10 border-white/10"
+        )}>
+           <span className={clsx("text-[10px] font-black uppercase tracking-widest mb-1", theme === 'light' ? "text-indigo-400" : "text-gray-400")}>Moves</span>
+           <span className={clsx("text-3xl font-mono font-black tracking-tighter", theme === 'light' ? "text-indigo-600" : "text-white")}>{moves}</span>
         </div>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-3 gap-3 w-full max-w-sm">
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ duration: 0.5, type: "spring" }}
+        className={clsx(
+          "grid grid-cols-3 gap-3 sm:gap-4 w-full max-w-sm p-4 sm:p-6 rounded-[2.5rem] backdrop-blur-2xl border shadow-2xl z-10",
+          theme === 'light' ? "bg-white/60 border-white shadow-[0_8px_32px_rgba(0,0,0,0.1)]" : "bg-white/5 border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]"
+        )}
+      >
         {cards.map((card, index) => {
           const Icon = ICONS[card.iconIndex];
+          const isRevealed = card.isFlipped || card.isMatched;
+          
           return (
-            <button
-              key={card.id}
-              onClick={() => handleCardClick(index)}
-              className={clsx(
-                "aspect-square rounded-xl transition-all duration-300 transform perspective-1000 relative shadow-lg",
-                card.isFlipped || card.isMatched 
-                  ? "rotate-y-180 bg-white" 
-                  : theme === 'light' 
-                    ? "bg-gray-200 hover:bg-gray-300 border border-gray-300" 
-                    : "bg-white/10 hover:bg-white/20 border border-white/5"
-              )}
-            >
-              <div className={clsx(
-                "absolute inset-0 flex items-center justify-center transition-opacity duration-300",
-                card.isFlipped || card.isMatched ? "opacity-100" : "opacity-0"
-              )}>
-                 <Icon size={32} className="text-primary" />
-              </div>
-              
-              <div className={clsx(
-                "absolute inset-0 flex items-center justify-center transition-opacity duration-300",
-                card.isFlipped || card.isMatched ? "opacity-0" : "opacity-100"
-              )}>
-                 <div className={clsx(
-                   "w-8 h-8 rounded-full border-2",
-                   theme === 'light' ? "border-gray-400/20" : "border-white/10"
-                 )} />
-              </div>
-            </button>
+            <div key={card.id} className="relative aspect-square perspective-1000">
+              <motion.button
+                onClick={() => handleCardClick(index)}
+                animate={{ rotateY: isRevealed ? 180 : 0, scale: card.isMatched ? [1, 1.1, 1] : 1 }}
+                transition={{ duration: 0.4, type: "spring", stiffness: 200, damping: 20 }}
+                whileHover={!isRevealed ? { scale: 1.05, y: -2 } : {}}
+                whileTap={!isRevealed ? { scale: 0.95 } : {}}
+                className="w-full h-full preserve-3d cursor-pointer focus:outline-none"
+              >
+                {/* Back of Card */}
+                <div className={clsx(
+                  "absolute inset-0 backface-hidden rounded-2xl border shadow-lg flex items-center justify-center overflow-hidden",
+                  theme === 'light' 
+                    ? "bg-gradient-to-br from-indigo-100 to-purple-100 border-white" 
+                    : "bg-gradient-to-br from-white/10 to-white/5 border-white/10"
+                )}>
+                  <div className={clsx(
+                    "w-12 h-12 rounded-full border-4 border-dashed opacity-50",
+                    theme === 'light' ? "border-indigo-300" : "border-white/20"
+                  )} />
+                  <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
+                </div>
+                
+                {/* Front of Card */}
+                <div 
+                  className={clsx(
+                    "absolute inset-0 backface-hidden rounded-2xl border shadow-xl flex items-center justify-center rotate-y-180 overflow-hidden",
+                    card.isMatched 
+                      ? theme === 'light' 
+                        ? "bg-gradient-to-br from-green-100 to-emerald-100 border-green-200" 
+                        : "bg-gradient-to-br from-green-500/20 to-emerald-500/20 border-green-500/30"
+                      : theme === 'light'
+                        ? "bg-white border-white"
+                        : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-indigo-500/30"
+                  )}
+                >
+                  <motion.div
+                    initial={false}
+                    animate={card.isMatched ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } : {}}
+                    transition={{ duration: 0.5 }}
+                  >
+                    <Icon 
+                      size={40} 
+                      strokeWidth={2.5}
+                      className={clsx(
+                        "drop-shadow-md",
+                        card.isMatched
+                          ? "text-emerald-500"
+                          : theme === 'light' ? "text-indigo-600" : "text-indigo-300"
+                      )} 
+                    />
+                  </motion.div>
+                  {/* Glossy reflection */}
+                  <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent rounded-t-2xl pointer-events-none" />
+                </div>
+              </motion.button>
+            </div>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 };

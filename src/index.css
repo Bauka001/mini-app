@@ -3,22 +3,76 @@
 
 @theme {
   --font-sans: 'Inter', 'sans-serif';
+  
+  /* Custom Animations for Games */
+  --animate-float: float 3s ease-in-out infinite;
+  --animate-pulse-glow: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-shake: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+  --animate-pop: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  --animate-scale-in: scale-in 0.2s ease-out forwards;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 15px 0px var(--color-primary); }
+    50% { box-shadow: 0 0 5px 0px var(--color-primary); }
+  }
+  @keyframes shake {
+    10%, 90% { transform: translate3d(-2px, 0, 0); }
+    20%, 80% { transform: translate3d(4px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-8px, 0, 0); }
+    40%, 60% { transform: translate3d(8px, 0, 0); }
+  }
+  @keyframes pop {
+    0% { transform: scale(0.8); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes scale-in {
+    0% { transform: scale(0.9); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
 }
 
 :root {
-  --color-primary: #3B82F6;
-  --color-background: #000000;
-  --color-secondary: #1a1a1a;
+  --color-primary: #3390EC; /* Modern Telegram Blue */
+  --color-background: #0F0F13; /* Deep Dark App Background */
+  --color-secondary: #1C1C22; /* Card / Surface */
   --color-text: #FFFFFF;
+  --color-muted: #8E8E93; /* iOS muted gray */
+  --color-accent: #5E5CE6; /* Indigo accent */
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --color-primary: #3B82F6;
-  --color-background: #FFFFFF;
-  --color-secondary: #F3F4F6;
-  --color-text: #111827;
+  --color-primary: #007AFF; /* iOS Blue */
+  --color-background: #F2F2F7;
+  --color-secondary: #FFFFFF;
+  --color-text: #1C1C1E;
+  --color-muted: #8E8E93;
+  --color-accent: #5856D6;
   color-scheme: light;
+}
+
+[data-theme="blue"] {
+  --color-primary: #38BDF8;
+  --color-background: #0B1120; /* Very dark blue */
+  --color-secondary: #1E293B;
+  --color-text: #F8FAFC;
+  --color-muted: #94A3B8;
+  --color-accent: #818CF8;
+  color-scheme: dark;
+}
+
+[data-theme="gold"] {
+  --color-primary: #F59E0B;
+  --color-background: #141414;
+  --color-secondary: #262626;
+  --color-text: #FAFAFA;
+  --color-muted: #A3A3A3;
+  --color-accent: #D97706;
+  color-scheme: dark;
 }
 
 html, body {
@@ -50,3 +104,9 @@ html, body {
 .bg-black { background-color: var(--color-background); }
 .text-white { color: var(--color-text); }
 .bg-secondary { background-color: var(--color-secondary); }
+
+/* 3D Transform Utilities for Games */
+.perspective-1000 { perspective: 1000px; }
+.preserve-3d { transform-style: preserve-3d; }
+.backface-hidden { backface-visibility: hidden; }
+.rotate-y-180 { transform: rotateY(180deg); }

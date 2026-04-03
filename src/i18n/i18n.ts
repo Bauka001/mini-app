@@ -38,6 +38,7 @@ const resources = {
       "game_memory": "Memory Matrix",
       "game_odd_one": "Odd One Out",
       "game_pairs": "Pairs",
+      "game_tetris": "Tetris",
       "pairs_desc": "Find all matching pairs of cards.",
       "odd_one_desc": "Find the item that looks different from the others.",
       "daily_workout": "Daily Workout",
@@ -166,8 +167,7 @@ const resources = {
       "no_hp": "No HP left! Watch Ad to restore.",
       "revive_hp": "Revive (1 HP)",
       "watch_ad_hp": "Watch Ad (+10 HP & Revive)",
-      "restart_game": "Restart Game",
-      
+      "restart_game": "Restart Game"
     }
   },
   ru: {
@@ -205,6 +205,7 @@ const resources = {
       "game_memory": "Матрица Памяти",
       "game_odd_one": "Найди лишнее",
       "game_pairs": "Пары",
+      "game_tetris": "Тетрис",
       "pairs_desc": "Найдите все совпадающие пары карточек.",
       "odd_one_desc": "Найдите предмет, который отличается от остальных.",
       "daily_workout": "Ежедневная тренировка",
@@ -333,8 +334,7 @@ const resources = {
       "no_hp": "Нет HP! Посмотрите рекламу.",
       "revive_hp": "Воскреснуть (1 HP)",
       "watch_ad_hp": "Смотреть рекламу (+10 HP)",
-      "restart_game": "Начать заново",
-      
+      "restart_game": "Начать заново"
     }
   },
   kz: {
@@ -372,6 +372,7 @@ const resources = {
       "game_memory": "Есте сақтау",
       "game_odd_one": "Артығын тап",
       "game_pairs": "Жұптар",
+      "game_tetris": "Тетрис",
       "pairs_desc": "Барлық сәйкес келетін жұптарды табыңыз.",
       "odd_one_desc": "Басқаларынан өзгеше затты табыңыз.",
       "daily_workout": "Күнделікті жаттығу",
@@ -500,8 +501,7 @@ const resources = {
       "no_hp": "HP жоқ! Жарнама қараңыз.",
       "revive_hp": "Қайта тірілу (1 HP)",
       "watch_ad_hp": "Жарнама қарау (+10 HP)",
-      "restart_game": "Қайта бастау",
-      
+      "restart_game": "Қайта бастау"
     }
   }
 };
