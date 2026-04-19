@@ -1,16 +1,18 @@
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Home, ShoppingBag, Gift } from 'lucide-react';
+import { Home, ShoppingBag, Trophy } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 
 export const Layout = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { bgClass, navClass, getNavItemClass } = useThemeStyles();
 
   const navItems = [
     { path: '/', icon: Home, label: 'home' }, 
-    { path: '/airdrop', icon: Gift, label: 'Airdrop' },
+    { path: '/tournaments', icon: Trophy, label: 'Tournaments' },
     { path: '/shop', icon: ShoppingBag, label: 'shop' },
   ];
 
@@ -40,7 +42,7 @@ export const Layout = () => {
                 )}
               >
                 <item.icon size={24} className={clsx("transition-transform duration-300", isActive && "scale-110")} />
-                <span className="text-xs mt-1">{item.label}</span>
+                <span className="text-xs mt-1">{item.label === 'Tournaments' ? 'Tournaments' : t(item.label)}</span>
               </button>
             );
           })}

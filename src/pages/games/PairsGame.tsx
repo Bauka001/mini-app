@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore } from '../../store/useStore.1';
+import { useStore } from '../../store/useStoreImpl';
 import { Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -46,26 +46,25 @@ const PairsBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: 
 
   // Initialize Game
   useEffect(() => {
-    const totalPairs = 6; // 12 cards total
+    const totalPairs = 6;
     const selectedIcons = ICONS.slice(0, totalPairs);
     const deck = [...selectedIcons, ...selectedIcons]
       .map((_, index) => ({
         id: index,
         iconIndex: index % totalPairs,
-        isFlipped: true, // Show initially
+        isFlipped: true,
         isMatched: false
       }))
       .sort(() => Math.random() - 0.5);
-    
+
     setCards(deck);
     matchesRef.current = 0;
+    setIsPreviewing(true);
 
-    // Preview phase
     const previewTimer = setTimeout(() => {
       setCards(prev => prev.map(c => ({ ...c, isFlipped: false })));
       setIsPreviewing(false);
-      
-      // Start Game Timer only after preview
+
       const timer = setInterval(() => {
         setTimeLeft(prev => {
           if (prev <= 0.1) {
@@ -76,10 +75,9 @@ const PairsBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: 
           return prev - 0.1;
         });
       }, 100);
-      
-      // Cleanup timer if component unmounts
+
       return () => clearInterval(timer);
-    }, 3000); // 3 seconds preview
+    }, 2000);
 
     return () => clearTimeout(previewTimer);
   }, []);

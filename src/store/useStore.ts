@@ -35,7 +35,7 @@ export interface Challenge {
 
 export interface SocialTask {
   id: string;
-  platform: 'instagram' | 'youtube' | 'telegram';
+  platform: 'youtube' | 'telegram';
   url: string;
   reward: number;
   isClaimed: boolean;
@@ -71,6 +71,26 @@ export interface DailyQuest {
   lastResetDate: string | null;
 }
 
+export interface WeeklyQuest {
+  id: string;
+  gamesPlayed: number;
+  targetGames: number;
+  milestones: {
+    gamesRequired: number;
+    reward: { coins: number; crystals: number; energy: number };
+    isClaimed: boolean;
+  }[];
+  lastResetDate: string | null;
+}
+
+export interface MysteryBox {
+  id: string;
+  type: 'coins' | 'crystals' | 'fec' | 'skin' | 'booster';
+  amount: number;
+  skinId?: string;
+  boosterType?: 'freezes' | 'hints' | 'shields';
+}
+
 export interface Ticket {
   id: string;
   ticketNumber: number;
@@ -99,6 +119,29 @@ export interface BrainStats {
   logic: number;
   speed: number;
   flexibility: number;
+  combinedScore?: number;
+  brainAge?: number;
+  brainAgeColor?: 'green' | 'yellow' | 'red';
+  dailyWorkoutPlayed?: boolean;
+  dailyWorkoutModifier?: number;
+}
+
+export type TournamentPaymentMethod = 'stars' | 'ton' | 'vip';
+
+export interface TournamentGame {
+  gameId: string;
+  score: string | number;
+  playedAt: string;
+  tournamentBrainScore: number;
+}
+
+export interface TournamentState {
+  weekKey: string | null;
+  joinedAt: string | null;
+  paymentMethod: TournamentPaymentMethod | null;
+  games: TournamentGame[];
+  score: number;
+  vipFreeEntryWeek: string | null;
 }
 
 export interface UserState {
@@ -145,11 +188,21 @@ export interface UserState {
 
   dailyQuest: DailyQuest;
 
+  weeklyQuest: WeeklyQuest;
+
   inventory: {
     freezes: number;
     hints: number;
     shields: number;
   };
+
+  energy: number;
+  maxEnergy: number;
+  lastEnergyRegenTime: number | null;
+  streakProtection: number;
+  mysteryBoxAvailable: boolean;
+  mysteryBoxPrice: number;
+  tournament: TournamentState;
 
   setLanguage: (lang: Language) => void;
   toggleSound: () => void;
@@ -165,6 +218,7 @@ export interface UserState {
   consumeBooster: (type: 'freezes' | 'hints' | 'shields') => boolean;
 
   claimDailyReward: (amount: number) => void;
+  claimDailyLoginReward: () => { success: boolean; reward: { coins: number; gems: number; xp: number } };
   redeemPromocode: (code: string) => { success: boolean; message: string };
 
   refreshChallenges: () => void;
@@ -198,6 +252,22 @@ export interface UserState {
   checkDailyQuestComplete: () => boolean;
   claimDailyQuestReward: () => void;
   logout: () => void;
+
+  consumeEnergy: (amount: number) => boolean;
+  addEnergy: (amount: number) => void;
+  buyEnergyPack: () => boolean;
+  getEnergyRegenRate: () => number;
+  updateEnergyRegen: () => void;
+
+  useStreakProtection: () => boolean;
+  buyStreakProtection: () => boolean;
+
+  openMysteryBox: () => MysteryBox | null;
+  setMysteryBoxAvailable: (available: boolean) => void;
+
+  updateWeeklyQuest: () => void;
+  claimWeeklyQuestMilestone: (milestoneIndex: number) => boolean;
+  joinTournament: (paymentMethod: TournamentPaymentMethod) => { success: boolean; message: string };
 }
 
 const tgUser = getTelegramUser();
@@ -243,13 +313,6 @@ export const generateDailyChallenges = (): Challenge[] => [
 ];
 
 export const initialSocialTasks: SocialTask[] = [
-  {
-    id: 'ig_bauka',
-    platform: 'instagram',
-    url: 'https://www.instagram.com/focus_game_clube/?utm_source=ig_web_button_share_sheet',
-    reward: 10,
-    isClaimed: false
-  },
   {
     id: 'yt_founding',
     platform: 'youtube',
@@ -302,6 +365,32 @@ export const initialState = {
     isClaimed: false,
     lastResetDate: null
   },
-  inventory: { freezes: 0, hints: 0, shields: 0 }
+  weeklyQuest: {
+    id: 'weekly_quest_10games',
+    gamesPlayed: 0,
+    targetGames: 10,
+    milestones: [
+      { gamesRequired: 2, reward: { coins: 50, crystals: 0, energy: 0 }, isClaimed: false },
+      { gamesRequired: 4, reward: { coins: 50, crystals: 2, energy: 0 }, isClaimed: false },
+      { gamesRequired: 6, reward: { coins: 50, crystals: 0, energy: 10 }, isClaimed: false },
+      { gamesRequired: 8, reward: { coins: 100, crystals: 0, energy: 0 }, isClaimed: false },
+      { gamesRequired: 10, reward: { coins: 100, crystals: 5, energy: 20 }, isClaimed: false }
+    ],
+    lastResetDate: null
+  },
+  inventory: { freezes: 0, hints: 0, shields: 0 },
+  energy: 100,
+  maxEnergy: 100,
+  lastEnergyRegenTime: Date.now(),
+  streakProtection: 0,
+  mysteryBoxAvailable: true,
+  mysteryBoxPrice: 500,
+  tournament: {
+    weekKey: null,
+    joinedAt: null,
+    paymentMethod: null,
+    games: [],
+    score: 0,
+    vipFreeEntryWeek: null
+  }
 };
-

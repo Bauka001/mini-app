@@ -1,8 +1,47 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Coins, Diamond, Star, Calendar, X, Check } from 'lucide-react';
-import { useStore } from '../store/useStore.1';
+import { BarChart3, BrainCircuit, CalendarDays, Check, Crown, Lock, Users, X } from 'lucide-react';
+import { useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
+
+type AnalyticsClaimReward = {
+  coins: number;
+  gems: number;
+  xp: number;
+  analyticsDay: number;
+  analyticsTitle: string;
+  analyticsDescription: string;
+  nextUnlockDay: number | null;
+  isNewUnlock: boolean;
+  streakPreservedByVip: boolean;
+};
+
+const ANALYTICS_REWARD_STEPS = [
+  {
+    day: 1,
+    title: 'Ертеңгі нәтиже',
+    description: 'Ертеңгі нәтижені көре аласыз',
+    icon: CalendarDays,
+  },
+  {
+    day: 7,
+    title: 'Апталық график',
+    description: 'Апталық график ашылады',
+    icon: BarChart3,
+  },
+  {
+    day: 14,
+    title: 'Орташа білім баласы',
+    description: 'Орташа білім баласын көре аласыз',
+    icon: BrainCircuit,
+  },
+  {
+    day: 30,
+    title: 'Қоғамдық салыстырма',
+    description: 'Айдан көпшілік салыстырма ашылады',
+    icon: Users,
+  },
+] as const;
 
 export const DailyRewardModal = ({ 
   isOpen, 
@@ -11,16 +50,21 @@ export const DailyRewardModal = ({
   isOpen: boolean; 
   onClose: () => void; 
 }) => {
-  const { lastDailyRewardDate, dailyRewardStreak, claimDailyLoginReward } = useStore();
-  const [claimedReward, setClaimedReward] = useState<{ coins: number; gems: number; xp: number } | null>(null);
+  const {
+    lastDailyRewardDate,
+    dailyRewardStreak,
+    claimDailyLoginReward,
+    plan,
+    planExpiry
+  } = useStore();
+  const [claimedReward, setClaimedReward] = useState<AnalyticsClaimReward | null>(null);
 
   const handleClaim = async () => {
     const result = claimDailyLoginReward();
     if (result.success) {
-      setClaimedReward(result.reward);
-      // Close after 2 seconds
+      setClaimedReward(result.reward as AnalyticsClaimReward);
       setTimeout(() => {
-        setClaimedReward(null); // Reset for next time
+        setClaimedReward(null);
         onClose();
       }, 2500);
     }
@@ -28,29 +72,29 @@ export const DailyRewardModal = ({
 
   if (!isOpen) return null;
 
-  // Calculate current day in 7-day cycle (1-7)
-  // If we haven't claimed today yet, the streak is from yesterday. 
-  // If lastClaim was yesterday, today will be streak + 1.
-  // If lastClaim was older, today is day 1.
   const today = new Date().toISOString().split('T')[0];
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-  
-  let currentDay = 1;
-  // If already claimed today, show the current streak day
-  if (lastDailyRewardDate === today) {
-    currentDay = ((dailyRewardStreak - 1) % 7) + 1;
-  } else if (lastDailyRewardDate === yesterday) {
-    // If claiming for today (streak + 1)
-    currentDay = (dailyRewardStreak % 7) + 1;
-  } else {
-    // Streak broken or new
-    currentDay = 1;
-  }
-
-  // If claimed today, we just show the calendar, no claim button (or disabled)
+  const twoDaysAgo = new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0];
+  const isVipActive = plan === 'premium' && (!planExpiry || planExpiry > Date.now());
   const isClaimedToday = lastDailyRewardDate === today;
+  const canUseVipGrace = !isClaimedToday && isVipActive && lastDailyRewardDate === twoDaysAgo;
+  const previewStreak = isClaimedToday
+    ? dailyRewardStreak
+    : lastDailyRewardDate === yesterday || canUseVipGrace
+      ? dailyRewardStreak + 1
+      : 1;
+  const unlockedDays = isClaimedToday ? dailyRewardStreak : Math.max(dailyRewardStreak, 0);
+  const nextMilestone = ANALYTICS_REWARD_STEPS.find((step) => step.day > unlockedDays) || null;
+  const currentFocusDay =
+    !isClaimedToday && ANALYTICS_REWARD_STEPS.some((step) => step.day === previewStreak)
+      ? previewStreak
+      : nextMilestone?.day || ANALYTICS_REWARD_STEPS[ANALYTICS_REWARD_STEPS.length - 1].day;
 
-  const days = [1, 2, 3, 4, 5, 6, 7];
+  const streakMessage = canUseVipGrace
+    ? 'VIP мәртебесі бір күн кешіккен серияны сақтап тұр'
+    : isClaimedToday
+      ? 'Бүгінгі аналитика прогресі тіркелді'
+      : 'Серия үзілсе, free қолданушы үшін прогресс 1-күннен қайта басталады';
 
   return (
     <AnimatePresence>
@@ -66,7 +110,6 @@ export const DailyRewardModal = ({
           exit={{ scale: 0.8, y: 50 }}
           className="bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative"
         >
-           {/* Close button */}
            <button 
              onClick={onClose}
              className="absolute top-4 right-4 p-2 bg-white/5 rounded-full text-gray-400 hover:bg-white/10 z-10"
@@ -75,64 +118,91 @@ export const DailyRewardModal = ({
            </button>
 
            <div className="p-8 text-center relative overflow-hidden">
-             {/* Background Glow */}
              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 bg-primary/20 blur-[80px] rounded-full pointer-events-none" />
 
-             <h2 className="text-3xl font-black text-white mb-2 relative z-10 uppercase italic">Daily Rewards</h2>
-             <p className="text-gray-400 text-sm mb-8 relative z-10 font-medium">Log in every day to earn bigger rewards!</p>
+             <h2 className="text-3xl font-black text-white mb-2 relative z-10 uppercase italic">Күнделікті аналитика</h2>
+             <p className="text-gray-400 text-sm mb-4 relative z-10 font-medium">
+               Күнделікті кіру арқылы аналитика бөлімінің жаңа қабаттарын ашыңыз.
+             </p>
 
-             <div className="grid grid-cols-4 gap-3 mb-8 relative z-10">
-               {days.map((day) => {
-                 // Logic for visual state
-                 // If claimed today: days <= currentDay are green/done.
-                 // If NOT claimed today: days < currentDay are done. currentDay is active.
-                 
-                 let status = 'future'; // default
-                 if (isClaimedToday) {
-                   if (day <= currentDay) status = 'done';
-                 } else {
-                   if (day < currentDay) status = 'done';
-                   else if (day === currentDay) status = 'active';
-                 }
+             <div className="relative z-10 mb-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-left">
+               <div className="flex items-center justify-between gap-3 mb-2">
+                 <div>
+                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Қазіргі серия</p>
+                   <p className="text-2xl font-black text-white">{dailyRewardStreak} күн</p>
+                 </div>
+                 {isVipActive ? (
+                   <div className="inline-flex items-center gap-2 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-300">
+                     <Crown size={14} />
+                     VIP қорғау
+                   </div>
+                 ) : null}
+               </div>
+               <p className="text-sm text-gray-400">{streakMessage}</p>
+               {!isClaimedToday && nextMilestone ? (
+                 <p className="mt-2 text-xs font-semibold text-primary">
+                   Келесі unlock: {nextMilestone.day}-күн, {nextMilestone.title.toLowerCase()}
+                 </p>
+               ) : null}
+             </div>
 
-                 const isBigReward = day === 7;
-                 
+             <div className="space-y-3 mb-8 relative z-10">
+               {ANALYTICS_REWARD_STEPS.map((step) => {
+                 const Icon = step.icon;
+                 const isUnlocked = unlockedDays >= step.day;
+                 const isActive = !isUnlocked && currentFocusDay === step.day;
+
                  return (
                    <div 
-                     key={day} 
+                     key={step.day} 
                      className={clsx(
-                       "relative rounded-xl p-2 flex flex-col items-center justify-center border transition-all",
-                       isBigReward ? "col-span-2 aspect-auto bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-yellow-500/50" : "aspect-square",
-                       status === 'active' ? "bg-primary/20 border-primary shadow-[0_0_15px_rgba(255,215,0,0.3)] scale-105 z-20" : 
-                       status === 'done' ? "bg-green-500/10 border-green-500/30 opacity-60" : "bg-white/5 border-white/5 opacity-40"
+                       "relative rounded-2xl p-4 border transition-all text-left flex items-start gap-4",
+                       isActive
+                         ? "bg-primary/15 border-primary shadow-[0_0_24px_rgba(255,215,0,0.22)]"
+                         : isUnlocked
+                           ? "bg-green-500/10 border-green-500/30"
+                           : "bg-white/5 border-white/10 opacity-70"
                      )}
                    >
-                     {status === 'done' && (
-                       <div className="absolute inset-0 bg-black/40 flex items-center justify-center rounded-xl z-20">
-                         <Check size={24} className="text-green-500 font-bold" strokeWidth={4} />
-                       </div>
-                     )}
-                     
-                     <span className={clsx("text-[10px] font-black uppercase mb-1", status === 'active' ? "text-primary" : "text-gray-500")}>
-                       Day {day}
-                     </span>
-                     
-                     {isBigReward ? (
-                       <div className="flex items-center gap-2">
-                          <div className="text-2xl">🎁</div>
-                          <div className="flex flex-col items-start">
-                            <span className="text-xs font-bold text-white">Big Chest</span>
-                            <span className="text-[10px] text-yellow-500 font-black">+1000 Coins</span>
-                          </div>
-                       </div>
-                     ) : (
-                       <>
-                         <Coins size={16} className={clsx("mb-1", status === 'active' ? "text-yellow-400" : "text-gray-600")} />
-                         <span className={clsx("text-xs font-bold", status === 'active' ? "text-white" : "text-gray-500")}>
-                           {50 * day}
+                     <div className={clsx(
+                       "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
+                       isActive
+                         ? "bg-primary text-black"
+                         : isUnlocked
+                           ? "bg-green-500 text-white"
+                           : "bg-white/10 text-gray-400"
+                     )}>
+                       {isUnlocked ? <Check size={22} /> : <Icon size={22} />}
+                     </div>
+
+                     <div className="flex-1">
+                       <div className="flex items-center justify-between gap-3 mb-1">
+                         <span className={clsx(
+                           "text-xs font-black uppercase tracking-[0.18em]",
+                           isActive ? "text-primary" : isUnlocked ? "text-green-400" : "text-gray-500"
+                         )}>
+                           Күн {step.day}
                          </span>
-                       </>
-                     )}
+                         {isUnlocked ? (
+                           <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-1 text-[11px] font-bold text-green-300">
+                             <Check size={12} />
+                             Ашық
+                           </span>
+                         ) : isActive ? (
+                           <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[11px] font-bold text-primary">
+                             <Lock size={12} />
+                             Кезекте
+                           </span>
+                         ) : (
+                           <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[11px] font-bold text-gray-400">
+                             <Lock size={12} />
+                             Құлыптаулы
+                           </span>
+                         )}
+                       </div>
+                       <div className="text-base font-bold text-white">{step.title}</div>
+                       <div className="text-sm text-gray-400">{step.description}</div>
+                     </div>
                    </div>
                  );
                })}
@@ -142,22 +212,31 @@ export const DailyRewardModal = ({
                <motion.div 
                  initial={{ scale: 0 }}
                  animate={{ scale: 1 }}
-                 className="bg-green-500 text-white font-black py-4 rounded-xl text-xl shadow-lg flex items-center justify-center gap-2"
+                 className="rounded-2xl border border-green-500/30 bg-green-500/10 p-5 text-left shadow-lg"
                >
-                 <Check size={24} />
-                 CLAIMED!
+                 <div className="flex items-center gap-2 text-green-300 font-black text-lg mb-2">
+                   <Check size={22} />
+                   {claimedReward.isNewUnlock ? 'Analytics ашылды' : 'Streak жаңартылды'}
+                 </div>
+                 <div className="text-white font-bold">{claimedReward.analyticsTitle}</div>
+                 <div className="text-sm text-gray-300 mt-1">{claimedReward.analyticsDescription}</div>
+                 {claimedReward.streakPreservedByVip ? (
+                   <div className="mt-3 text-xs font-semibold text-yellow-300">
+                     VIP grace қолданылды: серия бір күн кешіккеніне қарамастан сақталды.
+                   </div>
+                 ) : null}
                </motion.div>
              ) : isClaimedToday ? (
                <div className="bg-white/10 text-gray-400 font-bold py-4 rounded-xl text-sm flex items-center justify-center gap-2">
                  <Check size={16} />
-                 Come back tomorrow
+                 Ертең қайта кіріп, streak-ті жалғастырыңыз
                </div>
              ) : (
                <button
                  onClick={handleClaim}
                  className="w-full bg-gradient-to-r from-primary to-orange-500 text-black font-black py-4 rounded-xl text-xl shadow-lg hover:scale-105 transition-transform active:scale-95"
                >
-                 CLAIM REWARD
+                 Analytics ашу
                </button>
              )}
            </div>

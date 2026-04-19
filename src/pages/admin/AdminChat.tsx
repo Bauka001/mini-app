@@ -113,6 +113,32 @@ export const AdminChat = () => {
   };
 
   const stats = data?.stats;
+  const formatDisplayLabel = (value?: string | null, fallback = 'Көрсетілмеген') => {
+    if (!value) {
+      return fallback;
+    }
+
+    return value
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const formatStatusLabel = (value: AdminChatReport['status']) => {
+    switch (value) {
+      case 'pending':
+        return 'Күтіп тұр';
+      case 'hidden':
+        return 'Жасырылған';
+      case 'dismissed':
+        return 'Жабылған';
+      case 'reviewed':
+        return 'Қаралған';
+      default:
+        return formatDisplayLabel(value);
+    }
+  };
+
   const formatDate = (value: string) =>
     new Date(value).toLocaleString('ru-RU', {
       year: 'numeric',
@@ -127,7 +153,7 @@ export const AdminChat = () => {
       <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Чат модерациясы</h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">`chat_reports` queue және moderation_actions журналы</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Шағымдар кезегі және модерация журналы</p>
         </div>
         <button
           onClick={() => void loadReports()}
@@ -151,7 +177,7 @@ export const AdminChat = () => {
             <div className="p-2 bg-blue-500 rounded-lg">
               <MessageSquare className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-gray-600 dark:text-gray-400 text-sm font-medium">Барлық report</h3>
+            <h3 className="text-gray-600 dark:text-gray-400 text-sm font-medium">Барлық шағым</h3>
           </div>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats?.totalReports ?? 0}</p>
         </div>
@@ -181,7 +207,7 @@ export const AdminChat = () => {
             <div className="p-2 bg-orange-500 rounded-lg">
               <AlertCircle className="w-5 h-5 text-white" />
             </div>
-            <h3 className="text-gray-600 dark:text-gray-400 text-sm font-medium">Dismissed</h3>
+            <h3 className="text-gray-600 dark:text-gray-400 text-sm font-medium">Жабылған</h3>
           </div>
           <p className="text-3xl font-bold text-gray-900 dark:text-white">{stats?.dismissedReports ?? 0}</p>
         </div>
@@ -204,7 +230,7 @@ export const AdminChat = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <input
                 type="text"
-                placeholder="Іздеу: username, хабарлама, Telegram ID..."
+                placeholder="Іздеу: қолданушы, хабарлама, Telegram ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -231,7 +257,7 @@ export const AdminChat = () => {
                   groupFilter === groupId ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
                 )}
               >
-                {groupName}
+                {formatDisplayLabel(groupName, formatDisplayLabel(groupId))}
               </button>
             ))}
           </div>
@@ -253,7 +279,7 @@ export const AdminChat = () => {
                 statusFilter === 'pending' ? 'bg-green-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
               )}
             >
-              Pending
+              Күтіп тұр
             </button>
             <button
               onClick={() => setStatusFilter('hidden')}
@@ -262,7 +288,7 @@ export const AdminChat = () => {
                 statusFilter === 'hidden' ? 'bg-red-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
               )}
             >
-              Hidden
+              Жасырылған
             </button>
           </div>
 
@@ -285,7 +311,7 @@ export const AdminChat = () => {
         {isLoading ? (
           <div className="p-12 text-center">
             <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-            <p className="text-gray-600 dark:text-gray-400">Moderation queue жүктелуде...</p>
+            <p className="text-gray-600 dark:text-gray-400">Модерация кезегі жүктелуде...</p>
           </div>
         ) : null}
 
@@ -301,15 +327,15 @@ export const AdminChat = () => {
                     <div className="flex items-center gap-3 mb-2">
                       <div>
                         <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900 dark:text-white">{report.username ? `@${report.username}` : 'Unknown user'}</p>
+                          <p className="font-semibold text-gray-900 dark:text-white">{report.username ? `@${report.username}` : 'Белгісіз қолданушы'}</p>
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded text-xs">
-                            {report.groupName || report.groupId || 'Топ көрсетілмеген'}
+                            {formatDisplayLabel(report.groupName || report.groupId, 'Топ көрсетілмеген')}
                           </span>
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded text-xs">
                             {formatDate(report.createdAt)}
                           </span>
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded text-xs">
-                            {report.status}
+                            {formatStatusLabel(report.status)}
                           </span>
                         </div>
                       </div>
@@ -323,8 +349,8 @@ export const AdminChat = () => {
                     </p>
 
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
-                      <span>Report count: {report.reportCount}</span>
-                      <span>Target user: {report.reportedUserTelegramId || 'n/a'}</span>
+                      <span>Шағым саны: {report.reportCount}</span>
+                      <span>Мақсат қолданушы: {report.reportedUserTelegramId || 'көрсетілмеген'}</span>
                     </div>
 
                     {report.reportCount > 0 && (
@@ -337,28 +363,28 @@ export const AdminChat = () => {
 
                   <div className="flex flex-wrap gap-2">
                     <button
-                      onClick={() => void handleReportAction(report, 'reviewed', 'Review')}
+                      onClick={() => void handleReportAction(report, 'reviewed', 'Қарау')}
                       disabled={busyReportId === report.id}
                       className="inline-flex items-center gap-2 rounded-lg bg-emerald-100 px-3 py-2 font-medium text-emerald-700 transition-colors hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-900 dark:text-emerald-200"
                     >
                       <CheckCircle2 className="w-4 h-4" />
-                      Review
+                      Қарау
                     </button>
                     <button
-                      onClick={() => void handleReportAction(report, 'hidden', 'Hide message')}
+                      onClick={() => void handleReportAction(report, 'hidden', 'Хабарламаны жасыру')}
                       disabled={busyReportId === report.id}
                       className="inline-flex items-center gap-2 rounded-lg bg-red-100 px-3 py-2 font-medium text-red-700 transition-colors hover:bg-red-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-900 dark:text-red-200"
                     >
                       <EyeOff className="w-4 h-4" />
-                      Hide
+                      Жасыру
                     </button>
                     <button
-                      onClick={() => void handleReportAction(report, 'dismissed', 'Dismiss report')}
+                      onClick={() => void handleReportAction(report, 'dismissed', 'Шағымды жабу')}
                       disabled={busyReportId === report.id}
                       className="inline-flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-gray-700 dark:text-gray-200"
                     >
                       <Shield className="w-4 h-4" />
-                      Dismiss
+                      Жабу
                     </button>
                   </div>
                 </div>
@@ -370,7 +396,7 @@ export const AdminChat = () => {
         {!isLoading && filteredReports.length === 0 && (
           <div className="text-center py-12">
             <MessageSquare className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">Модерацияға түскен chat report жоқ</p>
+            <p className="text-gray-600 dark:text-gray-400">Модерацияға түскен шағым жоқ</p>
           </div>
         )}
       </div>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, RotateCcw, Coins, Share2, Puzzle, Activity, Brain, Calculator, Keyboard, Zap, Trophy, Star, Pause, Home } from 'lucide-react';
+import { ArrowLeft, Play, RotateCcw, Coins, Share2, Puzzle, Activity, Brain, Calculator, Keyboard, Zap, Trophy, Star, Pause, Home, Target, Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useStore } from '../store/useStore.1';
+import { useStore } from '../store/useStoreImpl';
 import { soundManager } from '../utils/soundManager';
 import { hapticFeedback } from '../utils/telegram';
 import { ChestModal } from './ChestModal';
@@ -27,6 +27,8 @@ const getGameEmblem = (title: string) => {
     'Math Challenge': { icon: <Calculator size={80} strokeWidth={1.5} />, color: 'from-green-400 to-emerald-600', glow: 'shadow-green-500/50' },
     'Speed Typing': { icon: <Keyboard size={80} strokeWidth={1.5} />, color: 'from-indigo-400 to-violet-600', glow: 'shadow-indigo-500/50' },
     'Schulte': { icon: <Star size={80} strokeWidth={1.5} />, color: 'from-amber-400 to-yellow-600', glow: 'shadow-amber-500/50' },
+    'Agent Spot': { icon: <Target size={80} strokeWidth={1.5} />, color: 'from-cyan-300 to-red-500', glow: 'shadow-cyan-500/50' },
+    'Code Breaker': { icon: <Lock size={80} strokeWidth={1.5} />, color: 'from-cyan-300 to-violet-500', glow: 'shadow-cyan-500/50' },
   };
   return emblemStyles[title] || { icon: <Trophy size={80} strokeWidth={1.5} />, color: 'from-gray-400 to-gray-600', glow: 'shadow-gray-500/50' };
 };
@@ -245,7 +247,7 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
     <div className="h-screen bg-black text-white flex flex-col relative">
       {/* Background */}
       <div className="absolute top-[-50%] left-[-50%] w-[1000px] h-[1000px] bg-primary/5 rounded-full blur-[150px] pointer-events-none" />
-      
+
       {/* Top Bar */}
       <div className="relative z-20 px-4 py-3 flex items-center justify-between bg-secondary/30 backdrop-blur-md border-b border-white/5 shadow-md">
         <button onClick={handlePause} className="p-2 rounded-full hover:bg-white/10 transition-colors active:scale-95">

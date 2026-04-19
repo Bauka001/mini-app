@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore } from '../../store/useStore.1';
+import { useStore } from '../../store/useStoreImpl';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const GRID_SIZE = 5;

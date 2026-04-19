@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore } from '../../store/useStore.1';
+import { useStore } from '../../store/useStoreImpl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
 
@@ -50,15 +50,16 @@ export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEn
     // Determine grid size based on level (slightly harder progression)
     const newGridSize = Math.min(8, 3 + Math.floor((level - 1) / 2));
     setGridSize(newGridSize);
-    
+
     // Update target count based on level (max 40)
     const newTarget = Math.min(40, 10 + (level - 1));
     setTargetCount(newTarget);
 
-    const set = EMOJI_SETS[Math.floor(Math.random() * EMOJI_SETS.length)];
+    const setIndex = Math.floor(Math.random() * EMOJI_SETS.length);
+    const set = EMOJI_SETS[setIndex];
     const totalItems = newGridSize * newGridSize;
     const newOddIndex = Math.floor(Math.random() * totalItems);
-    
+
     const newItems = Array(totalItems).fill(set.common);
     newItems[newOddIndex] = set.odd;
 
@@ -88,7 +89,7 @@ export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEn
     }, 100);
 
     return () => clearInterval(timer);
-  }, [showLevelUp, showLevelComplete, isPaused, addGameResult, onEnd, score, generateLevel]);
+  }, [showLevelUp, showLevelComplete, isPaused, addGameResult, onEnd, score, generateLevel, level]);
 
   // Re-generate when level changes
   useEffect(() => {

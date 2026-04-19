@@ -1,7 +1,7 @@
 import { TonConnectButton, useTonWallet } from '@tonconnect/ui-react';
 import { useTranslation } from 'react-i18next';
 import { Coins, Users, Gift, ArrowRight } from 'lucide-react';
-import { useStore } from '../store/useStore.1';
+import { useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
 import { useThemeStyles } from '../hooks/useThemeStyles';
@@ -16,7 +16,7 @@ const AirdropPage = () => {
   const tasks = [
     {
       id: 1,
-      title: "Connect Wallet",
+      title: t('connect_wallet'),
       reward: 1000,
       completed: !!wallet,
       icon: Gift,
@@ -24,13 +24,13 @@ const AirdropPage = () => {
     },
     {
       id: 2,
-      title: "Invite 3 Friends",
+      title: t('invite_three_friends'),
       reward: 5000,
       completed: false,
       icon: Users,
       action: () => {
         const botUrl = 'https://t.me/Focus_game_bot';
-        WebApp.openTelegramLink(`https://t.me/share/url?url=${botUrl}&text=Join me in Focus App!`);
+        WebApp.openTelegramLink(`https://t.me/share/url?url=${botUrl}&text=${encodeURIComponent(t('airdrop_share_text'))}`);
       }
     }
   ];
@@ -42,10 +42,13 @@ const AirdropPage = () => {
           <Coins size={48} className="text-blue-500" />
         </div>
         <h1 className="text-3xl font-bold text-center bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-          Airdrop Soon
+          {t('airdrop_hero_title')}
         </h1>
-        <p className={clsx("text-center mt-2 max-w-xs", textSecondary)}>
-          {t('airdrop_desc') || "Collect coins and connect your wallet to be eligible for the upcoming token airdrop."}
+        <p className={clsx(
+          "text-center mt-2 max-w-xs font-medium",
+          styles.isLight ? "text-slate-700" : "text-slate-200"
+        )}>
+          {t('airdrop_desc')}
         </p>
       </div>
 
@@ -57,10 +60,10 @@ const AirdropPage = () => {
         <div>
           <h2 className={clsx("text-xl font-bold mb-2 flex items-center gap-2", textPrimary)}>
             <Coins className="text-yellow-500" size={20} />
-            In-game Coins
+            {t('in_game_coins')}
           </h2>
           <div className={clsx("text-3xl font-bold", textPrimary)}>{coins.toLocaleString()}</div>
-          <p className={clsx("text-xs", textSecondary)}>Exchange Rate: 10,000 Coins = 1 $FEC</p>
+          <p className={clsx("text-xs font-medium", textSecondary)}>{t('exchange_rate_fec')}</p>
         </div>
 
         <div className="w-full h-px bg-gray-500/20" />
@@ -68,22 +71,32 @@ const AirdropPage = () => {
         <div>
           <h2 className={clsx("text-xl font-bold mb-2 flex items-center gap-2", textPrimary)}>
             <Gift className="text-blue-500" size={20} />
-            $FEC Balance
+            {t('fec_balance')}
           </h2>
           <div className="text-3xl font-bold text-blue-500">{fecBalance?.toFixed(2) || '0.00'} $FEC</div>
         </div>
 
         <button 
-          className="w-full py-3 bg-gray-500/10 text-gray-500 font-bold rounded-xl border border-gray-500/20 cursor-not-allowed flex items-center justify-center gap-2"
+          className={clsx(
+            "w-full py-3 font-bold rounded-xl border cursor-not-allowed flex items-center justify-center gap-2",
+            styles.isLight
+              ? "bg-slate-100 text-slate-700 border-slate-300"
+              : "bg-slate-700/40 text-slate-100 border-slate-500/40"
+          )}
           disabled
         >
-          Withdraw to Wallet
-          <span className="text-[10px] bg-gray-500/20 px-2 py-0.5 rounded ml-2">Coming Soon</span>
+          {t('withdraw_to_wallet')}
+          <span className={clsx(
+            "text-xs px-2 py-0.5 rounded ml-2 font-semibold",
+            styles.isLight
+              ? "bg-slate-200 text-slate-700"
+              : "bg-slate-200/20 text-slate-100"
+          )}>{t('coming_soon')}</span>
         </button>
       </div>
 
       <div className="space-y-4">
-        <h2 className={clsx("text-xl font-bold px-2", textPrimary)}>Tasks</h2>
+        <h2 className={clsx("text-xl font-bold px-2", textPrimary)}>{t('tasks_title')}</h2>
         {tasks.map((task) => (
           <div 
             key={task.id}
@@ -108,7 +121,7 @@ const AirdropPage = () => {
             </div>
 
             {task.completed ? (
-              <div className="text-green-500 font-bold text-sm">Done</div>
+              <div className="text-green-500 font-bold text-sm">{t('done')}</div>
             ) : (
               <button 
                 onClick={task.action}

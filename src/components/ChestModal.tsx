@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Coins, Gem, Gift, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
-import { useStore } from '../store/useStore.1';
+import { useStore } from '../store/useStoreImpl';
 import WebApp from '@twa-dev/sdk';
 
 interface ChestModalProps {

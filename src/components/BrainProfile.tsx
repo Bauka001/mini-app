@@ -1,14 +1,14 @@
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
-import { useStore } from '../store/useStore.1';
+import { useStore } from '../store/useStoreImpl';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
+import { clsx } from 'clsx';
 
 export const BrainProfile = () => {
   const { brainStats } = useStore();
   const { t, i18n } = useTranslation();
   const lang = i18n.language;
 
-  // Translations for chart labels
   const labels = {
     focus: lang === 'kz' ? 'Зейін' : lang === 'ru' ? 'Внимание' : 'Focus',
     memory: lang === 'kz' ? 'Жады' : lang === 'ru' ? 'Память' : 'Memory',
@@ -17,8 +17,10 @@ export const BrainProfile = () => {
     flexibility: lang === 'kz' ? 'Икемділік' : lang === 'ru' ? 'Гибкость' : 'Flexibility',
   };
 
-  // Safe fallback if brainStats is undefined (e.g. old store version)
   const stats = brainStats || { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 };
+  const combinedScore = stats.combinedScore ?? 100;
+  const brainAge = stats.brainAge ?? 33;
+  const workoutBoostPercent = Math.round(((stats.dailyWorkoutModifier ?? 1) - 1) * 100);
 
   const data = [
     { subject: labels.focus, A: stats.focus, fullMark: 100 },
@@ -39,6 +41,23 @@ export const BrainProfile = () => {
            🧠 {lang === 'kz' ? 'Ми Паспорты' : lang === 'ru' ? 'Паспорт Мозга' : 'Brain Profile'}
         </h3>
         <span className="text-[10px] text-blue-400 font-bold bg-blue-500/10 px-2 py-1 rounded-lg border border-blue-500/20">Lv. {Math.floor((stats.focus + stats.memory + stats.logic + stats.speed + stats.flexibility) / 50)}</span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mb-3">
+        <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">Combined</div>
+          <div className="mt-1 text-xl font-black text-white">{combinedScore}</div>
+        </div>
+        <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">Brain Age</div>
+          <div className="mt-1 text-xl font-black text-white">{brainAge}</div>
+        </div>
+        <div className="bg-white/5 rounded-xl p-3 border border-white/10">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-gray-400">Workout</div>
+          <div className={clsx("mt-1 text-xl font-black", workoutBoostPercent >= 0 ? "text-emerald-400" : "text-orange-400")}>
+            {workoutBoostPercent > 0 ? `+${workoutBoostPercent}%` : `${workoutBoostPercent}%`}
+          </div>
+        </div>
       </div>
       
       <div className="h-[250px] w-full relative">

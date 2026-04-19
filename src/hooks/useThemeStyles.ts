@@ -1,4 +1,4 @@
-import { useStore } from '../store/useStore.1';
+import { useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
 
 export const useThemeStyles = () => {
@@ -51,10 +51,10 @@ export const useThemeStyles = () => {
       return "text-[#FFFFFF]";
     }
     if (type === 'secondary') {
-      if (isLight) return "text-[#8E8E93]";
-      if (isBlue) return "text-[#94A3B8]";
-      if (isGold) return "text-[#A3A3A3]";
-      return "text-[#8E8E93]";
+      if (isLight) return "text-[#636366]";
+      if (isBlue) return "text-[#CBD5E1]";
+      if (isGold) return "text-[#D4D4D8]";
+      return "text-[#D1D5DB]";
     }
     if (type === 'accent') {
       if (isLight) return "text-[#007AFF]";
@@ -94,10 +94,10 @@ export const useThemeStyles = () => {
       return "text-[#3390EC] font-semibold drop-shadow-[0_0_8px_rgba(51,144,236,0.4)]";
     }
     // Inactive
-    if (isLight) return "text-[#8E8E93] hover:text-[#007AFF]";
-    if (isBlue) return "text-[#64748B] hover:text-[#38BDF8]";
-    if (isGold) return "text-[#737373] hover:text-[#D4AF37]";
-    return "text-[#8E8E93] hover:text-[#3390EC]";
+    if (isLight) return "text-[#636366] hover:text-[#007AFF]";
+    if (isBlue) return "text-[#CBD5E1] hover:text-[#38BDF8]";
+    if (isGold) return "text-[#D4D4D8] hover:text-[#D4AF37]";
+    return "text-[#D1D5DB] hover:text-[#3390EC]";
   };
 
   return {

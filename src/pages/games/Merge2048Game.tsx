@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useStore } from '../../store/useStore.1';
+import { useStore } from '../../store/useStoreImpl';
 import { soundManager } from '../../utils/soundManager';
 import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
 import { Zap, AlertTriangle } from 'lucide-react';
@@ -108,8 +108,8 @@ const Merge2048Game = () => {
   useEffect(() => {
     if (particles.length > 0) {
       const timer = setTimeout(() => {
-        setParticles(prev => prev.slice(1));
-      }, 1000);
+        setParticles(prev => prev.slice(3));
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [particles]);
@@ -189,7 +189,7 @@ const Merge2048Game = () => {
           setTimeout(() => {
             setDroppingColumn(null);
             processMerge(newGrid, targetRow, colIndex, 0, onEnd);
-          }, 300);
+          }, 200);
         };
       
         const processMerge = (currentGrid: (number | null)[][], r: number, c: number, currentCombo: number, endCallback: any) => {
@@ -253,9 +253,9 @@ const Merge2048Game = () => {
                 newSet.delete(posKey);
                 return newSet;
               });
-              
+
               applyGravity(newGrid, newCombo, endCallback);
-            }, 400);
+            }, 300);
             return;
           }
       
@@ -303,7 +303,7 @@ const Merge2048Game = () => {
                 // Apply gravity again because we removed blocks
                 setTimeout(() => {
                     applyGravity(clearedGrid, 0, endCallback);
-                }, 2000);
+                }, 1500);
                 return;
             }
 
@@ -318,7 +318,7 @@ const Merge2048Game = () => {
         const applyGravity = (currentGrid: (number | null)[][], currentCombo: number, endCallback: any) => {
           let moved = false;
           const newGrid = Array(ROWS).fill(null).map(() => Array(COLS).fill(null));
-      
+
           for (let c = 0; c < COLS; c++) {
             let rIdx = ROWS - 1;
             for (let r = ROWS - 1; r >= 0; r--) {
@@ -328,19 +328,19 @@ const Merge2048Game = () => {
               }
             }
           }
-          
+
           for(let r=0; r<ROWS; r++) {
               for(let c=0; c<COLS; c++) {
                   if(newGrid[r][c] !== currentGrid[r][c]) moved = true;
               }
           }
-      
+
           setGrid(newGrid);
-      
+
           if (moved) {
             setTimeout(() => {
               scanForMerges(newGrid, currentCombo, endCallback);
-            }, 300);
+            }, 200);
           } else {
              scanForMerges(newGrid, currentCombo, endCallback);
           }

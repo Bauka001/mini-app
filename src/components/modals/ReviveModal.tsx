@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, PlayCircle, RefreshCw } from 'lucide-react';
-import { useStore } from '../../store/useStore.1';
+import { useStore } from '../../store/useStoreImpl';
 import { useTranslation } from 'react-i18next';
 
 interface ReviveModalProps {

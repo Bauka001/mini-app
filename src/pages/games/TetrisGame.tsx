@@ -3,7 +3,7 @@ import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { Theme } from '../../store/useStore';
-import { useStore } from '../../store/useStore.1';
+import { useStore } from '../../store/useStoreImpl';
 import { ArrowLeft, ArrowRight, RotateCw, ArrowDown, ArrowBigDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
@@ -98,8 +98,8 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
   useEffect(() => {
     if (particles.length > 0) {
       const timer = setTimeout(() => {
-        setParticles(prev => prev.slice(5)); // Remove chunks
-      }, 1000);
+        setParticles(prev => prev.slice(10)); // Remove more chunks
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [particles]);
@@ -132,8 +132,7 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
     if (!activePiece && !gameOver) {
       spawnPiece();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activePiece, gameOver, spawnPiece]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -165,7 +164,7 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [gameOver, isGamePaused, activePiece]);
+  }, [gameOver, isGamePaused, activePiece, move, rotate, softDrop, hardDrop]);
 
   const checkCollision = useCallback((pieceX: number, pieceY: number, shape: number[][], currentBoard?: string[][]) => {
     const b = currentBoard || board;
@@ -223,7 +222,7 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
       }
   };
 
-  const mergePiece = () => {
+  const mergePiece = useCallback(() => {
     if (!activePiece) return;
 
     const newBoard = board.map(row => [...row]);
@@ -232,7 +231,7 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
         if (value) {
           const boardY = activePiece.y + y;
           const boardX = activePiece.x + x;
-          
+
           if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
              newBoard[boardY][boardX] = activePiece.type;
           }
@@ -240,27 +239,20 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
       });
     });
 
-    const clearedIndices: number[] = [];
-    const clearedBoard = newBoard.filter((row, index) => {
-      if (row.every(cell => cell !== null)) {
-        clearedIndices.push(index); 
-        return false;
-      }
-      return true;
-    });
-    
     const linesToClearIndices: number[] = [];
     newBoard.forEach((row, idx) => {
         if (row.every(cell => cell !== null)) {
             linesToClearIndices.push(idx);
         }
     });
-    
+
     const linesCleared = linesToClearIndices.length;
 
     if (linesCleared > 0) {
         triggerLineClearEffects(linesToClearIndices);
     }
+
+    const clearedBoard = newBoard.filter(row => !row.every(cell => cell !== null));
 
     while (clearedBoard.length < BOARD_HEIGHT) {
       clearedBoard.unshift(Array(BOARD_WIDTH).fill(null));
@@ -292,7 +284,7 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
        setActivePiece(newPiece);
        setNextPiece(getNextTetromino());
     }
-  };
+  }, [activePiece, board, lines, level, score, nextPiece, onEnd, checkCollision]);
 
   // Custom hook for interval
   const useInterval = (callback: () => void, delay: number | null) => {
@@ -325,80 +317,7 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
         return;
       }
 
-      const newBoard = board.map(row => [...row]);
-      const currentPiece = activePiece; 
-      
-      currentPiece.shape.forEach((row, y) => {
-        row.forEach((value, x) => {
-          if (value) {
-            const boardY = currentPiece.y + y;
-            const boardX = currentPiece.x + x;
-            if (boardY >= 0 && boardY < BOARD_HEIGHT && boardX >= 0 && boardX < BOARD_WIDTH) {
-               newBoard[boardY][boardX] = currentPiece.type;
-            }
-          }
-        });
-      });
-
-      const linesToClearIndices: number[] = [];
-      newBoard.forEach((row, idx) => {
-          if (row.every(cell => cell !== null)) {
-              linesToClearIndices.push(idx);
-          }
-      });
-      
-      const linesCleared = linesToClearIndices.length;
-      if (linesCleared > 0) {
-           setShake(true);
-           if (boardRef.current) {
-              const newParticles: Particle[] = [];
-              linesToClearIndices.forEach(yIndex => {
-                  const yPos = yIndex * cellSize + cellSize / 2;
-                  for (let i = 0; i < 10; i++) {
-                       const xPos = Math.random() * (BOARD_WIDTH * cellSize);
-                       newParticles.push({
-                           id: `p-${Date.now()}-${yIndex}-${i}`,
-                           x: xPos,
-                           y: yPos,
-                           color: '#ffffff'
-                       });
-                  }
-              });
-              setParticles(prev => [...prev, ...newParticles]);
-           }
-      }
-
-      const clearedBoard = newBoard.filter(row => !row.every(cell => cell !== null));
-      while (clearedBoard.length < BOARD_HEIGHT) {
-        clearedBoard.unshift(Array(BOARD_WIDTH).fill(null));
-      }
-
-      setBoard(clearedBoard);
-      const newLines = lines + linesCleared;
-      setLines(newLines);
-      setScore(s => s + linesCleared * 100 * level * (linesCleared > 1 ? linesCleared : 1));
-
-      if (newLines >= level * 10) {
-        setLevel(l => l + 1);
-        setSpeed(sp => Math.max(100, sp - 50));
-      }
-
-      const type = nextPiece || getNextTetromino();
-      const piece = TETROMINOS[type];
-      const newPiece = {
-        type,
-        x: Math.floor(BOARD_WIDTH / 2) - Math.floor(piece.shape[0].length / 2),
-        y: 0,
-        shape: piece.shape
-      };
-
-      if (checkCollision(newPiece.x, newPiece.y, newPiece.shape, clearedBoard)) {
-         setGameOver(true);
-         onEnd(score + linesCleared * 100 * level);
-      } else {
-         setActivePiece(newPiece);
-         setNextPiece(getNextTetromino());
-      }
+      mergePiece();
     }
   }, (gameOver || isGamePaused) ? null : speed);
 

@@ -1,17 +1,20 @@
-import { HashRouter as Router, Routes, Route } from 'react-router-dom';
-import { useEffect } from 'react';
+import { HashRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { Layout } from './components/Layout';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AuthGuard } from './components/AuthGuard';
 import { AnimatedRoutes } from './components/AnimatedRoutes';
+import OnboardingScreen1 from './components/onboarding/OnboardingScreen1';
+import OnboardingScreen2 from './components/onboarding/OnboardingScreen2';
+import OnboardingScreen3 from './components/onboarding/OnboardingScreen3';
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminUsers } from './pages/admin/AdminUsers';
 import { AdminChat } from './pages/admin/AdminChat';
 import { AdminGames } from './pages/admin/AdminGames';
 import AdminSettings from './pages/admin/AdminSettings';
 import AdminPanel from './pages/AdminPanel';
-import { useStore } from './store/useStore.1';
+import { useStore } from './store/useStoreImpl';
 
 // Static imports to prevent lazy loading errors
 import Home from './pages/Home';
@@ -21,6 +24,8 @@ import ProfilePage from './pages/Profile';
 import LeaderboardPage from './pages/Leaderboard';
 import DailyWorkoutPage from './pages/DailyWorkout';
 import AirdropPage from './pages/Airdrop';
+import TournamentsPage from './pages/Tournaments';
+import AnalyticsPage from './pages/Analytics';
 
 // Games
 import SchulteGame from './pages/games/SchulteGame';
@@ -31,6 +36,367 @@ import OddOneOutGame from './pages/games/OddOneOutGame';
 import PairsGame from './pages/games/PairsGame';
 import TetrisGame from './pages/games/TetrisGame';
 import Merge2048Game from './pages/games/Merge2048Game';
+import AgentSpotGame from './pages/games/AgentSpotGame';
+import CodeBreakerGame from './pages/games/CodeBreakerGame';
+
+type HistoryEntry = {
+  gameId: string;
+  score: string | number;
+  timestamp: number;
+  coinsEarned: number;
+};
+
+type WorkoutSession = {
+  date: string;
+  startedAt: number;
+  gameIds: string[];
+};
+
+type OnboardingProgress = {
+  screen: 0 | 1 | 2 | 3;
+  hasStartedWorkout: boolean;
+  isCompleted: boolean;
+  sessionDate: string | null;
+  startedAt: number | null;
+};
+
+type WorkoutOnboardingGame = {
+  id: string;
+  routeId: string;
+  historyIds: string[];
+};
+
+const DAILY_WORKOUT_STORAGE_KEY = 'focus-daily-workout-v1';
+const ONBOARDING_STORAGE_PREFIX = 'focus-onboarding-v1';
+
+const workoutOnboardingGames: WorkoutOnboardingGame[] = [
+  { id: 'memory', routeId: 'memory', historyIds: ['memory'] },
+  { id: 'schulte', routeId: 'schulte', historyIds: ['schulte'] },
+  { id: 'math', routeId: 'math', historyIds: ['math'] },
+  { id: 'pairs', routeId: 'pairs', historyIds: ['pairs'] },
+  { id: 'odd-one', routeId: 'odd-one', historyIds: ['odd_one_out'] },
+  { id: 'stroop', routeId: 'stroop', historyIds: ['stroop'] },
+  { id: 'tetris', routeId: 'tetris', historyIds: ['tetris'] },
+  { id: '2048', routeId: '2048', historyIds: ['2048'] },
+  { id: 'agent-spot', routeId: 'agent-spot', historyIds: ['agent_spot'] },
+  { id: 'code-breaker', routeId: 'code-breaker', historyIds: ['code_breaker'] },
+];
+
+const getTodayKey = () => new Date().toISOString().split('T')[0];
+
+const shuffleArray = <T,>(items: T[]) => {
+  const next = [...items];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[randomIndex]] = [next[randomIndex], next[index]];
+  }
+  return next;
+};
+
+const createWorkoutSession = (): WorkoutSession => ({
+  date: getTodayKey(),
+  startedAt: Date.now(),
+  gameIds: shuffleArray(workoutOnboardingGames.map((game) => game.id)).slice(0, 3),
+});
+
+const readStoredWorkoutSession = (): WorkoutSession | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = localStorage.getItem(DAILY_WORKOUT_STORAGE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<WorkoutSession>;
+    if (!parsed.date || typeof parsed.startedAt !== 'number' || !Array.isArray(parsed.gameIds)) {
+      return null;
+    }
+
+    return {
+      date: parsed.date,
+      startedAt: parsed.startedAt,
+      gameIds: parsed.gameIds.filter((gameId): gameId is string => typeof gameId === 'string').slice(0, 3),
+    };
+  } catch (error) {
+    console.warn('Onboarding workout session read error:', error);
+    return null;
+  }
+};
+
+const writeWorkoutSession = (session: WorkoutSession) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(DAILY_WORKOUT_STORAGE_KEY, JSON.stringify(session));
+};
+
+const ensureWorkoutSession = () => {
+  const stored = readStoredWorkoutSession();
+  if (stored?.date === getTodayKey() && stored.gameIds.length === 3) {
+    return stored;
+  }
+
+  const nextSession = createWorkoutSession();
+  writeWorkoutSession(nextSession);
+  return nextSession;
+};
+
+const getWorkoutGameById = (gameId: string) =>
+  workoutOnboardingGames.find((game) => game.id === gameId);
+
+const createInitialOnboardingProgress = (): OnboardingProgress => ({
+  screen: 1,
+  hasStartedWorkout: false,
+  isCompleted: false,
+  sessionDate: null,
+  startedAt: null,
+});
+
+const getOnboardingStorageKey = (userId: number) => `${ONBOARDING_STORAGE_PREFIX}-${userId}`;
+
+const readOnboardingProgress = (userId: number): OnboardingProgress | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = localStorage.getItem(getOnboardingStorageKey(userId));
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<OnboardingProgress>;
+    if (
+      typeof parsed.screen !== 'number' ||
+      typeof parsed.hasStartedWorkout !== 'boolean' ||
+      typeof parsed.isCompleted !== 'boolean'
+    ) {
+      return null;
+    }
+
+    return {
+      screen: parsed.screen as OnboardingProgress['screen'],
+      hasStartedWorkout: parsed.hasStartedWorkout,
+      isCompleted: parsed.isCompleted,
+      sessionDate: typeof parsed.sessionDate === 'string' ? parsed.sessionDate : null,
+      startedAt: typeof parsed.startedAt === 'number' ? parsed.startedAt : null,
+    };
+  } catch (error) {
+    console.warn('Onboarding progress read error:', error);
+    return null;
+  }
+};
+
+const writeOnboardingProgress = (userId: number, progress: OnboardingProgress) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(getOnboardingStorageKey(userId), JSON.stringify(progress));
+};
+
+function AppRoutes() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const userId = useStore((state) => state.user.id);
+  const history = useStore((state) => state.history as HistoryEntry[]);
+  const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress | null>(null);
+
+  const updateOnboardingProgress = (patch: Partial<OnboardingProgress>) => {
+    if (!userId || !onboardingProgress) return;
+
+    const nextProgress: OnboardingProgress = {
+      ...onboardingProgress,
+      ...patch,
+    };
+
+    setOnboardingProgress(nextProgress);
+    writeOnboardingProgress(userId, nextProgress);
+  };
+
+  useEffect(() => {
+    if (!userId) {
+      setOnboardingProgress(null);
+      return;
+    }
+
+    const savedProgress = readOnboardingProgress(userId);
+    if (savedProgress) {
+      setOnboardingProgress(savedProgress);
+      return;
+    }
+
+    const nextProgress =
+      history.length === 0
+        ? createInitialOnboardingProgress()
+        : {
+            ...createInitialOnboardingProgress(),
+            screen: 0,
+            isCompleted: true,
+          };
+
+    setOnboardingProgress(nextProgress);
+    writeOnboardingProgress(userId, nextProgress);
+  }, [history.length, userId]);
+
+  useEffect(() => {
+    if (!userId || !onboardingProgress || onboardingProgress.isCompleted || onboardingProgress.screen !== 1) {
+      return;
+    }
+
+    const session = ensureWorkoutSession();
+
+    if (
+      onboardingProgress.sessionDate !== session.date ||
+      onboardingProgress.startedAt !== session.startedAt
+    ) {
+      updateOnboardingProgress({
+        sessionDate: session.date,
+        startedAt: session.startedAt,
+      });
+      return;
+    }
+
+    if (location.pathname !== '/daily-workout' && !location.pathname.startsWith('/admin')) {
+      navigate('/daily-workout', { replace: true });
+    }
+  }, [location.pathname, navigate, onboardingProgress, userId]);
+
+  const firstWorkoutResult = useMemo(() => {
+    if (!onboardingProgress?.startedAt) return null;
+
+    const session = readStoredWorkoutSession();
+    if (!session?.gameIds.length) return null;
+
+    const firstGame = getWorkoutGameById(session.gameIds[0]);
+    if (!firstGame) return null;
+
+    const matchedEntries = history.filter(
+      (entry) =>
+        entry.timestamp >= onboardingProgress.startedAt! &&
+        firstGame.historyIds.includes(entry.gameId)
+    );
+
+    return matchedEntries.length > 0 ? matchedEntries[matchedEntries.length - 1] : null;
+  }, [history, onboardingProgress]);
+
+  useEffect(() => {
+    if (
+      !onboardingProgress ||
+      onboardingProgress.isCompleted ||
+      onboardingProgress.screen !== 1 ||
+      !onboardingProgress.hasStartedWorkout ||
+      !firstWorkoutResult
+    ) {
+      return;
+    }
+
+    updateOnboardingProgress({ screen: 2 });
+  }, [firstWorkoutResult, onboardingProgress]);
+
+  const handleOnboardingStart = () => {
+    const session = ensureWorkoutSession();
+    const firstGame = getWorkoutGameById(session.gameIds[0]);
+
+    updateOnboardingProgress({
+      hasStartedWorkout: true,
+      sessionDate: session.date,
+      startedAt: session.startedAt,
+    });
+
+    if (firstGame) {
+      navigate(`/game/${firstGame.routeId}`);
+    }
+  };
+
+  const handleOpenShop = () => {
+    if (!onboardingProgress || !userId) return;
+
+    const completedProgress: OnboardingProgress = {
+      ...onboardingProgress,
+      screen: 0,
+      isCompleted: true,
+    };
+
+    setOnboardingProgress(completedProgress);
+    writeOnboardingProgress(userId, completedProgress);
+    navigate('/shop');
+  };
+
+  const handleDismissOnboarding = () => {
+    if (!onboardingProgress || !userId) return;
+
+    const completedProgress: OnboardingProgress = {
+      ...onboardingProgress,
+      screen: 0,
+      isCompleted: true,
+    };
+
+    setOnboardingProgress(completedProgress);
+    writeOnboardingProgress(userId, completedProgress);
+  };
+
+  const canRenderOverlay =
+    onboardingProgress &&
+    !onboardingProgress.isCompleted &&
+    !location.pathname.startsWith('/admin') &&
+    (onboardingProgress.screen === 1
+      ? location.pathname === '/daily-workout'
+      : !location.pathname.startsWith('/game/'));
+
+  return (
+    <>
+      <AnimatedRoutes>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Home />} />
+            <Route path="leaderboard" element={<LeaderboardPage />} />
+            <Route path="shop" element={<ShopPage />} />
+            <Route path="airdrop" element={<AirdropPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/daily-workout" element={<DailyWorkoutPage />} />
+          <Route path="/tournaments" element={<TournamentsPage />} />
+
+          <Route path="/game/schulte" element={<SchulteGame />} />
+          <Route path="/game/math" element={<MathGame />} />
+          <Route path="/game/stroop" element={<StroopGame />} />
+          <Route path="/game/memory" element={<MemoryGame />} />
+          <Route path="/game/odd-one" element={<OddOneOutGame />} />
+          <Route path="/game/pairs" element={<PairsGame />} />
+          <Route path="/game/tetris" element={<TetrisGame />} />
+          <Route path="/game/2048" element={<Merge2048Game />} />
+          <Route path="/game/agent-spot" element={<AgentSpotGame />} />
+          <Route path="/game/code-breaker" element={<CodeBreakerGame />} />
+
+          <Route path="/admin" element={<AuthGuard adminOnly={true}><AdminLayout /></AuthGuard>}>
+            <Route index element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="chat" element={<AdminChat />} />
+            <Route path="games" element={<AdminGames />} />
+            <Route path="settings" element={<AdminSettings />} />
+            <Route path="tickets" element={<AdminPanel />} />
+          </Route>
+        </Routes>
+      </AnimatedRoutes>
+
+      {canRenderOverlay && onboardingProgress?.screen === 1 && (
+        <OnboardingScreen1
+          onStart={handleOnboardingStart}
+          onSkip={handleDismissOnboarding}
+        />
+      )}
+
+      {canRenderOverlay && onboardingProgress?.screen === 2 && (
+        <OnboardingScreen2
+          value={Math.min(300, Math.max(0, (firstWorkoutResult?.coinsEarned || 0) * 10))}
+          onContinue={() => updateOnboardingProgress({ screen: 3 })}
+          onSkip={handleDismissOnboarding}
+        />
+      )}
+
+      {canRenderOverlay && onboardingProgress?.screen === 3 && (
+        <OnboardingScreen3
+          onOpenShop={handleOpenShop}
+          onSkip={handleDismissOnboarding}
+        />
+      )}
+    </>
+  );
+}
 
 function App() {
   const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
@@ -99,40 +465,7 @@ function App() {
   return (
     <AuthGuard>
       <Router>
-        <AnimatedRoutes>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Home />} />
-              <Route path="leaderboard" element={<LeaderboardPage />} />
-              <Route path="shop" element={<ShopPage />} />
-              <Route path="airdrop" element={<AirdropPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-
-            <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/daily-workout" element={<DailyWorkoutPage />} />
-
-            {/* Games */}
-            <Route path="/game/schulte" element={<SchulteGame />} />
-            <Route path="/game/math" element={<MathGame />} />
-            <Route path="/game/stroop" element={<StroopGame />} />
-            <Route path="/game/memory" element={<MemoryGame />} />
-            <Route path="/game/odd-one" element={<OddOneOutGame />} />
-            <Route path="/game/pairs" element={<PairsGame />} />
-            <Route path="/game/tetris" element={<TetrisGame />} />
-            <Route path="/game/2048" element={<Merge2048Game />} />
-
-            {/* Admin */}
-            <Route path="/admin" element={<AuthGuard adminOnly={true}><AdminLayout /></AuthGuard>}>
-              <Route index element={<AdminDashboard />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="chat" element={<AdminChat />} />
-              <Route path="games" element={<AdminGames />} />
-              <Route path="settings" element={<AdminSettings />} />
-              <Route path="tickets" element={<AdminPanel />} />
-            </Route>
-          </Routes>
-        </AnimatedRoutes>
+        <AppRoutes />
       </Router>
     </AuthGuard>
   );

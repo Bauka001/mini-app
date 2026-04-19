@@ -1,3 +1,4 @@
+require('dotenv').config({ path: '../.env' });
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
@@ -133,6 +134,12 @@ function extractUserFromInitData(initData) {
 
 async function resolveIdentity(initData) {
   const botToken = process.env.BOT_TOKEN || '';
+
+  // Local development fallback for empty initData
+  if (!isProduction && !initData) {
+    const fallbackUserId = bootstrapAdminIds[0] || 0;
+    return { ok: true, mode: 'dev', userId: fallbackUserId };
+  }
 
   if (!botToken) {
     if (isProduction) {

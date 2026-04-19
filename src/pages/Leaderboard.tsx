@@ -1,5 +1,5 @@
 import { Trophy, Crown, Medal } from 'lucide-react';
-import { useStore } from '../store/useStore.1';
+import { useStore } from '../store/useStoreImpl';
 import { useMemo } from 'react';
 
 // Mock Leaderboard Data

@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, X, ShieldCheck } from 'lucide-react';
-import { useStore } from '../store/useStore.1';
+import { useStore } from '../store/useStoreImpl';
 import { useAdminAccess } from '../hooks/useAdminAccess';
 
 interface AdminLoginModalProps {

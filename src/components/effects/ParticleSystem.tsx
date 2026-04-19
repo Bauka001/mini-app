@@ -18,29 +18,29 @@ export const ParticleSystem: React.FC<ParticleSystemProps> = ({ particles }) => 
       <AnimatePresence>
         {particles.map((particle) => (
           <React.Fragment key={particle.id}>
-            {Array.from({ length: 12 }).map((_, i) => (
+            {Array.from({ length: 6 }).map((_, i) => (
               <motion.div
                 key={`${particle.id}-${i}`}
                 initial={{ 
                   x: particle.x, 
                   y: particle.y, 
-                  scale: Math.random() * 0.5 + 0.5,
+                  scale: Math.random() * 0.3 + 0.3,
                   opacity: 1 
                 }}
                 animate={{ 
-                  x: particle.x + (Math.random() - 0.5) * 200, 
-                  y: particle.y + (Math.random() - 0.5) * 200, 
+                  x: particle.x + (Math.random() - 0.5) * 150, 
+                  y: particle.y + (Math.random() - 0.5) * 150, 
                   opacity: 0,
                   scale: 0
                 }}
                 transition={{ 
-                  duration: Math.random() * 0.5 + 0.5, 
+                  duration: Math.random() * 0.3 + 0.3, 
                   ease: "easeOut" 
                 }}
-                className="absolute w-3 h-3 rounded-full"
+                className="absolute w-2 h-2 rounded-full"
                 style={{ 
                   backgroundColor: particle.color,
-                  boxShadow: `0 0 10px ${particle.color}`
+                  boxShadow: `0 0 6px ${particle.color}`
                 }}
               />
             ))}

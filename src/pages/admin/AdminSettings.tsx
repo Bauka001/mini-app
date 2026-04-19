@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useStore } from '../../store/useStore.1';
+import { useStore } from '../../store/useStoreImpl';
 import { Settings, Save, Users as UsersIcon, Shield, Globe, Moon, Sun, Volume2, VolumeX, Bell, RefreshCcw, Trash2, AlertCircle } from 'lucide-react';
 import { addAdminMember, AdminSettingsResponse, getAdminSettings, removeAdminMember } from '../../utils/adminApi';
 
@@ -204,7 +204,7 @@ export default function AdminSettings() {
 
             <div className="space-y-4">
               <div className="rounded-xl border border-gray-700 bg-gray-900/40 p-4 text-sm text-gray-300">
-                Рөлдің source of truth енді `admin_users` кестесінде сақталады. Тек owner рөлі admin құрамын өзгерте алады.
+                Рөлдің негізгі дереккөзі енді admin users кестесінде сақталады. Тек owner рөлі admin құрамын өзгерте алады.
               </div>
 
               <div className="grid gap-3 md:grid-cols-[1fr_140px]">

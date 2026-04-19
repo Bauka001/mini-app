@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { useStore } from '../../store/useStore.1';
+import { useStore } from '../../store/useStoreImpl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ReviveModal } from '../../components/modals/ReviveModal';
 import { SKIN_STYLES } from '../../utils/skins';
@@ -73,7 +73,7 @@ const StroopBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins:
     }, 100);
 
     return () => clearInterval(timer);
-  }, [gameOver, isPaused]);
+  }, [gameOver, isPaused, roundsPlayed]);
 
   const handleAnswer = (selectedColorValue: string) => {
     if (!currentRound) return;

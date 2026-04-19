@@ -4,23 +4,23 @@ import {
   ArrowLeft, Camera, Edit2, Trophy, Gift, 
   Coins, Diamond, Zap, History, Star, 
   Award, TrendingUp, Calendar, LayoutGrid,
-  Flame, Shield, Crown, Zap as ZapIcon, Calculator, 
-  Ticket as TicketIcon, Car, CheckCircle
+  Flame, Shield, Crown, Zap as ZapIcon, Calculator, Target, 
+  Ticket as TicketIcon, Car, CheckCircle, BarChart3
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useStore } from '../store/useStore.1';
+import { buildVipAnalyticsSnapshot, useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import WebApp from '@twa-dev/sdk';
 import { BrainProfile } from '../components/BrainProfile';
 import { Achievements } from '../components/Achievements';
-
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
 
 const PLAN_CONFIG = {
   free: { icon: Star, name: 'Free', color: 'from-gray-500 to-gray-600', borderColor: 'border-gray-500' },
-  standard: { icon: Shield, name: 'Standard', color: 'from-blue-500 to-blue-600', borderColor: 'border-blue-500' },
-  hit: { icon: ZapIcon, name: 'Hit Sales', color: 'from-orange-500 to-red-500', borderColor: 'border-orange-500' },
+  silver: { icon: Shield, name: 'Silver', color: 'from-blue-500 to-blue-600', borderColor: 'border-blue-500' },
+  gold: { icon: ZapIcon, name: 'Gold', color: 'from-orange-500 to-red-500', borderColor: 'border-orange-500' },
   premium: { icon: Crown, name: 'Premium', color: 'from-yellow-400 to-yellow-600', borderColor: 'border-yellow-400' }
 };
 
@@ -38,6 +38,7 @@ const ProfilePage = () => {
     user, 
     updateUserProfile, 
     history, 
+    brainStats,
     unclaimedLevelRewards, 
     claimLevelReward,
     coins,
@@ -56,6 +57,7 @@ const ProfilePage = () => {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [activeSection, setActiveSection] = useState<'profile' | 'analytics'>('profile');
   const [firstName, setFirstName] = useState(user.firstName);
   const [username, setUsername] = useState(user.username || '');
 
@@ -99,6 +101,17 @@ const ProfilePage = () => {
   const recentGames = useMemo(() => {
     return [...(history || [])].sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
   }, [history]);
+
+  const vipAnalytics = useMemo(() => {
+    return buildVipAnalyticsSnapshot(history || [], brainStats);
+  }, [brainStats, history]);
+
+  const isVipAnalyticsUnlocked = plan === 'premium' && !isPlanExpired;
+
+  const handleUnlockVipAnalytics = () => {
+    WebApp.HapticFeedback.impactOccurred('medium');
+    navigate('/shop');
+  };
 
   return (
     <div className={clsx("min-h-screen relative pb-24 overflow-x-hidden transition-colors duration-500", bgClass)}>
@@ -144,7 +157,11 @@ const ProfilePage = () => {
 
       <div className="px-4 -mt-16 relative z-10 flex flex-col gap-6">
         {/* Passport Style Info Card */}
-        <div className={clsx("rounded-[32px] p-6 border shadow-2xl relative overflow-hidden transition-colors duration-500", panelClass)}>
+        <div className={clsx(
+          "rounded-[32px] p-6 border shadow-2xl relative overflow-hidden transition-colors duration-500",
+          panelClass,
+          plan === 'premium' && !isPlanExpired ? "ring-2 ring-yellow-400/40 border-yellow-400/40" : ""
+        )}>
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20" />
           
           <div className="flex items-center gap-5 relative z-10">
@@ -254,246 +271,316 @@ const ProfilePage = () => {
                    <div className={clsx("text-sm font-black", textPrimary)}>{currentPlan.name}</div>
                  </div>
                </div>
-               {plan === 'free' ? (
-                 <button onClick={() => navigate('/shop')} className={clsx("px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors", styles.btnSecondary)}>
-                   UPGRADE
+               <div className="flex items-center gap-2">
+                 {plan === 'premium' && !isPlanExpired ? (
+                   <div className="text-[10px] font-mono px-2 py-1 rounded-md bg-amber-500/15 text-amber-400">
+                     GOLD BORDER
+                   </div>
+                 ) : null}
+                 <button
+                   onClick={() => navigate(plan === 'premium' && !isPlanExpired ? '/analytics' : '/shop')}
+                   className={clsx("px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors", styles.btnSecondary)}
+                 >
+                   {plan === 'premium' && !isPlanExpired ? 'ANALYTICS' : 'UPGRADE'}
                  </button>
-               ) : (
-                 <div className={clsx("text-[10px] font-mono px-2 py-1 rounded-md", styles.textAccent, "bg-black/5 dark:bg-white/10")}>
-                   ACTIVE
-                 </div>
-               )}
+               </div>
              </div>
           </div>
         </div>
 
-        {/* Brain Profile Section */}
-        <div className="w-full">
-          <BrainProfile />
-        </div>
-
-        {/* Achievements Section */}
-        <div className="w-full mt-6">
-          <Achievements />
-        </div>
-
-        {/* Tickets Section */}
-        {tickets.length > 0 && (
-          <div className="w-full max-w-sm mt-6">
-            <div className="flex items-center justify-between mb-4 px-2">
-              <h3 className="text-lg font-black flex items-center gap-2">
-                <TicketIcon size={20} className="text-yellow-400" />
-                My Tickets
-              </h3>
-              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                {tickets.length}
-              </span>
+        <button
+          type="button"
+          onClick={() => navigate('/analytics')}
+          className={clsx("w-full rounded-[28px] border p-5 flex items-center justify-between text-left", panelClass)}
+        >
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl bg-amber-500/10 p-3 text-amber-400">
+              <BarChart3 size={20} />
             </div>
-            
-            <div className="space-y-3">
-              {tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="relative bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 rounded-2xl p-1 shadow-2xl"
-                >
-                  <div className="bg-gradient-to-br from-yellow-100 to-amber-200 rounded-xl p-4 h-full">
-                    <div className="absolute top-2 right-2">
-                      {ticket.isUsed ? (
-                        <div className="bg-green-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5">
-                          <CheckCircle className="w-2.5 h-2.5" />
-                          VERIFIED
-                        </div>
-                      ) : (
-                        <div className="bg-yellow-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
-                          ACTIVE
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 p-2.5 rounded-full shadow-lg flex-shrink-0">
-                        <Car className="w-8 h-8 text-yellow-900" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-2xl font-black text-yellow-800 font-mono tracking-wider">
-                          {String(ticket.ticketNumber).padStart(8, '0')}
-                        </div>
-                        <div className="text-[9px] text-yellow-600 font-medium tracking-widest uppercase">Ticket Number</div>
-                        <p className="text-xs font-bold text-yellow-800 truncate">{ticket.eventName}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Level Progress Card */}
-        <div className={clsx("w-full max-w-sm rounded-3xl p-5 border mb-6 relative overflow-hidden group transition-colors duration-500", panelClass)}>
-          <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors" />
-          
-          <div className="flex justify-between items-end mb-3">
-            <div className="flex flex-col">
-              <span className={clsx("text-[10px] font-black uppercase tracking-widest mb-1", textSecondary)}>Current Progress</span>
-              <div className="flex items-center gap-2">
-                <TrendingUp size={16} className={styles.textAccent} />
-                <span className={clsx("text-xl font-black", textPrimary)}>{user.xp % 1000} <span className={clsx("text-xs font-normal", textSecondary)}>/ 1000 XP</span></span>
+            <div>
+              <div className={clsx("text-sm font-black", textPrimary)}>VIP Analytics беті</div>
+              <div className={clsx("text-xs mt-1", textSecondary)}>
+                {isVipAnalyticsUnlocked ? 'Толық аналитиканы ашу' : 'Analytics, gold border және турнир utility VIP ішінде'}
               </div>
             </div>
-            <div className="text-right">
-              <span className={clsx("text-[10px] font-black uppercase tracking-widest block mb-1", textSecondary)}>Next Level</span>
-              <span className={clsx("text-sm font-bold", styles.textAccent)}>{nextLevelXp} XP left</span>
+          </div>
+          <div className={clsx("text-xs font-black uppercase tracking-widest", styles.textAccent)}>
+            Open
+          </div>
+        </button>
+
+        <div className={clsx("p-1.5 rounded-2xl border flex gap-2", panelClass)}>
+          <ProfileSectionTab
+            isActive={activeSection === 'profile'}
+            onClick={() => setActiveSection('profile')}
+            label="Profile"
+            icon={<Star size={16} />}
+            styles={styles}
+          />
+          <ProfileSectionTab
+            isActive={activeSection === 'analytics'}
+            onClick={() => setActiveSection('analytics')}
+            label="Analytics"
+            icon={<TrendingUp size={16} />}
+            styles={styles}
+          />
+        </div>
+
+        {activeSection === 'profile' ? (
+          <>
+            {/* Brain Profile Section */}
+            <div className="w-full">
+              <BrainProfile />
             </div>
-          </div>
 
-          <div className="h-3 w-full bg-gray-500/20 rounded-full overflow-hidden p-0.5">
-            <motion.div 
-              initial={{ width: 0 }}
-              animate={{ width: `${xpProgress}%` }}
-              transition={{ duration: 1, ease: "easeOut" }}
-              className="h-full bg-gradient-to-r from-primary via-orange-400 to-yellow-300 rounded-full shadow-[0_0_10px_rgba(255,215,0,0.3)]"
-            />
-          </div>
-        </div>
+            {/* Achievements Section */}
+            <div className="w-full mt-6">
+              <Achievements />
+            </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4 w-full max-w-sm mb-8">
-          <StatCard icon={Coins} value={coins} label="Coins" color="text-yellow-500" styles={styles} />
-          <StatCard icon={Diamond} value={gems} label="Gems" color="text-blue-500" styles={styles} />
-          <StatCard icon={Star} value={user.xp} label="Total XP" color="text-purple-500" styles={styles} />
-          <StatCard icon={LayoutGrid} value={(history || []).length} label="Games" color="text-green-500" styles={styles} />
-        </div>
-
-        {/* Achievements Section */}
-        <div className="w-full max-w-sm mb-8">
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h3 className={clsx("text-lg font-black flex items-center gap-2", textPrimary)}>
-              <Award size={20} className={textSecondary} />
-              Achievements
-            </h3>
-            <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>
-              {(user.achievements || []).length} / {ACHIEVEMENTS.length}
-            </span>
-          </div>
-          
-          <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-2 px-2">
-            {ACHIEVEMENTS.map((achievement) => {
-              const isUnlocked = (user.achievements || []).includes(achievement.id);
-              return (
-                <div 
-                  key={achievement.id}
-                  className={clsx(
-                    "min-w-[100px] flex flex-col items-center p-4 rounded-3xl border transition-all duration-300",
-                    isUnlocked 
-                      ? clsx(panelClass, "opacity-100") 
-                      : clsx(panelClass, "opacity-40 grayscale")
-                  )}
-                >
-                  <div className={clsx(
-                    "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mb-2 shadow-lg",
-                    isUnlocked ? achievement.color : "bg-gray-500/20"
-                  )}>
-                    {achievement.icon}
-                  </div>
-                  <span className={clsx("text-[10px] font-black text-center leading-tight", textPrimary)}>{achievement.name}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Level Rewards (If any) */}
-        <AnimatePresence>
-          {(unclaimedLevelRewards || []).length > 0 && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="w-full max-w-sm mb-8"
-            >
-              <div className="bg-gradient-to-r from-primary to-orange-500 p-[1px] rounded-3xl overflow-hidden shadow-xl">
-                <div className="bg-[#0f0f0f] p-5 rounded-[23px]">
-                  <h3 className="text-white font-black mb-4 flex items-center gap-3">
-                    <div className="p-2 bg-primary/20 rounded-xl">
-                      <Gift size={20} className="text-primary" />
-                    </div>
-                    Level Up Rewards!
+            {/* Tickets Section */}
+            {tickets.length > 0 && (
+              <div className="w-full max-w-sm mt-6">
+                <div className="flex items-center justify-between mb-4 px-2">
+                  <h3 className="text-lg font-black flex items-center gap-2">
+                    <TicketIcon size={20} className="text-yellow-400" />
+                    My Tickets
                   </h3>
-                  <div className="space-y-3">
-                    {unclaimedLevelRewards.map(level => (
-                      <div key={level} className="flex justify-between items-center bg-white/5 p-3 rounded-2xl border border-white/5">
-                        <div className="flex items-center gap-3">
-                          <Award size={18} className="text-yellow-500" />
-                          <span className="text-sm font-bold text-white">Level {level} Chest</span>
-                        </div>
-                        <motion.button 
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => handleClaimReward(level)}
-                          className="px-4 py-2 bg-primary text-black text-xs font-black rounded-xl"
-                        >
-                          CLAIM
-                        </motion.button>
-                      </div>
-                    ))}
-                  </div>
+                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
+                    {tickets.length}
+                  </span>
                 </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                
+                <div className="space-y-3">
+                  {tickets.map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      className="relative bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 rounded-2xl p-1 shadow-2xl"
+                    >
+                      <div className="bg-gradient-to-br from-yellow-100 to-amber-200 rounded-xl p-4 h-full">
+                        <div className="absolute top-2 right-2">
+                          {ticket.isUsed ? (
+                            <div className="bg-green-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5">
+                              <CheckCircle className="w-2.5 h-2.5" />
+                              VERIFIED
+                            </div>
+                          ) : (
+                            <div className="bg-yellow-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+                              ACTIVE
+                            </div>
+                          )}
+                        </div>
 
-        {/* Recent Activity */}
-        <div className="w-full max-w-sm">
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h3 className={clsx("text-lg font-black flex items-center gap-2", textPrimary)}>
-              <History size={20} className={textSecondary} />
-              Recent Activity
-            </h3>
-            <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>Last 5 Games</span>
-          </div>
-          
-          <div className="space-y-3">
-            {recentGames.length > 0 ? (
-              recentGames.map((game, i) => (
-                <motion.div 
-                  initial={{ x: -20, opacity: 0 }}
-                  animate={{ x: 0, opacity: 1 }}
-                  transition={{ delay: i * 0.1 }}
-                  key={game.timestamp}
-                  className={clsx("p-4 rounded-2xl border flex items-center justify-between group hover:scale-[1.02] transition-all duration-300", panelClass)}
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-indigo-500 dark:text-indigo-400 group-hover:scale-110 transition-transform">
-                      {getGameIcon(game.gameId)}
-                    </div>
-                    <div>
-                      <div className={clsx("font-bold text-sm capitalize", textPrimary)}>{game.gameId}</div>
-                      <div className={clsx("flex items-center gap-1.5 text-[10px] font-medium", textSecondary)}>
-                        <Calendar size={10} />
-                        {game.date}
+                        <div className="flex items-center gap-3">
+                          <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 p-2.5 rounded-full shadow-lg flex-shrink-0">
+                            <Car className="w-8 h-8 text-yellow-900" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-2xl font-black text-yellow-800 font-mono tracking-wider">
+                              {String(ticket.ticketNumber).padStart(8, '0')}
+                            </div>
+                            <div className="text-[9px] text-yellow-600 font-medium tracking-widest uppercase">Ticket Number</div>
+                            <p className="text-xs font-bold text-yellow-800 truncate">{ticket.eventName}</p>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className={clsx("text-sm font-black", textPrimary)}>{game.score}</div>
-                    <div className={clsx("text-[10px] font-bold", styles.textAccent)}>+{game.coinsEarned} coins</div>
-                  </div>
-                </motion.div>
-              ))
-            ) : (
-              <div className={clsx("rounded-3xl p-10 border border-dashed flex flex-col items-center justify-center", panelClass, textSecondary)}>
-                <Zap size={32} className="mb-2 opacity-20" />
-                <p className="text-sm font-medium">No games played yet</p>
+                  ))}
+                </div>
               </div>
             )}
-          </div>
-        </div>
+
+            {/* Level Progress Card */}
+            <div className={clsx("w-full max-w-sm rounded-3xl p-5 border mb-6 relative overflow-hidden group transition-colors duration-500", panelClass)}>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors" />
+              
+              <div className="flex justify-between items-end mb-3">
+                <div className="flex flex-col">
+                  <span className={clsx("text-[10px] font-black uppercase tracking-widest mb-1", textSecondary)}>Current Progress</span>
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={16} className={styles.textAccent} />
+                    <span className={clsx("text-xl font-black", textPrimary)}>{user.xp % 1000} <span className={clsx("text-xs font-normal", textSecondary)}>/ 1000 XP</span></span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className={clsx("text-[10px] font-black uppercase tracking-widest block mb-1", textSecondary)}>Next Level</span>
+                  <span className={clsx("text-sm font-bold", styles.textAccent)}>{nextLevelXp} XP left</span>
+                </div>
+              </div>
+
+              <div className="h-3 w-full bg-gray-500/20 rounded-full overflow-hidden p-0.5">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${xpProgress}%` }}
+                  transition={{ duration: 1, ease: "easeOut" }}
+                  className="h-full bg-gradient-to-r from-primary via-orange-400 to-yellow-300 rounded-full shadow-[0_0_10px_rgba(255,215,0,0.3)]"
+                />
+              </div>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="grid grid-cols-2 gap-4 w-full max-w-sm mb-8">
+              <StatCard icon={Coins} value={coins} label="Coins" color="text-yellow-500" styles={styles} />
+              <StatCard icon={Diamond} value={gems} label="Gems" color="text-blue-500" styles={styles} />
+              <StatCard icon={Star} value={user.xp} label="Total XP" color="text-purple-500" styles={styles} />
+              <StatCard icon={LayoutGrid} value={(history || []).length} label="Games" color="text-green-500" styles={styles} />
+            </div>
+
+            {/* Achievements Section */}
+            <div className="w-full max-w-sm mb-8">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <h3 className={clsx("text-lg font-black flex items-center gap-2", textPrimary)}>
+                  <Award size={20} className={textSecondary} />
+                  Achievements
+                </h3>
+                <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>
+                  {(user.achievements || []).length} / {ACHIEVEMENTS.length}
+                </span>
+              </div>
+              
+              <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-2 px-2">
+                {ACHIEVEMENTS.map((achievement) => {
+                  const isUnlocked = (user.achievements || []).includes(achievement.id);
+                  return (
+                    <div 
+                      key={achievement.id}
+                      className={clsx(
+                        "min-w-[100px] flex flex-col items-center p-4 rounded-3xl border transition-all duration-300",
+                        isUnlocked 
+                          ? clsx(panelClass, "opacity-100") 
+                          : clsx(panelClass, "opacity-40 grayscale")
+                      )}
+                    >
+                      <div className={clsx(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center text-2xl mb-2 shadow-lg",
+                        isUnlocked ? achievement.color : "bg-gray-500/20"
+                      )}>
+                        {achievement.icon}
+                      </div>
+                      <span className={clsx("text-[10px] font-black text-center leading-tight", textPrimary)}>{achievement.name}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Level Rewards (If any) */}
+            <AnimatePresence>
+              {(unclaimedLevelRewards || []).length > 0 && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="w-full max-w-sm mb-8"
+                >
+                  <div className="bg-gradient-to-r from-primary to-orange-500 p-[1px] rounded-3xl overflow-hidden shadow-xl">
+                    <div className="bg-[#0f0f0f] p-5 rounded-[23px]">
+                      <h3 className="text-white font-black mb-4 flex items-center gap-3">
+                        <div className="p-2 bg-primary/20 rounded-xl">
+                          <Gift size={20} className="text-primary" />
+                        </div>
+                        Level Up Rewards!
+                      </h3>
+                      <div className="space-y-3">
+                        {unclaimedLevelRewards.map(level => (
+                          <div key={level} className="flex justify-between items-center bg-white/5 p-3 rounded-2xl border border-white/5">
+                            <div className="flex items-center gap-3">
+                              <Award size={18} className="text-yellow-500" />
+                              <span className="text-sm font-bold text-white">Level {level} Chest</span>
+                            </div>
+                            <motion.button 
+                              whileHover={{ scale: 1.05 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleClaimReward(level)}
+                              className="px-4 py-2 bg-primary text-black text-xs font-black rounded-xl"
+                            >
+                              CLAIM
+                            </motion.button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Recent Activity */}
+            <div className="w-full max-w-sm">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <h3 className={clsx("text-lg font-black flex items-center gap-2", textPrimary)}>
+                  <History size={20} className={textSecondary} />
+                  Recent Activity
+                </h3>
+                <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>Last 5 Games</span>
+              </div>
+              
+              <div className="space-y-3">
+                {recentGames.length > 0 ? (
+                  recentGames.map((game, i) => (
+                    <motion.div 
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: i * 0.1 }}
+                      key={game.timestamp}
+                      className={clsx("p-4 rounded-2xl border flex items-center justify-between group hover:scale-[1.02] transition-all duration-300", panelClass)}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-black/5 dark:bg-white/5 flex items-center justify-center text-indigo-500 dark:text-indigo-400 group-hover:scale-110 transition-transform">
+                          {getGameIcon(game.gameId)}
+                        </div>
+                        <div>
+                          <div className={clsx("font-bold text-sm capitalize", textPrimary)}>{formatGameName(game.gameId)}</div>
+                          <div className={clsx("flex items-center gap-1.5 text-[10px] font-medium", textSecondary)}>
+                            <Calendar size={10} />
+                            {game.date}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={clsx("text-sm font-black", textPrimary)}>{game.score}</div>
+                        <div className={clsx("text-[10px] font-bold", styles.textAccent)}>+{game.coinsEarned} coins</div>
+                      </div>
+                    </motion.div>
+                  ))
+                ) : (
+                  <div className={clsx("rounded-3xl p-10 border border-dashed flex flex-col items-center justify-center", panelClass, textSecondary)}>
+                    <Zap size={32} className="mb-2 opacity-20" />
+                    <p className="text-sm font-medium">No games played yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : isVipAnalyticsUnlocked ? (
+          <VipAnalyticsPanel analytics={vipAnalytics} styles={styles} />
+        ) : (
+          <AnalyticsLockedCard
+            styles={styles}
+            onUnlock={handleUnlockVipAnalytics}
+            isPlanExpired={isPlanExpired}
+          />
+        )}
       </div>
     </div>
   );
 };
+
+const ProfileSectionTab = ({ isActive, onClick, label, icon, styles }: any) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={clsx(
+      "flex-1 rounded-xl px-4 py-3 text-sm font-black transition-all flex items-center justify-center gap-2",
+      isActive
+        ? clsx("text-black shadow-lg", styles.isGold ? "bg-gradient-to-r from-amber-400 to-yellow-500" : "bg-primary")
+        : clsx(styles.textSecondary, "bg-black/5 dark:bg-white/5")
+    )}
+  >
+    {icon}
+    {label}
+  </button>
+);
 
 const StatCard = ({ icon: Icon, value, label, color, styles }: any) => (
   <div className={clsx("p-4 rounded-3xl border flex flex-col items-center hover:scale-105 transition-all group duration-300", styles.panelClass)}>
@@ -510,9 +597,20 @@ const getGameIcon = (gameId: string) => {
     case 'math': return <Calculator size={20} />;
     case 'memory': return <LayoutGrid size={20} />;
     case 'schulte': return <Star size={20} />;
+    case 'agent_spot': return <Target size={20} />;
+    case 'code_breaker': return <Lock size={20} />;
     case 'tetris': return <LayoutGrid size={20} />;
     case '2048': return <Zap size={20} />;
     default: return <Zap size={20} />;
+  }
+};
+
+const formatGameName = (gameId: string) => {
+  switch (gameId.toLowerCase()) {
+    case 'odd_one_out':
+      return 'Odd One Out';
+    default:
+      return gameId.replace(/[_-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   }
 };
 

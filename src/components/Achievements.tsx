@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { Trophy, Lock, Star, Zap, Target, Flame, Crown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useStore } from '../store/useStore.1';
+import { useStore } from '../store/useStoreImpl';
 import { useState } from 'react';
 import { clsx } from 'clsx';
 

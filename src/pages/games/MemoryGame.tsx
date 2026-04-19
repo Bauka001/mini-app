@@ -3,7 +3,7 @@ import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { Theme } from '../../store/useStore';
-import { useStore } from '../../store/useStore.1';
+import { useStore } from '../../store/useStoreImpl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
 import { ReviveModal } from '../../components/modals/ReviveModal';
@@ -44,8 +44,8 @@ const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, co
   useEffect(() => {
     if (particles.length > 0) {
       const timer = setTimeout(() => {
-        setParticles(prev => prev.slice(5));
-      }, 1000);
+        setParticles(prev => prev.slice(8));
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [particles]);

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Language } from '../store/useStore';
-import { useStore } from '../store/useStore.1';
-import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Instagram, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut } from 'lucide-react';
+import { useStore } from '../store/useStoreImpl';
+import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
 import { useState } from 'react';
@@ -48,7 +48,7 @@ const SocialTaskCard = ({
   isClaimed, 
   onClick 
 }: { 
-  platform: 'instagram' | 'youtube' | 'telegram', 
+  platform: 'youtube' | 'telegram', 
   reward: number, 
   isClaimed: boolean, 
   onClick: () => void 
@@ -57,7 +57,6 @@ const SocialTaskCard = ({
 
   const getIcon = () => {
     switch(platform) {
-      case 'instagram': return <Instagram size={24} className="text-pink-500" />;
       case 'youtube': return <Youtube size={24} className="text-red-500" />;
       case 'telegram': return <Send size={24} className="text-blue-400" />;
     }
@@ -65,7 +64,6 @@ const SocialTaskCard = ({
 
   const getName = () => {
     switch(platform) {
-      case 'instagram': return t('task_instagram');
       case 'youtube': return t('task_youtube');
       case 'telegram': return t('task_telegram');
     }
@@ -73,7 +71,6 @@ const SocialTaskCard = ({
 
   const getGradient = () => {
     switch(platform) {
-      case 'instagram': return 'from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30';
       case 'youtube': return 'from-red-500/20 to-orange-500/20 hover:from-red-500/30 hover:to-orange-500/30';
       case 'telegram': return 'from-blue-500/20 to-cyan-500/20 hover:from-blue-500/30 hover:to-cyan-500/30';
     }
