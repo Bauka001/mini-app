@@ -6,7 +6,7 @@ import {
   Brain, Calculator, Type, Trophy, Bell,
   Zap, Eye, Copy,
   Settings, Gift, User, ChevronRight, ShoppingCart,
-  Wallet, Grid, Blocks, Grid2x2, Target, Crown, BarChart3, Lock
+  Wallet, Grid, Blocks, Grid2x2, Target, Crown, BarChart3, Lock, Route
 } from 'lucide-react';
 import { useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
@@ -31,6 +31,7 @@ const itemVariants = {
 const gameButtons = [
   { title: 'game_memory', icon: Grid, path: '/game/memory' },
   { title: 'game_schulte', icon: Brain, path: '/game/schulte' },
+  { title: 'game_agent_sequence', icon: Route, path: '/game/agent-sequence' },
   { title: 'game_math', icon: Calculator, path: '/game/math' },
   { title: 'game_pairs', icon: Copy, path: '/game/pairs' },
   { title: 'game_odd_one', icon: Eye, path: '/game/odd-one' },

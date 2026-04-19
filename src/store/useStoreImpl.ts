@@ -281,6 +281,7 @@ const WORKOUT_HISTORY_IDS_BY_SESSION_ID: Record<string, string[]> = {
   pairs: ['pairs'],
   'odd-one': ['odd_one_out'],
   'agent-spot': ['agent_spot'],
+  'agent-sequence': ['agent_sequence'],
   'code-breaker': ['code_breaker'],
   stroop: ['stroop'],
   tetris: ['tetris'],
@@ -702,8 +703,9 @@ export const useStore = create<UserState>()(
             break;
           case 'memory':
           case 'pairs':
+          case 'agent_sequence':
             newStats.memory = Math.min(100, newStats.memory + increment);
-            newStats.focus = Math.min(100, newStats.focus + increment);
+            newStats.logic = Math.min(100, newStats.logic + increment);
             break;
           case 'math':
           case '2048':
@@ -1267,7 +1269,9 @@ export const useStore = create<UserState>()(
             break;
           case 'memory':
           case 'pairs':
+          case 'agent_sequence':
             newStats.memory = Math.min(100, newStats.memory + increment);
+            newStats.logic = Math.min(100, newStats.logic + increment);
             break;
           case 'math':
           case 'code_breaker':

@@ -1,4 +1,4 @@
-import { ChevronRight, Crown, History, LayoutGrid, Star, TrendingUp, Zap } from 'lucide-react';
+import { ChevronRight, Crown, History, LayoutGrid, Route as RouteIcon, Star, TrendingUp, Zap } from 'lucide-react';
 import { clsx } from 'clsx';
 import { motion } from 'framer-motion';
 
@@ -244,6 +244,8 @@ const getGameIcon = (gameId: string) => {
       return <LayoutGrid size={20} />;
     case 'schulte':
       return <Star size={20} />;
+    case 'agent_sequence':
+      return <RouteIcon size={20} />;
     case 'tetris':
       return <LayoutGrid size={20} />;
     case '2048':
@@ -257,6 +259,8 @@ const formatGameName = (gameId: string) => {
   switch (gameId.toLowerCase()) {
     case 'odd_one_out':
       return 'Odd One Out';
+    case 'agent_sequence':
+      return 'Agent Sequence';
     default:
       return gameId.replace(/[_-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   }

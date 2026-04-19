@@ -37,6 +37,7 @@ import PairsGame from './pages/games/PairsGame';
 import TetrisGame from './pages/games/TetrisGame';
 import Merge2048Game from './pages/games/Merge2048Game';
 import AgentSpotGame from './pages/games/AgentSpotGame';
+import AgentSequenceGame from './pages/games/AgentSequenceGame';
 import CodeBreakerGame from './pages/games/CodeBreakerGame';
 
 type HistoryEntry = {
@@ -79,6 +80,7 @@ const workoutOnboardingGames: WorkoutOnboardingGame[] = [
   { id: 'tetris', routeId: 'tetris', historyIds: ['tetris'] },
   { id: '2048', routeId: '2048', historyIds: ['2048'] },
   { id: 'agent-spot', routeId: 'agent-spot', historyIds: ['agent_spot'] },
+  { id: 'agent-sequence', routeId: 'agent-sequence', historyIds: ['agent_sequence'] },
   { id: 'code-breaker', routeId: 'code-breaker', historyIds: ['code_breaker'] },
 ];
 
@@ -360,6 +362,7 @@ function AppRoutes() {
           <Route path="/game/tetris" element={<TetrisGame />} />
           <Route path="/game/2048" element={<Merge2048Game />} />
           <Route path="/game/agent-spot" element={<AgentSpotGame />} />
+          <Route path="/game/agent-sequence" element={<AgentSequenceGame />} />
           <Route path="/game/code-breaker" element={<CodeBreakerGame />} />
 
           <Route path="/admin" element={<AuthGuard adminOnly={true}><AdminLayout /></AuthGuard>}>

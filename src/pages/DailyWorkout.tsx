@@ -20,6 +20,7 @@ import {
   Target,
   Trophy,
   Type,
+  Route as RouteIcon,
   Zap
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -107,6 +108,15 @@ const workoutGamesCatalog: WorkoutGame[] = [
     icon: Target,
     accentClass: 'from-cyan-500/20 to-red-500/20 border-cyan-400/30',
     historyIds: ['agent_spot']
+  },
+  {
+    id: 'agent-sequence',
+    routeId: 'agent-sequence',
+    titleKey: 'game_agent_sequence',
+    description: 'Құпия маршруттарды жаттап, кері, айна және checkpoint режимінде қайта құрады.',
+    icon: RouteIcon,
+    accentClass: 'from-cyan-500/20 to-violet-500/20 border-cyan-400/30',
+    historyIds: ['agent_sequence']
   },
   {
     id: 'code-breaker',

@@ -4,7 +4,7 @@ import {
   ArrowLeft, Camera, Edit2, Trophy, Gift, 
   Coins, Diamond, Zap, History, Star, 
   Award, TrendingUp, Calendar, LayoutGrid,
-  Flame, Shield, Crown, Zap as ZapIcon, Calculator, Target, 
+  Flame, Shield, Crown, Zap as ZapIcon, Calculator, Target, Lock,
   Ticket as TicketIcon, Car, CheckCircle, BarChart3
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';

@@ -16,6 +16,7 @@ const gameNames: Record<string, string> = {
   'stroop': 'Stroop Test',
   'memory': 'Memory Matrix',
   'odd-one': 'Odd One Out',
+  'agent_sequence': 'Agent Sequence',
   'pairs': 'Pairs',
   'tetris': 'Tetris',
   '2048': 'Merge 2048'
@@ -30,6 +31,7 @@ export const DailyQuestPopup: React.FC<DailyQuestPopupProps> = ({
 }) => {
   const uniqueGames = [...new Set(gamesPlayed)];
   const progress = Math.min(uniqueGames.length, 3);
+  const progressSlots = [...Array.from({ length: progress }, (_, index) => uniqueGames[index]), ...Array.from({ length: Math.max(0, 3 - progress) }, (_, index) => `slot-${index}`)];
 
   useEffect(() => {
     if (isOpen && uniqueGames.length >= 3 && !isClaimed) {
@@ -96,23 +98,26 @@ export const DailyQuestPopup: React.FC<DailyQuestPopupProps> = ({
                 </div>
 
                 <div className="flex justify-center gap-2 flex-wrap">
-                  {['schulte', 'math', 'stroop', 'memory', 'odd-one', 'pairs', 'tetris', '2048']
-                    .slice(0, 3)
-                    .map((gameId) => (
+                  {progressSlots.map((gameId) => {
+                    const isCompletedGame = uniqueGames.includes(gameId);
+                    const isPlaceholder = gameId.startsWith('slot-');
+
+                    return (
                       <div
                         key={gameId}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold border ${
-                          uniqueGames.includes(gameId)
+                          isCompletedGame
                             ? 'bg-green-500/20 border-green-500/50 text-green-400'
                             : 'bg-gray-800 border-gray-600 text-gray-500'
                         }`}
                       >
-                        {uniqueGames.includes(gameId) && (
+                        {isCompletedGame && (
                           <CheckCircle size={12} className="inline mr-1" />
                         )}
-                        {gameNames[gameId] || gameId}
+                        {isPlaceholder ? 'Empty Slot' : gameNames[gameId] || gameId}
                       </div>
-                    ))}
+                    );
+                  })}
                 </div>
               </div>
 

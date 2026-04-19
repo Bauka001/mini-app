@@ -11,6 +11,7 @@ const GAME_LABELS: Record<string, string> = {
   odd_one_out: 'Odd One Out',
   odd_one_out_level: 'Odd One Out (Level Rewards)',
   pairs: 'Pairs',
+  agent_sequence: 'Agent Sequence',
   tetris: 'Tetris',
 };
 
@@ -247,4 +248,3 @@ export const AdminGames = () => {
     </div>
   );
 };
-

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Play, RotateCcw, Coins, Share2, Puzzle, Activity, Brain, Calculator, Keyboard, Zap, Trophy, Star, Pause, Home, Target, Lock } from 'lucide-react';
+import { ArrowLeft, Play, RotateCcw, Coins, Share2, Puzzle, Activity, Brain, Calculator, Keyboard, Zap, Trophy, Star, Pause, Home, Target, Lock, Route } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStoreImpl';
 import { soundManager } from '../utils/soundManager';
@@ -28,6 +28,7 @@ const getGameEmblem = (title: string) => {
     'Speed Typing': { icon: <Keyboard size={80} strokeWidth={1.5} />, color: 'from-indigo-400 to-violet-600', glow: 'shadow-indigo-500/50' },
     'Schulte': { icon: <Star size={80} strokeWidth={1.5} />, color: 'from-amber-400 to-yellow-600', glow: 'shadow-amber-500/50' },
     'Agent Spot': { icon: <Target size={80} strokeWidth={1.5} />, color: 'from-cyan-300 to-red-500', glow: 'shadow-cyan-500/50' },
+    'Agent Sequence': { icon: <Route size={80} strokeWidth={1.5} />, color: 'from-cyan-300 to-violet-500', glow: 'shadow-cyan-500/50' },
     'Code Breaker': { icon: <Lock size={80} strokeWidth={1.5} />, color: 'from-cyan-300 to-violet-500', glow: 'shadow-cyan-500/50' },
   };
   return emblemStyles[title] || { icon: <Trophy size={80} strokeWidth={1.5} />, color: 'from-gray-400 to-gray-600', glow: 'shadow-gray-500/50' };
