@@ -6,7 +6,7 @@ import {
   Brain, Calculator, Type, Trophy, Bell,
   Zap, Eye, Copy,
   Settings, Gift, User, ChevronRight, ShoppingCart,
-  Wallet, Grid, Blocks, Grid2x2, Target, Crown, BarChart3, Lock, Route
+  Wallet, Grid, Grid2x2, Target, Crown, BarChart3, Lock, Route, Compass
 } from 'lucide-react';
 import { useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
@@ -38,8 +38,8 @@ const gameButtons = [
   { title: 'game_agent_spot', icon: Target, path: '/game/agent-spot' },
   { title: 'game_code_breaker', icon: Lock, path: '/game/code-breaker' },
   { title: 'game_stroop', icon: Type, path: '/game/stroop' },
-  { title: 'game_tetris', icon: Blocks, path: '/game/tetris' },
   { title: 'game_2048', icon: Grid2x2, path: '/game/2048' },
+  { title: 'game_compass', icon: Compass, path: '/game/compass' },
 ];
 
 const ListItem = ({
@@ -91,7 +91,11 @@ const Home = () => {
   const navigate = useNavigate();
 
   const watchAd = useStore(state => state.watchAd);
-  const lastDailyRewardDate = useStore(state => state.lastDailyRewardDate);
+  const dailyRewardStreak = useStore(state => state.dailyRewardStreak);
+  const weeklyChallenge = useStore(state => state.weeklyChallenge);
+  const weekendEvent = useStore(state => state.weekendEvent);
+  const tournamentTickets = useStore(state => state.tournamentTickets);
+  const claimWeeklyChallengeReward = useStore(state => state.claimWeeklyChallengeReward);
   const user = useStore(state => state.user);
 
   const styles = useThemeStyles();
@@ -105,13 +109,13 @@ const Home = () => {
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
-    if (lastDailyRewardDate !== today) {
+    if (dailyRewardStreak?.lastClaimDate !== today) {
       const timer = setTimeout(() => {
         setShowDailyReward(true);
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [lastDailyRewardDate]);
+  }, [dailyRewardStreak?.lastClaimDate]);
 
   const handleGameClick = (path: string) => {
     hapticFeedback.click();
@@ -119,28 +123,28 @@ const Home = () => {
   };
 
   return (
-    <div className={clsx("min-h-screen pb-20 font-sans transition-colors duration-500", bgClass)}>
+    <div className={clsx("mobile-page min-h-screen w-full max-w-full font-sans transition-colors duration-500", bgClass)}>
 
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
         className={clsx(
-          "px-4 py-4 flex justify-between items-center border-b sticky top-0 z-10 backdrop-blur-md transition-colors duration-500",
+          "px-4 py-3 sm:py-4 flex justify-between items-center border-b sticky top-0 z-10 backdrop-blur-md transition-colors duration-500",
           headerClass
         )}
       >
         <div className="flex flex-col">
-          <h1 className={clsx("text-lg font-bold tracking-tight", textPrimary)}>Focus App</h1>
-          <span className={clsx("text-xs font-medium", textSecondary)}>ID: {user.gameId || '17096844'}</span>
+          <h1 className={clsx("text-lg sm:text-xl font-bold tracking-tight", textPrimary)}>Focus App</h1>
+          <span className={clsx("text-sm font-medium", textSecondary)}>ID: {user.gameId || '17096844'}</span>
         </div>
         <div className="flex items-center gap-4">
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => { hapticFeedback.click(); setShowNotifications(true); }} className="relative p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => { hapticFeedback.click(); setShowNotifications(true); }} className="relative min-h-[44px] min-w-[44px] p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
             <Bell size={22} className={textPrimary} />
             {unreadCount > 0 && (
               <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-black" />
             )}
           </motion.button>
-          <motion.button whileTap={{ scale: 0.9 }} onClick={() => { hapticFeedback.click(); navigate('/profile'); }} className="p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
+          <motion.button whileTap={{ scale: 0.9 }} onClick={() => { hapticFeedback.click(); navigate('/profile'); }} className="min-h-[44px] min-w-[44px] p-2 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
             <User size={22} className={textPrimary} />
           </motion.button>
         </div>
@@ -155,7 +159,7 @@ const Home = () => {
           panelClass
         )}
       >
-        <div className="flex justify-between gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <motion.button whileTap={{ scale: 0.92 }} onClick={() => { hapticFeedback.click(); setShowDailyReward(true); }} className="flex flex-col items-center gap-2 flex-1">
             <div className={clsx("w-16 h-16 rounded-full flex items-center justify-center shadow-sm transition-transform duration-300",
               isLight ? "bg-white border-2 border-indigo-100" :
@@ -165,7 +169,7 @@ const Home = () => {
             )}>
                <Gift size={24} className={isLight ? "text-indigo-500" : isBlue ? "text-blue-300" : isGold ? "text-amber-300" : "text-cyan-400"} />
             </div>
-            <span className={clsx("text-xs font-medium", textPrimary)}>{t('daily_bonus')}</span>
+            <span className={clsx("text-sm font-medium text-center", textPrimary)}>{t('daily_bonus')}</span>
           </motion.button>
 
           <motion.button whileTap={{ scale: 0.92 }} onClick={() => { hapticFeedback.click(); navigate('/leaderboard'); }} className="flex flex-col items-center gap-2 flex-1">
@@ -177,7 +181,7 @@ const Home = () => {
             )}>
                <Trophy size={24} className={isLight ? "text-orange-500" : isBlue ? "text-orange-300" : isGold ? "text-amber-400" : "text-orange-400"} />
             </div>
-            <span className={clsx("text-xs font-medium", textPrimary)}>{t('top_players')}</span>
+            <span className={clsx("text-sm font-medium text-center", textPrimary)}>{t('top_players')}</span>
           </motion.button>
 
           <motion.button whileTap={{ scale: 0.92 }} onClick={() => { hapticFeedback.click(); navigate('/tournaments'); }} className="flex flex-col items-center gap-2 flex-1">
@@ -189,7 +193,7 @@ const Home = () => {
             )}>
                <Trophy size={24} className={isLight ? "text-purple-500" : isBlue ? "text-purple-300" : isGold ? "text-purple-300" : "text-purple-400"} />
             </div>
-            <span className={clsx("text-xs font-medium", textPrimary)}>Tournament</span>
+            <span className={clsx("text-sm font-medium text-center", textPrimary)}>Tournament</span>
           </motion.button>
 
           <motion.button whileTap={{ scale: 0.92 }} onClick={() => { hapticFeedback.click(); navigate('/analytics'); }} className="flex flex-col items-center gap-2 flex-1">
@@ -201,10 +205,60 @@ const Home = () => {
             )}>
                <BarChart3 size={24} className={isLight ? "text-emerald-500" : isBlue ? "text-emerald-300" : isGold ? "text-emerald-300" : "text-emerald-400"} />
             </div>
-            <span className={clsx("text-xs font-medium", textPrimary)}>VIP Analytics</span>
+            <span className={clsx("text-sm font-medium text-center", textPrimary)}>VIP Analytics</span>
           </motion.button>
         </div>
       </motion.div>
+
+      <div className={clsx(
+        "p-4 mt-4 rounded-2xl mx-4 transition-colors duration-500",
+        panelClass
+      )}>
+        <div className="flex items-end justify-between gap-4 mb-4">
+          <div>
+            <h2 className={clsx("text-lg font-bold", textPrimary)}>Practice</h2>
+            <p className={clsx("text-sm mt-1", textSecondary)}>
+              Кез келген ойынды тандап, жеке жаттыгу режиминде ойнаңыз.
+            </p>
+          </div>
+          <div className={clsx("text-xs font-semibold uppercase tracking-[0.12em] sm:tracking-[0.18em]", textSecondary)}>
+            {gameButtons.length} games
+          </div>
+        </div>
+        <motion.div
+          className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {gameButtons.map((game) => {
+            const Icon = game.icon;
+            return (
+              <motion.button
+                key={game.title}
+                whileTap={{ scale: 0.92 }}
+                onClick={() => handleGameClick(game.path)}
+                variants={itemVariants}
+                className={clsx(
+                  "flex flex-col items-center gap-2 p-3 rounded-2xl min-h-[112px] transition-all duration-300",
+                  styles.isLight ? "hover:bg-slate-100 active:bg-slate-200" :
+                  styles.isBlue ? "hover:bg-blue-800/30 active:bg-blue-800/50" :
+                  styles.isGold ? "hover:bg-stone-800/50 active:bg-stone-800/70" :
+                  "hover:bg-zinc-800/50 active:bg-zinc-800"
+                )}
+              >
+                <div className={clsx(
+                  "w-14 h-14 flex items-center justify-center rounded-2xl shadow-sm transition-colors duration-300",
+                  styles.cardClass
+                )}>
+                  <Icon size={26} className={styles.textAccent} />
+                </div>
+                <span className={clsx("text-sm text-center font-medium leading-tight", styles.textPrimary)}>{t(game.title)}</span>
+              </motion.button>
+            );
+          })}
+        </motion.div>
+      </div>
 
       <motion.section
         initial={{ opacity: 0, y: 20 }}
@@ -215,8 +269,8 @@ const Home = () => {
           panelClass
         )}
       >
-        <div className="flex items-start justify-between gap-4">
-          <div className="max-w-[75%]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="max-w-full sm:max-w-[75%]">
             <div className={clsx("text-xs uppercase tracking-[0.22em] font-semibold", textSecondary)}>
               Today&apos;s Focus
             </div>
@@ -237,7 +291,7 @@ const Home = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 mt-5">
+        <div className="grid grid-cols-1 gap-3 mt-5 sm:grid-cols-3">
           <div className={clsx("p-3 rounded-2xl", styles.cardClass)}>
             <div className={clsx("text-xs font-medium", textSecondary)}>Games</div>
             <div className={clsx("text-lg font-bold mt-1", textPrimary)}>3 Random</div>
@@ -259,13 +313,156 @@ const Home = () => {
             navigate('/daily-workout');
           }}
           className={clsx(
-            "w-[70%] mx-auto mt-6 flex items-center justify-center gap-3 px-5 py-4 rounded-2xl font-bold text-base",
+            "w-full sm:w-[70%] mx-auto mt-6 flex items-center justify-center gap-3 px-5 py-4 rounded-2xl font-bold text-base",
             styles.btnPrimary
           )}
         >
           <Target size={20} />
           <span>Daily Workout</span>
         </motion.button>
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.14 }}
+        className={clsx(
+          "mx-4 mt-4 p-5 rounded-3xl border transition-colors duration-500",
+          panelClass
+        )}
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className={clsx("text-xs uppercase tracking-[0.22em] font-semibold", textSecondary)}>
+              {t('rewards_calendar', { defaultValue: 'Rewards calendar' })}
+            </div>
+            <h3 className={clsx("text-xl font-black mt-2", textPrimary)}>
+              {t('daily_streak_label', { defaultValue: 'Daily streak' })}: {dailyRewardStreak?.count || 0}
+            </h3>
+            <p className={clsx("text-sm mt-2 leading-relaxed", textSecondary)}>
+              7 күн: 200 coins · 14 күн: 1 tournament ticket
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
+            {weekendEvent?.isActive ? (
+              <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-amber-400">
+                <Crown size={12} />
+                Double coins
+              </div>
+            ) : null}
+
+            {tournamentTickets > 0 ? (
+              <div className="inline-flex items-center gap-2 rounded-full bg-purple-500/15 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-purple-300">
+                <Trophy size={12} />
+                Tickets: {tournamentTickets}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {(() => {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const claimedDates = Array.isArray(dailyRewardStreak?.claimedDates) ? dailyRewardStreak.claimedDates : [];
+          const fallbackClaimedDates = (() => {
+            if (claimedDates.length > 0) return claimedDates;
+            if (!dailyRewardStreak?.lastClaimDate || !dailyRewardStreak?.count) return [];
+            const base = new Date(`${dailyRewardStreak.lastClaimDate}T00:00:00`);
+            return Array.from({ length: Math.min(30, dailyRewardStreak.count) }, (_, idx) => {
+              const date = new Date(base);
+              date.setDate(base.getDate() - (Math.min(30, dailyRewardStreak.count) - 1 - idx));
+              return date.toISOString().split('T')[0];
+            });
+          })();
+
+          const claimedSet = new Set(fallbackClaimedDates);
+          const days = Array.from({ length: 14 }, (_, idx) => {
+            const date = new Date(today);
+            date.setDate(today.getDate() - (13 - idx));
+            return {
+              key: date.toISOString().split('T')[0],
+              label: String(date.getDate()).padStart(2, '0'),
+            };
+          });
+
+          const todayKey = today.toISOString().split('T')[0];
+          const lastClaimKey = dailyRewardStreak?.lastClaimDate || null;
+          const canClaim = lastClaimKey !== todayKey;
+
+          return (
+            <div className="mt-5">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                {days.map((day) => {
+                  const claimed = claimedSet.has(day.key);
+                  const isToday = day.key === todayKey;
+                  return (
+                    <div
+                      key={day.key}
+                      className={clsx(
+                        "h-9 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center text-xs font-black",
+                        claimed && "bg-emerald-500/20 text-emerald-300 border border-emerald-400/20",
+                        !claimed && isToday && canClaim && "bg-indigo-500/20 text-indigo-200 border border-indigo-400/30",
+                        !claimed && !isToday && "bg-white/5 text-white/40 border border-white/10",
+                        !claimed && isToday && !canClaim && "bg-white/10 text-white/60 border border-white/10"
+                      )}
+                    >
+                      {day.label}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => { hapticFeedback.click(); setShowDailyReward(true); }}
+                className={clsx(
+                  "w-full mt-4 flex items-center justify-center gap-2 px-5 py-3 rounded-2xl font-bold",
+                  styles.btnPrimary
+                )}
+              >
+                <Gift size={18} />
+                {canClaim ? t('claim_daily_reward', { defaultValue: 'Claim daily reward' }) : t('daily_reward_claimed', { defaultValue: 'Claimed' })}
+              </motion.button>
+            </div>
+          );
+        })()}
+
+        <div className={clsx("mt-5 rounded-2xl p-4", styles.cardClass)}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className={clsx("text-xs uppercase tracking-[0.14em] sm:tracking-[0.2em]", textSecondary)}>
+                {t('weekly_challenge', { defaultValue: 'Weekly challenge' })}
+              </div>
+              <div className={clsx("text-sm font-bold mt-1", textPrimary)}>
+                7 күн бойы күніне 3 ойын
+              </div>
+              <div className={clsx("text-xs mt-1", textSecondary)}>
+                {Math.min(7, weeklyChallenge?.completedDays?.length || 0)} / 7 күн
+              </div>
+            </div>
+
+            <div className="flex flex-col items-start gap-2 sm:items-end">
+              <div className={clsx("text-xs font-black", textPrimary)}>
+                +{weeklyChallenge?.reward?.coins ?? 250} coins
+              </div>
+              <button
+                type="button"
+                onClick={() => { hapticFeedback.click(); claimWeeklyChallengeReward(); }}
+                disabled={(weeklyChallenge?.completedDays?.length || 0) < 7 || Boolean(weeklyChallenge?.isClaimed)}
+                className={clsx(
+                  "min-h-[44px] px-4 py-2 rounded-xl text-xs font-black uppercase tracking-[0.14em] sm:tracking-[0.18em] transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                  styles.btnSecondary
+                )}
+              >
+                {weeklyChallenge?.isClaimed
+                  ? t('claimed', { defaultValue: 'Claimed' })
+                  : t('claim', { defaultValue: 'Claim' })}
+              </button>
+            </div>
+          </div>
+        </div>
       </motion.section>
 
       <motion.div 
@@ -279,7 +476,7 @@ const Home = () => {
         <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-r from-transparent via-amber-500/15 to-transparent rotate-45 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out" />
 
         <div className="relative z-10 p-5">
-          <div className="max-w-[85%]">
+        <div className="max-w-full sm:max-w-[85%]">
             <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-black/35 border border-amber-400/40 mb-2 backdrop-blur-md">
               <div className="flex-shrink-0 w-7 h-7 rounded-xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center shadow-[0_0_15px_rgba(245,158,11,0.45)]">
                 <Crown size={15} className="text-white" fill="currentColor" />
@@ -299,56 +496,6 @@ const Home = () => {
           </div>
         </div>
       </motion.div>
-
-      <div className={clsx(
-        "p-4 mt-4 rounded-2xl mx-4 transition-colors duration-500",
-        panelClass
-      )}>
-        <div className="flex items-end justify-between gap-4 mb-4">
-          <div>
-            <h2 className={clsx("text-lg font-bold", textPrimary)}>Practice</h2>
-            <p className={clsx("text-sm mt-1", textSecondary)}>
-              Кез келген ойынды тандап, жеке жаттыгу режиминде ойнаңыз.
-            </p>
-          </div>
-          <div className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", textSecondary)}>
-            {gameButtons.length} games
-          </div>
-        </div>
-        <motion.div
-          className="grid grid-cols-4 gap-4"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {gameButtons.map((game) => {
-            const Icon = game.icon;
-            return (
-              <motion.button
-                key={game.title}
-                whileTap={{ scale: 0.92 }}
-                onClick={() => handleGameClick(game.path)}
-                variants={itemVariants}
-                className={clsx(
-                  "flex flex-col items-center gap-2 p-3 rounded-2xl transition-all duration-300",
-                  styles.isLight ? "hover:bg-slate-100 active:bg-slate-200" :
-                  styles.isBlue ? "hover:bg-blue-800/30 active:bg-blue-800/50" :
-                  styles.isGold ? "hover:bg-stone-800/50 active:bg-stone-800/70" :
-                  "hover:bg-zinc-800/50 active:bg-zinc-800"
-                )}
-              >
-                <div className={clsx(
-                  "w-14 h-14 flex items-center justify-center rounded-2xl shadow-sm transition-colors duration-300",
-                  styles.cardClass
-                )}>
-                  <Icon size={26} className={styles.textAccent} />
-                </div>
-                <span className={clsx("text-xs text-center font-medium", styles.textPrimary)}>{t(game.title)}</span>
-              </motion.button>
-            );
-          })}
-        </motion.div>
-      </div>
 
       <motion.div
         className="mt-4 space-y-4 px-4"

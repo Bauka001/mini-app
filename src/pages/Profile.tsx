@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Camera, Edit2, Trophy, Gift, 
@@ -12,10 +12,12 @@ import { buildVipAnalyticsSnapshot, useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import WebApp from '@twa-dev/sdk';
-import { BrainProfile } from '../components/BrainProfile';
 import { Achievements } from '../components/Achievements';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
+
+// Lazy load BrainProfile to split recharts dependency
+const BrainProfile = lazy(() => import('../components/BrainProfile').then(m => ({ default: m.BrainProfile })));
 
 const PLAN_CONFIG = {
   free: { icon: Star, name: 'Free', color: 'from-gray-500 to-gray-600', borderColor: 'border-gray-500' },
@@ -31,12 +33,50 @@ const ACHIEVEMENTS = [
   { id: 'xp_master', name: 'XP Master', description: 'Earned 5000 XP', icon: '⚡', color: 'bg-yellow-500' },
 ];
 
+const PROFILE_STICKERS = [
+  {
+    id: 'default',
+    name: 'Classic',
+    emoji: '✨',
+    previewClass: 'bg-secondary text-white border border-gray-700',
+  },
+  {
+    id: 'neon_blue',
+    name: 'Neon Blue',
+    emoji: '💙',
+    previewClass: 'bg-blue-900/40 text-blue-100 border border-blue-500 shadow-blue-500/20',
+  },
+  {
+    id: 'royal_purple',
+    name: 'Royal Purple',
+    emoji: '💜',
+    previewClass: 'bg-purple-900/40 text-purple-100 border border-purple-500 shadow-purple-500/20',
+  },
+  {
+    id: 'matrix',
+    name: 'Matrix',
+    emoji: '💚',
+    previewClass: 'bg-green-900/40 text-green-400 border border-green-500',
+  },
+  {
+    id: 'premium_gold',
+    name: 'Premium Gold',
+    emoji: '👑',
+    previewClass: 'bg-amber-500/20 text-amber-100 border border-amber-400/50',
+  },
+] as const;
+
+const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
+
 const ProfilePage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { 
     user, 
     updateUserProfile, 
+    skinInventory,
+    activeSkin,
+    equipSkin,
     history, 
     brainStats,
     unclaimedLevelRewards, 
@@ -60,6 +100,7 @@ const ProfilePage = () => {
   const [activeSection, setActiveSection] = useState<'profile' | 'analytics'>('profile');
   const [firstName, setFirstName] = useState(user.firstName);
   const [username, setUsername] = useState(user.username || '');
+  const profileInitial = (user.firstName?.trim()?.[0] || user.username?.trim()?.[0] || 'U').toUpperCase();
 
   // Calculate XP progress
   const xpProgress = useMemo(() => {
@@ -82,15 +123,28 @@ const ProfilePage = () => {
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        updateUserProfile({ photoUrl: base64String });
-        WebApp.HapticFeedback.impactOccurred('medium');
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      WebApp.showAlert('Тек сурет файлын таңдаңыз');
+      event.target.value = '';
+      return;
     }
+
+    if (file.size > MAX_PROFILE_IMAGE_SIZE) {
+      WebApp.showAlert('Сурет өлшемі 5 MB-тан аспауы керек');
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64String = reader.result as string;
+      updateUserProfile({ photoUrl: base64String });
+      WebApp.HapticFeedback.impactOccurred('medium');
+      event.target.value = '';
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleClaimReward = (level: number) => {
@@ -105,6 +159,11 @@ const ProfilePage = () => {
   const vipAnalytics = useMemo(() => {
     return buildVipAnalyticsSnapshot(history || [], brainStats);
   }, [brainStats, history]);
+
+  const ownedProfileStickers = useMemo(
+    () => PROFILE_STICKERS.filter((sticker) => skinInventory.includes(sticker.id)),
+    [skinInventory]
+  );
 
   const isVipAnalyticsUnlocked = plan === 'premium' && !isPlanExpired;
 
@@ -180,11 +239,17 @@ const ProfilePage = () => {
                 className="w-24 h-24 rounded-2xl p-1 bg-gradient-to-tr from-primary via-blue-400 to-cyan-300 shadow-lg relative"
               >
                 <div className="w-full h-full rounded-xl bg-[#111] overflow-hidden relative border border-white/10">
-                  <img 
-                    src={user.photoUrl || "https://img.freepik.com/premium-photo/3d-avatar-boy-character_914455-603.jpg"} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover" 
-                  />
+                  {user.photoUrl ? (
+                    <img
+                      src={user.photoUrl}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-black text-3xl font-black text-white">
+                      {profileInitial}
+                    </div>
+                  )}
                   <AnimatePresence>
                     {isEditing && (
                       <motion.button 
@@ -228,7 +293,7 @@ const ProfilePage = () => {
                   />
                 </div>
               ) : (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-2">
                   <motion.h2 
                     initial={{ x: 10, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
@@ -253,6 +318,23 @@ const ProfilePage = () => {
                       <Flame size={12} className="text-orange-500 fill-orange-500" />
                       <span className="text-[10px] font-bold text-orange-500">{streak} Days</span>
                     </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
+                    >
+                      <Camera size={14} />
+                      {user.photoUrl ? 'Суретті ауыстыру' : 'Сурет жүктеу'}
+                    </button>
+                    {activeSkin !== 'default' ? (
+                      <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] font-black text-emerald-500">
+                        <LayoutGrid size={14} />
+                        Белсенді стикер: {ownedProfileStickers.find((sticker) => sticker.id === activeSkin)?.name || activeSkin}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -329,8 +411,10 @@ const ProfilePage = () => {
         {activeSection === 'profile' ? (
           <>
             {/* Brain Profile Section */}
-            <div className="w-full">
-              <BrainProfile />
+            <div className="w-full mt-2">
+              <Suspense fallback={<div className="h-[250px] w-full flex items-center justify-center"><div className="w-8 h-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" /></div>}>
+                <BrainProfile />
+              </Suspense>
             </div>
 
             {/* Achievements Section */}
@@ -424,6 +508,65 @@ const ProfilePage = () => {
               <StatCard icon={Diamond} value={gems} label="Gems" color="text-blue-500" styles={styles} />
               <StatCard icon={Star} value={user.xp} label="Total XP" color="text-purple-500" styles={styles} />
               <StatCard icon={LayoutGrid} value={(history || []).length} label="Games" color="text-green-500" styles={styles} />
+            </div>
+
+            <div className="w-full max-w-sm mb-8">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <h3 className={clsx("text-lg font-black flex items-center gap-2", textPrimary)}>
+                  <LayoutGrid size={20} className={textSecondary} />
+                  Стикерлер топтамасы
+                </h3>
+                <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>
+                  {ownedProfileStickers.length}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {ownedProfileStickers.map((sticker) => {
+                  const isSelected = activeSkin === sticker.id;
+
+                  return (
+                    <div
+                      key={sticker.id}
+                      className={clsx(
+                        "rounded-3xl border p-4 transition-all duration-300",
+                        panelClass,
+                        isSelected && "border-emerald-500 bg-emerald-500/10"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className={clsx("flex h-14 w-14 items-center justify-center rounded-2xl text-2xl shadow-inner", sticker.previewClass)}>
+                          {sticker.emoji}
+                        </div>
+                        {isSelected ? (
+                          <span className="rounded-full bg-emerald-500 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-white">
+                            Таңдалған
+                          </span>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-3">
+                        <div className={clsx("text-sm font-black", textPrimary)}>{sticker.name}</div>
+                        <div className={clsx("mt-1 text-xs", textSecondary)}>
+                          Профиль стикері ретінде қолдануға болады
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => equipSkin(sticker.id)}
+                        disabled={isSelected}
+                        className={clsx(
+                          "mt-4 w-full rounded-xl px-3 py-2 text-xs font-black transition-colors",
+                          isSelected ? "bg-emerald-600 text-white cursor-default" : styles.btnSecondary
+                        )}
+                      >
+                        {isSelected ? 'Қосулы' : 'Қосу'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Achievements Section */}

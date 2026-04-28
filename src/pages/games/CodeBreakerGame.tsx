@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
@@ -13,8 +13,12 @@ import { useTranslation } from 'react-i18next';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useStore } from '../../store/useStoreImpl';
 import type { Language } from '../../store/useStore';
-import { hapticFeedback } from '../../utils/telegram';
 import { soundManager } from '../../utils/soundManager';
+import { Difficulty, DIFFICULTY_COIN_MULT } from '../../types/games';
+import { useGameTimer } from '../../hooks/useGameTimer';
+import { useLocalBest } from '../../hooks/useLocalBest';
+import { useHaptic } from '../../hooks/useHaptic';
+import { useGameSettings } from '../../store/gameSettings';
 
 type PuzzleType = 'sum' | 'delta' | 'double' | 'chain';
 
@@ -50,8 +54,16 @@ type CopySet = {
   prompts: Record<PuzzleType, string>;
 };
 
-const TOTAL_ROUNDS = 12;
-const INITIAL_TIME = 70;
+const GAME_ID = 'code_breaker';
+
+const DIFFICULTY_CONFIG: Record<
+  Difficulty,
+  { timeMs: number; rounds: number; digits: number; options: number }
+> = {
+  easy:   { timeMs: 90_000, rounds: 5, digits: 3, options: 4 },
+  medium: { timeMs: 90_000, rounds: 6, digits: 4, options: 4 },
+  hard:   { timeMs: 90_000, rounds: 8, digits: 5, options: 5 },
+};
 
 const GLYPHS: CodeGlyph[] = [
   {
@@ -178,9 +190,9 @@ const createOptions = (answer: number) => {
   return shuffle(Array.from(options)).slice(0, 4);
 };
 
-const buildRound = (roundIndex: number): RoundData => {
-  const glyphPool = shuffle(GLYPHS).slice(0, 4);
-  const values = shuffle([2, 3, 4, 5, 6, 7, 8, 9]).slice(0, 4);
+const buildRound = (roundIndex: number, config: (typeof DIFFICULTY_CONFIG)['easy']): RoundData => {
+  const glyphPool = shuffle(GLYPHS).slice(0, config.options);
+  const values = shuffle([2, 3, 4, 5, 6, 7, 8, 9]).slice(0, config.options);
   const keys = glyphPool.map((glyph, index) => ({
     ...glyph,
     value: values[index],
@@ -191,9 +203,10 @@ const buildRound = (roundIndex: number): RoundData => {
   let expression = `${first.label} + ${second.label}`;
   let type: PuzzleType = 'sum';
 
-  if (roundIndex >= 8) {
+  const progressRatio = roundIndex / config.rounds;
+  if (progressRatio >= 0.67) {
     type = randomFrom(['delta', 'double', 'chain']);
-  } else if (roundIndex >= 4) {
+  } else if (progressRatio >= 0.33) {
     type = randomFrom(['sum', 'delta', 'double']);
   }
 
@@ -228,9 +241,9 @@ const buildRound = (roundIndex: number): RoundData => {
 
 const randomFrom = <T,>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 
-export default function CodeBreakerGame() {
+export const CodeBreakerGame = () => {
   const { t } = useTranslation();
-  const addGameResult = useStore((state) => state.addGameResult);
+  const { addGameResult } = useStore();
 
   return (
     <GameWrapper
@@ -244,14 +257,16 @@ export default function CodeBreakerGame() {
         <CodeBreakerBoard
           isPaused={isPaused}
           onEnd={(score, coins) => {
-            addGameResult({ gameId: 'code_breaker', score, coinsEarned: coins });
+            queueMicrotask(() => addGameResult({ gameId: GAME_ID, score, coinsEarned: coins }));
             onEnd(score, coins);
           }}
         />
       )}
     </GameWrapper>
   );
-}
+};
+
+export default CodeBreakerGame;
 
 function CodeBreakerBoard({
   onEnd,
@@ -262,15 +277,21 @@ function CodeBreakerBoard({
 }) {
   const language = useStore((state) => state.language);
   const copy = useMemo(() => COPY[language] || COPY.en, [language]);
+  const storedDifficulty = useGameSettings(s => s.difficultyPrefs[GAME_ID] ?? 'medium');
+  const setStoredDifficulty = useGameSettings(s => s.setDifficulty);
+  const [difficulty, setDifficulty] = useState<Difficulty>(storedDifficulty);
+  const config = DIFFICULTY_CONFIG[difficulty];
+  const { best, submit } = useLocalBest(GAME_ID, difficulty);
+  const haptic = useHaptic();
+
   const hasFinishedRef = useRef(false);
 
   const [roundIndex, setRoundIndex] = useState(0);
-  const [round, setRound] = useState<RoundData>(() => buildRound(0));
+  const [round, setRound] = useState<RoundData>(() => buildRound(0, config));
   const [score, setScore] = useState(0);
   const [streak, setStreak] = useState(0);
   const [bestStreak, setBestStreak] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [feedback, setFeedback] = useState<{ text: string; tone: 'idle' | 'success' | 'error' }>({
     text: copy.ready,
@@ -281,66 +302,63 @@ function CodeBreakerBoard({
     setFeedback((prev) => ({ ...prev, text: copy.ready }));
   }, [copy.ready]);
 
-  useEffect(() => {
-    if (isPaused) return;
+  const { timeLeftMs } = useGameTimer({
+    durationMs: config.timeMs,
+    tickMs: 100,
+    isActive: roundIndex < config.rounds && !isPaused,
+    isPaused: isPaused,
+    onExpire: () => {
+      finishGame(score, correctAnswers, bestStreak);
+    },
+  });
 
-    const timer = window.setInterval(() => {
-      setTimeLeft((previous) => {
-        if (previous <= 0.1) {
-          window.clearInterval(timer);
-          return 0;
-        }
-        return previous - 0.1;
-      });
-    }, 100);
-
-    return () => window.clearInterval(timer);
-  }, [isPaused]);
-
-  useEffect(() => {
-    if (timeLeft > 0) return;
-
-    finishGame(score, correctAnswers, bestStreak);
-  }, [bestStreak, correctAnswers, onEnd, score, timeLeft]);
-
-  const finishGame = (finalScore: number, finalCorrectAnswers: number, finalBestStreak: number) => {
+  const finishGame = useCallback((finalScore: number, finalCorrectAnswers: number, finalBestStreak: number) => {
     if (hasFinishedRef.current) return;
     hasFinishedRef.current = true;
+    const isNewBest = submit(finalScore);
     const coins = Math.max(0, Math.min(42, finalCorrectAnswers * 2 + Math.floor(finalBestStreak / 2)));
     onEnd(finalScore, coins);
-  };
+  }, [submit, onEnd]);
 
-  const moveToNextRound = (
-    nextRoundIndex: number,
-    nextState?: { score: number; correctAnswers: number; bestStreak: number }
-  ) => {
-    if (nextRoundIndex >= TOTAL_ROUNDS) {
-      finishGame(
-        nextState?.score ?? score,
-        nextState?.correctAnswers ?? correctAnswers,
-        nextState?.bestStreak ?? bestStreak
-      );
-      return;
-    }
+  useEffect(() => {
+    if (timeLeftMs > 0) return;
+    finishGame(score, correctAnswers, bestStreak);
+  }, [timeLeftMs, score, correctAnswers, bestStreak, finishGame]);
 
-    setRoundIndex(nextRoundIndex);
-    setRound(buildRound(nextRoundIndex));
-    setSelectedOption(null);
-  };
+  const moveToNextRound = useCallback(
+    (
+      nextRoundIndex: number,
+      nextState?: { score: number; correctAnswers: number; bestStreak: number }
+    ) => {
+      if (nextRoundIndex >= config.rounds) {
+        finishGame(
+          nextState?.score ?? score,
+          nextState?.correctAnswers ?? correctAnswers,
+          nextState?.bestStreak ?? bestStreak
+        );
+        return;
+      }
 
-  const handleAnswer = (option: number) => {
-    if (selectedOption !== null || isPaused || timeLeft <= 0) return;
+      setRoundIndex(nextRoundIndex);
+      setRound(buildRound(nextRoundIndex, config));
+      setSelectedOption(null);
+    },
+    [config, score, correctAnswers, bestStreak, finishGame]
+  );
+
+  const handleAnswer = useCallback((option: number) => {
+    if (selectedOption !== null || isPaused || timeLeftMs <= 0) return;
 
     setSelectedOption(option);
 
     if (option === round.answer) {
       const nextStreak = streak + 1;
-      const gained = 110 + nextStreak * 18 + Math.floor(timeLeft);
+      const gained = 110 + nextStreak * 18 + Math.floor(timeLeftMs / 1000);
       const nextScore = score + gained;
       const nextCorrectAnswers = correctAnswers + 1;
       const nextBestStreak = Math.max(bestStreak, nextStreak);
 
-      hapticFeedback.notification('success');
+      haptic.notification('success');
       soundManager.playSuccess();
       setScore(nextScore);
       setStreak(nextStreak);
@@ -358,16 +376,15 @@ function CodeBreakerBoard({
       return;
     }
 
-    hapticFeedback.notification('error');
+    haptic.notification('error');
     soundManager.playError();
     setStreak(0);
-    setTimeLeft((previous) => Math.max(0, previous - 4));
     setFeedback({ text: copy.wrong, tone: 'error' });
 
     window.setTimeout(() => {
       moveToNextRound(roundIndex + 1);
     }, 280);
-  };
+  }, [selectedOption, isPaused, timeLeftMs, round.answer, streak, score, correctAnswers, bestStreak, haptic, moveToNextRound, copy.correct, copy.wrong, roundIndex]);
 
   return (
     <div className="h-full overflow-y-auto bg-[radial-gradient(circle_at_top,#13233b_0%,#090b13_42%,#04050a_100%)] px-4 pb-20 pt-4 text-white">
@@ -410,10 +427,10 @@ function CodeBreakerBoard({
 
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: copy.round, value: `${Math.min(roundIndex + 1, TOTAL_ROUNDS)}/${TOTAL_ROUNDS}`, icon: Binary },
+            { label: copy.round, value: `${Math.min(roundIndex + 1, config.rounds)}/${config.rounds}`, icon: Binary },
             { label: copy.score, value: score.toLocaleString(), icon: Sparkles },
             { label: copy.streak, value: `${streak}`, icon: Flame },
-            { label: copy.timer, value: `${timeLeft.toFixed(1)}s`, icon: Lock },
+            { label: copy.timer, value: `${(timeLeftMs / 1000).toFixed(1)}s`, icon: Lock },
           ].map((item) => (
             <div
               key={item.label}
@@ -476,14 +493,24 @@ function CodeBreakerBoard({
             const isSelected = selectedOption === option;
             const isCorrect = isSelected && option === round.answer;
             const isWrong = isSelected && option !== round.answer;
+            const cellNum = round.options.indexOf(option) + 1;
 
             return (
               <motion.button
                 key={`${round.expression}-${option}`}
+                role="button"
+                aria-label={`Option ${cellNum}: ${option}`}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => handleAnswer(option)}
+                onKeyDown={(e) => {
+                  if (cellNum >= 1 && cellNum <= 9 && e.key === cellNum.toString()) {
+                    e.preventDefault();
+                    handleAnswer(option);
+                  }
+                }}
+                tabIndex={selectedOption === null ? 0 : -1}
                 className={clsx(
-                  'relative overflow-hidden rounded-[26px] border px-4 py-6 text-left shadow-[0_14px_40px_rgba(15,23,42,0.32)] transition-all',
+                  'relative overflow-hidden rounded-[26px] border px-4 py-6 text-left shadow-[0_14px_40px_rgba(15,23,42,0.32)] transition-all focus:outline-none focus:ring-2 focus:ring-cyan-300',
                   'bg-[linear-gradient(135deg,rgba(255,255,255,0.14),rgba(255,255,255,0.05))] backdrop-blur-xl',
                   !selectedOption && 'border-white/10 hover:border-cyan-300/40 hover:-translate-y-0.5',
                   isCorrect && 'border-emerald-300/45 bg-emerald-400/20',

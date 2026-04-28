@@ -46,24 +46,24 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="modal-shell fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-white dark:bg-gray-900 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl"
+          className="modal-card bg-white dark:bg-gray-900 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl flex flex-col"
         >
           <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <AlertCircle size={20} className="text-blue-500" />
               Шағым немесе Ұсыныс
             </h3>
-            <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
+            <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
               <X size={20} />
             </button>
           </div>
 
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 overflow-y-auto">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Хабарламаңыз
@@ -72,7 +72,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 placeholder="Не туралы айтқыңыз келеді?"
-                className="w-full h-32 p-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full h-32 p-3 text-base rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
@@ -88,7 +88,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
                     value={imageUrl}
                     onChange={(e) => setImageUrl(e.target.value)}
                     placeholder="https://example.com/image.jpg"
-                    className="w-full pl-10 pr-3 py-2 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    className="w-full pl-10 pr-3 py-2 min-h-[44px] text-base rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
               </div>
@@ -101,7 +101,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
 
             <button
               onClick={handleSubmit}
-              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors"
+              className="w-full min-h-[44px] py-3 bg-blue-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors"
             >
               <Send size={18} />
               Жіберу

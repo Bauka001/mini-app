@@ -1,10 +1,18 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { useStore } from '../../store/useStoreImpl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
+import { Difficulty, DIFFICULTY_COIN_MULT } from '../../types/games';
+import { useGameTimer } from '../../hooks/useGameTimer';
+import { useLocalBest } from '../../hooks/useLocalBest';
+import { useHaptic } from '../../hooks/useHaptic';
+import { useGameSettings } from '../../store/gameSettings';
+import { DifficultySelector } from '../../components/games/DifficultySelector';
+import { GameHUD } from '../../components/games/GameHUD';
+import { soundManager } from '../../utils/soundManager';
 
 const EMOJI_SETS = [
   { common: '😀', odd: '😃' },
@@ -17,47 +25,65 @@ const EMOJI_SETS = [
   { common: '📦', odd: '📤' },
 ];
 
+const GAME_ID = 'odd_one_out';
+
+const DIFFICULTY_CONFIG: Record<
+  Difficulty,
+  { timeMs: number; startItems: number; maxItems: number; diffSpread: number }
+> = {
+  easy:   { timeMs: 60_000, startItems: 4, maxItems: 12, diffSpread: 60 },
+  medium: { timeMs: 60_000, startItems: 6, maxItems: 16, diffSpread: 30 },
+  hard:   { timeMs: 45_000, startItems: 8, maxItems: 20, diffSpread: 15 },
+};
+
 export const OddOneOutGame = () => {
   const { t } = useTranslation();
-  const { addGameResult } = useStore();
-  
+  const { addGameResult, theme } = useStore();
+
   return (
     <GameWrapper
       title={t('game_odd_one', 'Odd One Out')}
       instructions={t('odd_one_desc', 'Find the item that looks different from the others.')}
     >
-      {({ onEnd, isPaused, theme }) => <OddOneOutBoard onEnd={onEnd} addGameResult={addGameResult} isPaused={isPaused} theme={theme} />}
+      {({ onEnd, isPaused }) => (
+        <OddOneOutBoard
+          onEnd={(score, coins) => {
+            queueMicrotask(() => addGameResult({ gameId: GAME_ID, score, coinsEarned: coins }));
+            onEnd(score, coins);
+          }}
+          isGamePaused={isPaused}
+          theme={theme}
+        />
+      )}
     </GameWrapper>
   );
 };
 
-export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEnd: (score: string, coins: number) => void, addGameResult: (result: any) => void, isPaused: boolean, theme: string }) => {
-  const [level, setLevel] = useState(1);
-  const [gridSize, setGridSize] = useState(3);
+export const OddOneOutBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coins: number) => void, isGamePaused: boolean, theme: string }) => {
+  // -------- Settings --------
+  const storedDifficulty = useGameSettings(s => s.difficultyPrefs[GAME_ID] ?? 'medium');
+  const setStoredDifficulty = useGameSettings(s => s.setDifficulty);
+  const [difficulty, setDifficulty] = useState<Difficulty>(storedDifficulty);
+  const config = DIFFICULTY_CONFIG[difficulty];
+
+  const { best, submit } = useLocalBest(GAME_ID, difficulty);
+  const haptic = useHaptic();
+
+  // -------- Round state --------
   const [items, setItems] = useState<string[]>([]);
   const [oddIndex, setOddIndex] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
   const [isWrong, setIsWrong] = useState(false);
-  const [showLevelUp, setShowLevelUp] = useState(false);
-  const [showLevelComplete, setShowLevelComplete] = useState(false);
-  
-  // New state for level progress
-  const [foundCount, setFoundCount] = useState(0);
-  const [targetCount, setTargetCount] = useState(10); // Start with 10 targets per level
 
-  const generateLevel = useCallback(() => {
-    // Determine grid size based on level (slightly harder progression)
-    const newGridSize = Math.min(8, 3 + Math.floor((level - 1) / 2));
-    setGridSize(newGridSize);
+  // Guards against double-trigger
+  const hasFinishedRef = useRef(false);
 
-    // Update target count based on level (max 40)
-    const newTarget = Math.min(40, 10 + (level - 1));
-    setTargetCount(newTarget);
-
+  // -------- Generate puzzle for current difficulty --------
+  const generatePuzzle = useCallback(() => {
     const setIndex = Math.floor(Math.random() * EMOJI_SETS.length);
     const set = EMOJI_SETS[setIndex];
-    const totalItems = newGridSize * newGridSize;
+    const totalItems = Math.min(config.maxItems, config.startItems + Math.floor(combo / 3));
     const newOddIndex = Math.floor(Math.random() * totalItems);
 
     const newItems = Array(totalItems).fill(set.common);
@@ -65,209 +91,162 @@ export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEn
 
     setItems(newItems);
     setOddIndex(newOddIndex);
-  }, [level]);
+  }, [config.maxItems, config.startItems, combo]);
 
+  // -------- Countdown timer (pause-aware) --------
+  const { timeLeftMs, reset: resetTimer } = useGameTimer({
+    durationMs: config.timeMs,
+    tickMs: 100,
+    isActive: !isGamePaused,
+    isPaused: isGamePaused,
+    resetKey: `${difficulty}`,
+    onExpire: () => {
+      if (!hasFinishedRef.current) {
+        hasFinishedRef.current = true;
+        haptic.notification('error');
+        soundManager.playError();
+        const isNewBest = submit(score);
+        const coins = Math.round((score * DIFFICULTY_COIN_MULT[difficulty]) / 4);
+        onEnd(
+          isNewBest ? `${score} ★` : `${score}`,
+          Math.max(0, coins)
+        );
+      }
+    },
+  });
+
+  // -------- Initialize puzzle --------
   useEffect(() => {
-    generateLevel();
-    const timer = setInterval(() => {
-      // Pause timer when showing Level Up screen or Level Complete Modal
-      if (showLevelUp || showLevelComplete || isPaused) return;
+    generatePuzzle();
+  }, [generatePuzzle]);
 
-      setTimeLeft(prev => {
-        if (prev <= 0.1) {
-          clearInterval(timer);
-          // Use setTimeout to avoid "Cannot update component while rendering" warning
-          setTimeout(() => {
-             // Game Over logic
-             addGameResult({ gameId: 'odd_one_out', score, coinsEarned: Math.floor(score / 2) });
-             onEnd(`${score} pts`, Math.floor(score / 2));
-          }, 0);
-          return 0;
-        }
-        return prev - 0.1;
-      });
-    }, 100);
-
-    return () => clearInterval(timer);
-  }, [showLevelUp, showLevelComplete, isPaused, addGameResult, onEnd, score, generateLevel, level]);
-
-  // Re-generate when level changes
+  // -------- Keyboard support: 1-9 for indexed items --------
   useEffect(() => {
-    if (level > 1 && !showLevelComplete) {
-       generateLevel();
-       setFoundCount(0); // Reset found count for new level
-    }
-  }, [level, showLevelComplete, generateLevel]);
+    if (isGamePaused) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key >= '1' && e.key <= '9') {
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx < items.length) handleItemClick(idx);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isGamePaused, items.length]);
 
-  const handleNextLevel = () => {
-    setLevel(l => l + 1);
-    setShowLevelComplete(false);
-    setTimeLeft(t => Math.min(60, t + 15)); // Bonus time for next level
-  };
-
-  const handleReplayLevel = () => {
-    setFoundCount(0);
-    generateLevel();
-    setShowLevelComplete(false);
-    setTimeLeft(60); // Reset time for replay? Or keep current? Usually reset for replay.
-  };
-
-  const handleMenu = () => {
-    addGameResult({ gameId: 'odd_one_out', score, coinsEarned: Math.floor(score / 2) });
-    onEnd(`${score} pts`, Math.floor(score / 2));
-  };
-
-  const handleItemClick = (index: number) => {
-    if (showLevelUp || showLevelComplete) return;
+  const handleItemClick = useCallback((index: number) => {
+    if (hasFinishedRef.current || isGamePaused) return;
 
     if (index === oddIndex) {
-      const newFoundCount = foundCount + 1;
-      setFoundCount(newFoundCount);
+      haptic.notification('success');
+      soundManager.playSuccess();
       setScore(s => s + 10);
-      
-      // Add a tiny time bonus for each find
-      setTimeLeft(t => Math.min(60, t + 0.5));
-
-      // Check if level is complete
-      if (newFoundCount >= targetCount) {
-        // Award coins for level completion immediately
-        const levelReward = 50 + (level * 10);
-        setTimeout(() => {
-          addGameResult({ gameId: 'odd_one_out_level', score: 0, coinsEarned: levelReward });
-        }, 0);
-        
-        setShowLevelComplete(true);
-      } else {
-        // Just generate next puzzle in same level
-        generateLevel();
-      }
+      setCombo(c => c + 1);
+      generatePuzzle();
     } else {
+      haptic.notification('error');
+      soundManager.playError();
       setIsWrong(true);
-      setTimeLeft(t => Math.max(0, t - 3)); // Penalty
+      setCombo(0);
       setTimeout(() => setIsWrong(false), 300);
     }
-  };
+  }, [oddIndex, isGamePaused, generatePuzzle, haptic]);
+
+  // -------- Change difficulty — fully reset --------
+  const changeDifficulty = useCallback((next: Difficulty) => {
+    setStoredDifficulty(GAME_ID, next);
+    setDifficulty(next);
+    resetTimer();
+    setScore(0);
+    setCombo(0);
+    hasFinishedRef.current = false;
+    generatePuzzle();
+  }, [setStoredDifficulty, resetTimer, generatePuzzle]);
+
+  const bgStyle = theme === 'light' ? 'bg-gradient-to-br from-blue-50 to-indigo-50' : 'bg-transparent';
+  const gridBg =
+    theme === 'light'
+      ? 'bg-white/60 border-white/80 shadow-[0_8px_32px_rgba(0,0,0,0.1)] backdrop-blur-xl'
+      : 'bg-white/5 border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)] backdrop-blur-2xl';
 
   return (
-    <div className={clsx(
-      "h-full flex flex-col items-center justify-center p-4 relative transition-colors duration-500",
-      theme === 'light' ? 'bg-gradient-to-br from-blue-50 to-indigo-50' : 'bg-transparent'
-    )}>
+    <div
+      className={clsx(
+        'h-full flex flex-col items-center p-4 relative overflow-hidden transition-colors duration-500',
+        bgStyle
+      )}
+    >
       {theme !== 'light' && (
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-background to-background z-0" />
+        <div
+          className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-background to-background z-0"
+          aria-hidden
+        />
       )}
 
-      <AnimatePresence>
-        {/* Level Complete Modal */}
-        {showLevelComplete && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          >
-            <motion.div 
-              initial={{ scale: 0.8, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.8, y: -20 }}
-              className="bg-gray-900/90 border border-gray-700/50 rounded-3xl p-8 w-full max-w-sm text-center shadow-[0_0_50px_rgba(79,70,229,0.3)] backdrop-blur-xl relative overflow-hidden"
-            >
-              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
-              <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-br from-white to-gray-400 mb-2">LEVEL {level} COMPLETE!</h2>
-              <div className="text-yellow-400 font-black text-2xl mb-8 flex items-center justify-center gap-2 drop-shadow-[0_0_10px_rgba(250,204,21,0.5)]">
-                +{50 + (level * 10)} Coins!
-              </div>
-              
-              <div className="space-y-4">
-                <button 
-                  onClick={handleNextLevel}
-                  className="w-full py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-bold rounded-2xl text-lg hover:scale-[1.02] active:scale-95 transition-all shadow-[0_0_20px_rgba(99,102,241,0.4)]"
-                >
-                  Next Level
-                </button>
-                <div className="grid grid-cols-2 gap-4">
-                  <button 
-                    onClick={handleReplayLevel}
-                    className="w-full py-3 bg-white/10 text-white font-bold rounded-2xl hover:bg-white/20 transition-colors"
-                  >
-                    Replay
-                  </button>
-                  <button 
-                    onClick={handleMenu}
-                    className="w-full py-3 bg-white/5 text-gray-400 font-bold rounded-2xl hover:bg-white/10 hover:text-white transition-colors"
-                  >
-                    Menu
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-      
-      <motion.div 
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        className="mb-8 flex flex-col items-center z-10 w-full max-w-sm"
-      >
-        <div className="flex justify-between w-full px-4 mb-4">
-          <div className={clsx(
-            "px-4 py-1.5 rounded-xl text-xs backdrop-blur-md border shadow-sm font-mono tracking-wider",
-            theme === 'light' ? "bg-white/80 border-indigo-100 text-indigo-600" : "bg-white/10 border-white/10 text-white/60"
-          )}>
-            Level {level}
-          </div>
-          <div className={clsx(
-            "px-4 py-1.5 rounded-xl text-xs backdrop-blur-md border shadow-sm font-mono tracking-wider transition-colors flex gap-2",
-            timeLeft < 10 ? "bg-red-500/20 border-red-500/40 text-red-500 animate-pulse-glow" : theme === 'light' ? "bg-white/80 border-indigo-100 text-indigo-600" : "bg-white/10 border-white/10 text-white/60"
-          )}>
-            ⏱ {timeLeft.toFixed(1)}s
-          </div>
-        </div>
+      {/* HUD */}
+      <div className="w-full max-w-md mx-auto z-10 mt-2 mb-4">
+        <GameHUD
+          score={score}
+          timeLeftSec={timeLeftMs / 1000}
+          timeTotalSec={config.timeMs / 1000}
+          best={best}
+          combo={combo}
+          showSoundToggle
+          showHapticToggle
+        />
+      </div>
 
-        <div className="flex gap-4 mt-2 mb-2">
-           <div className={clsx("px-4 py-2 rounded-2xl backdrop-blur-xl border shadow-lg text-sm font-bold tracking-widest uppercase flex items-center gap-2", theme === 'light' ? "bg-white/90 border-indigo-100 text-indigo-600" : "bg-indigo-500/20 border-indigo-500/30 text-indigo-300")}>
-             <span className="text-lg">✨</span> Score: {score}
-           </div>
-           <div className={clsx("px-4 py-2 rounded-2xl backdrop-blur-xl border shadow-lg text-sm font-bold tracking-widest uppercase flex items-center gap-2", theme === 'light' ? "bg-white/90 border-green-100 text-green-600" : "bg-emerald-500/20 border-emerald-500/30 text-emerald-300")}>
-             🎯 Found: {foundCount}/{targetCount}
-           </div>
-        </div>
+      {/* Difficulty Selector */}
+      <motion.div
+        initial={{ y: -10, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="mb-4 flex flex-col items-center z-10 w-full max-w-sm gap-2"
+      >
+        <DifficultySelector
+          value={difficulty}
+          onChange={changeDifficulty}
+          size="sm"
+          disabled={false}
+        />
       </motion.div>
 
-      <motion.div 
+      <motion.div
+        role="grid"
+        aria-label="Odd one out grid"
+        aria-rowcount={Math.ceil(items.length / Math.ceil(Math.sqrt(items.length)))}
+        aria-colcount={Math.ceil(Math.sqrt(items.length))}
         animate={isWrong ? { x: [-10, 10, -10, 10, 0] } : {}}
         transition={{ duration: 0.4 }}
         className={clsx(
-          "grid gap-2 p-4 rounded-[2rem] transition-all duration-300 backdrop-blur-2xl border shadow-2xl z-10",
-          isWrong 
-            ? "bg-red-500/20 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.4)]" 
-            : theme === 'light'
-              ? "bg-white/60 border-white shadow-[0_8px_32px_rgba(0,0,0,0.1)]"
-              : "bg-white/5 border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.3)]"
+          'grid gap-2 p-4 rounded-[2rem] transition-all duration-300 backdrop-blur-2xl border shadow-2xl z-10',
+          isWrong
+            ? 'bg-red-500/20 border-red-500/50 shadow-[0_0_50px_rgba(239,68,68,0.4)]'
+            : gridBg
         )}
-        style={{ 
-          gridTemplateColumns: `repeat(${gridSize}, minmax(0, 1fr))`,
-          width: 'min(90vw, 400px)', 
-          height: 'min(90vw, 400px)' 
+        style={{
+          gridTemplateColumns: `repeat(${Math.ceil(Math.sqrt(items.length))}, minmax(0, 1fr))`,
+          width: 'min(90vw, 400px)',
+          height: 'min(90vw, 400px)',
         }}
       >
-        <AnimatePresence mode="popLayout">
+        <AnimatePresence>
           {items.map((item, index) => (
             <motion.button
-              key={`${level}-${foundCount}-${index}`}
+              key={`item-${index}`}
+              role="button"
+              aria-label={`Item ${index + 1}${index === oddIndex ? ' odd one' : ''}`}
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: index * 0.01, type: "spring", stiffness: 300, damping: 20 }}
+              transition={{ delay: index * 0.01, type: 'spring', stiffness: 300, damping: 20 }}
               whileHover={{ scale: 1.1, zIndex: 10 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => handleItemClick(index)}
               className={clsx(
-                "flex items-center justify-center text-3xl sm:text-4xl rounded-2xl transition-colors duration-200 relative overflow-hidden group shadow-sm border",
-                theme === 'light' 
-                  ? "bg-white border-indigo-50 hover:bg-indigo-50 text-gray-800"
-                  : "bg-white/10 border-white/5 hover:bg-white/20 text-white"
+                'flex items-center justify-center text-3xl sm:text-4xl rounded-2xl transition-colors duration-200 relative overflow-hidden group shadow-sm border focus:outline-none focus:ring-2 focus:ring-primary/60',
+                theme === 'light'
+                  ? 'bg-white border-indigo-50 hover:bg-indigo-50 text-gray-800'
+                  : 'bg-white/10 border-white/5 hover:bg-white/20 text-white'
               )}
+              disabled={isGamePaused}
             >
               <span className="relative z-10 drop-shadow-md">{item}</span>
               <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />

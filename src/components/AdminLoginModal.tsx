@@ -20,7 +20,7 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+        className="modal-shell fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
       >
         <motion.div
@@ -28,19 +28,19 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
           animate={{ scale: 1, y: 0, opacity: 1 }}
           exit={{ scale: 0.85, y: 40, opacity: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-          className="bg-gradient-to-br from-gray-900 to-black w-full max-w-sm rounded-3xl overflow-hidden border border-white/10 shadow-2xl"
+          className="modal-card bg-gradient-to-br from-gray-900 to-black w-full max-w-sm rounded-3xl overflow-hidden border border-white/10 shadow-2xl flex flex-col"
         >
           <div className="bg-gradient-to-r from-primary to-orange-500 p-4 flex justify-between items-center">
             <div className="flex items-center gap-2">
               <ShieldCheck size={20} className="text-black" />
               <h3 className="text-xl font-bold text-black">Әкімшілік кіру</h3>
             </div>
-            <button onClick={onClose} className="p-1 hover:bg-black/20 rounded-full transition-colors">
+            <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] hover:bg-black/20 rounded-full transition-colors">
               <X size={20} className="text-black" />
             </button>
           </div>
 
-          <div className="p-6 space-y-4">
+          <div className="p-4 sm:p-6 space-y-4 overflow-y-auto">
             {isLoading ? (
               <div className="text-center py-6">
                 <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -58,7 +58,7 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
                 <p className="text-gray-400 text-sm mb-6">Барлық әкімшілік мүмкіндіктер ашық.</p>
                 <button
                   onClick={onClose}
-                  className="w-full py-3 bg-primary text-black font-bold rounded-xl hover:scale-105 transition-transform"
+                  className="w-full min-h-[44px] py-3 bg-primary text-black font-bold rounded-xl hover:scale-105 transition-transform"
                 >
                   Жабу
                 </button>
@@ -95,7 +95,7 @@ export const AdminLoginModal = ({ isOpen, onClose }: AdminLoginModalProps) => {
 
                 <button
                   onClick={onClose}
-                  className="w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-orange-500 text-black hover:scale-105 active:scale-95 shadow-lg shadow-primary/25"
+                  className="w-full min-h-[44px] py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-primary to-orange-500 text-black hover:scale-105 active:scale-95 shadow-lg shadow-primary/25"
                 >
                   <Lock size={18} />
                   Түсінікті

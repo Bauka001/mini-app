@@ -1,9 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const BOT_TOKEN = Deno.env.get('BOT_TOKEN');
+const WEBHOOK_SECRET = Deno.env.get('WEBHOOK_SECRET');
 
 serve(async (req) => {
   try {
+    // Check for secret header for security
+    const signature = req.headers.get('x-webhook-signature');
+    
+    if (!WEBHOOK_SECRET || signature !== WEBHOOK_SECRET) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // Check if request is a POST (webhook payload from Supabase)
     if (req.method !== 'POST') {
       return new Response('Method Not Allowed', { status: 405 });

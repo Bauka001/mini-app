@@ -1,0 +1,20 @@
+[2m20:33:15[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [33mwarning: [33mDuplicate "animate" attribute in JSX element[33m
+279|          transition={{ duration: 0.25 }}
+280|          initial={{ scale: 0.9, opacity: 0 }}
+281|          animate={{ scale: 1, opacity: 1 }}
+   |          ^
+282|          transition={{ duration: 0.5, type: "spring" }}
+283|          className={clsx(
+[39m
+  Plugin: [35mvite:esbuild[39m
+  File: [36mC:/Users/Huawei/Documents/trae_projects/mini app/src/pages/games/PairsGame.tsx[39m
+[2m20:33:15[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [33mwarning: [33mDuplicate "transition" attribute in JSX element[33m
+280|          initial={{ scale: 0.9, opacity: 0 }}
+281|          animate={{ scale: 1, opacity: 1 }}
+282|          transition={{ duration: 0.5, type: "spring" }}
+   |          ^
+283|          className={clsx(
+284|            "grid gap-3 sm:gap-4 w-full max-w-sm p-4 sm:p-6 rounded-[2.5rem] backdrop-blur-2xl border shadow-2xl z-10",
+[39m
+  Plugin: [35mvite:esbuild[39m
+  File: [36mC:/Users/Huawei/Documents/trae_projects/mini app/src/pages/games/PairsGame.tsx[39m

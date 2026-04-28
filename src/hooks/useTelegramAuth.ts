@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import WebApp from '@twa-dev/sdk';
-import { getTelegramUser } from '../utils/telegram';
+import { getTelegramUser, MOCK_USER } from '../utils/telegram';
 import { verifyTelegramInitData } from '../utils/auth';
 
 interface AuthState {
@@ -23,36 +23,54 @@ export const useTelegramAuth = () => {
 
     const authenticate = async () => {
       try {
+        const isDev = import.meta.env.DEV;
+
         // Initialize Telegram WebApp
         if (WebApp) {
           WebApp.ready();
           WebApp.expand();
         }
         
-        // Check if running in Telegram
-        // In local development or browser, initData might be empty
-        const isTelegram = WebApp && WebApp.initData !== '';
-        
+        const initData = (window as any)?.Telegram?.WebApp?.initData || WebApp?.initData || '';
+
         if (!isMounted) return;
 
         // Get user data
         const user = getTelegramUser();
-        
-        if (!isTelegram && !user) {
-          // If not in telegram and no mock user found, we still allow for local testing
-          // but with a warning or fallback
-          console.warn('Not in Telegram environment');
-          // For now, let's allow it to proceed to not block the user
+
+        if (!initData) {
+          if (isDev) {
+            console.warn('Telegram initData not found, using mock user in development');
+            setAuthState({
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+              user: user || MOCK_USER,
+            });
+            return;
+          }
+
           setAuthState({
-            isAuthenticated: true, // Set to true to allow entry in browser
+            isAuthenticated: false,
             isLoading: false,
-            error: null,
-            user: { id: 0, first_name: 'Guest' },
+            error: 'Telegram Mini App ішінде ашу қажет',
+            user: null,
           });
           return;
         }
 
-        if (!user && isTelegram) {
+        const verify = await verifyTelegramInitData(initData);
+        if (!verify?.ok) {
+          setAuthState({
+            isAuthenticated: false,
+            isLoading: false,
+            error: 'Telegram деректерін тексеру сәтсіз болды',
+            user: null,
+          });
+          return;
+        }
+
+        if (!user) {
           setAuthState({
             isAuthenticated: false,
             isLoading: false,
@@ -61,27 +79,12 @@ export const useTelegramAuth = () => {
           });
           return;
         }
-
-        // If in Telegram, verify initData signature with backend
-        if (isTelegram) {
-          const initData = (window as any)?.Telegram?.WebApp?.initData || WebApp?.initData || '';
-          const verify = await verifyTelegramInitData(initData);
-          if (!verify?.ok) {
-            setAuthState({
-              isAuthenticated: false,
-              isLoading: false,
-              error: 'Telegram деректерін тексеру сәтсіз болды',
-              user: null,
-            });
-            return;
-          }
-        }
-
+        
         setAuthState({
           isAuthenticated: true,
           isLoading: false,
           error: null,
-          user: user || { id: 0, first_name: 'Guest' },
+          user,
         });
 
       } catch (err) {

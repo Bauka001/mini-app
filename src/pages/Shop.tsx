@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Check, Crown, Coins, Layout, FileText, X, BarChart3, Medal, Sparkles } from 'lucide-react';
+import { Check, Crown, Coins, Layout, FileText, X, BarChart3, Medal, Sparkles, Car, Gift } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store/useStoreImpl';
 import WebApp from '@twa-dev/sdk';
@@ -61,16 +61,16 @@ const PaymentModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl">
+    <div className="modal-shell fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="modal-card w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col">
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
           <h3 className="text-lg font-bold text-black">Payment Method</h3>
-          <button onClick={onClose} className="rounded-full p-1 text-gray-500 transition-colors hover:bg-gray-100">
+          <button onClick={onClose} className="rounded-full p-2 min-h-[44px] min-w-[44px] text-gray-500 transition-colors hover:bg-gray-100">
             <X size={20} />
           </button>
         </div>
 
-        <div className="space-y-4 p-6">
+        <div className="space-y-4 p-4 sm:p-6 overflow-y-auto">
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
             <div className="mb-1 text-sm text-gray-500">Item Summary</div>
             <div className="text-xl font-bold text-black">{planTitle}</div>
@@ -80,7 +80,7 @@ const PaymentModal = ({
           <div className="space-y-3">
             <button
               onClick={() => setSelectedMethod('stars')}
-              className={`w-full rounded-2xl border p-4 text-left transition-all ${
+              className={`w-full min-h-[44px] rounded-2xl border p-4 text-left transition-all ${
                 selectedMethod === 'stars'
                   ? 'border-green-500 bg-green-50'
                   : 'border-gray-200 bg-white hover:border-gray-300'
@@ -106,7 +106,7 @@ const PaymentModal = ({
 
             <button
               onClick={() => setSelectedMethod('ton')}
-              className={`w-full rounded-2xl border p-4 text-left transition-all ${
+              className={`w-full min-h-[44px] rounded-2xl border p-4 text-left transition-all ${
                 selectedMethod === 'ton'
                   ? 'border-green-500 bg-green-50'
                   : 'border-gray-200 bg-white hover:border-gray-300'
@@ -135,7 +135,7 @@ const PaymentModal = ({
 
           <button
             onClick={handlePayNow}
-            className="w-full rounded-2xl bg-green-500 px-4 py-3 text-base font-bold text-white transition-colors hover:bg-green-600"
+            className="w-full min-h-[44px] rounded-2xl bg-green-500 px-4 py-3 text-base font-bold text-white transition-colors hover:bg-green-600"
           >
             Pay Now
           </button>
@@ -169,7 +169,7 @@ const PlanCard = ({
   const { t } = useTranslation();
   return (
   <div className={clsx(
-    "relative p-6 rounded-2xl border mb-4 transition-all active:scale-95 overflow-hidden duration-300",
+    "relative p-4 sm:p-6 rounded-2xl border mb-4 transition-all active:scale-95 overflow-hidden duration-300",
     styles.panelClass,
     badge ? "border-amber-500 shadow-lg shadow-amber-500/20" : ""
   )}>
@@ -188,7 +188,7 @@ const PlanCard = ({
         <Icon size={24} className={color.replace('bg-', 'text-')} />
       </div>
       <div>
-        <h3 className={clsx("text-xl font-bold", styles.textPrimary)}>{title}</h3>
+        <h3 className={clsx("text-lg sm:text-xl font-bold", styles.textPrimary)}>{title}</h3>
         <div className="flex items-baseline gap-2">
            {originalPrice && <span className="text-xs line-through opacity-50 text-gray-500">{originalPrice}</span>}
            <p className={clsx("text-lg font-black", styles.textAccent)}>{price}</p>
@@ -208,7 +208,7 @@ const PlanCard = ({
     <button 
       onClick={onBuy}
       className={clsx(
-        "w-full py-3 rounded-xl font-bold transition-all relative z-10",
+        "w-full min-h-[44px] py-3 rounded-xl font-bold transition-all relative z-10",
         badge ? styles.btnPrimary : styles.btnSecondary
       )}
     >
@@ -291,14 +291,26 @@ const SkinCard = ({
   );
 };
 
-type VipPurchaseOption = 'monthly' | 'yearly';
+type VipPurchaseOption = 'basic' | 'pro' | 'premium';
 
-const MONTHLY_VIP_PRICE = '$4.99';
-const MONTHLY_VIP_STARS = '150 Stars';
-const YEARLY_PASS_PRICE = '$39.99';
-const YEARLY_PASS_STARS = '1200 Stars';
-const MONTHLY_VIP_DURATION_DAYS = 30;
-const YEARLY_PASS_DURATION_DAYS = 365;
+const BASIC_PRICE = '6 990 ₸';
+const BASIC_STARS = '≈ 140 Stars';
+const PRO_PRICE = '8 590 ₸';
+const PRO_STARS = '≈ 175 Stars';
+const PREMIUM_PRICE = '9 990 ₸';
+const PREMIUM_STARS = '≈ 205 Stars';
+const YEARLY_DURATION_DAYS = 365;
+
+// Purchased tier is tracked in localStorage so game routes can gate access
+// without touching the Supabase user schema.
+export const FOCUS_TIER_KEY = 'focus_tier';
+export type FocusTier = 'free' | 'basic' | 'pro' | 'premium';
+export const setFocusTier = (tier: FocusTier) => {
+  try { localStorage.setItem(FOCUS_TIER_KEY, tier); } catch {}
+};
+export const getFocusTier = (): FocusTier => {
+  try { return (localStorage.getItem(FOCUS_TIER_KEY) as FocusTier) || 'free'; } catch { return 'free'; }
+};
 
 const SkinsTab = ({ styles, handleBuySkin, handleEquipSkin, skinInventory, activeSkin }: any) => {
   const { t } = useTranslation();
@@ -462,35 +474,65 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const vipFeatures = [
-    'Premium Analytics: тарих пен графикалар',
+  const basicFeatures = [
+    'Жарнамасыз тыныш режим',
+    'Прогресс бұлтта сақталады',
+    'Күнделікті 1 challenge',
+    'Барлық негізгі ойындар ашық',
+  ];
+  const proFeatures = [
+    'Қолжетімдідегі барлығы',
+    'Premium Analytics: тарих + графикалар',
     'Leaderboard ішінде Gold шекара',
     'Аптасына 1 тегін турнир билеті',
-    'Жарнамасыз режим',
+    'Қосымша сахналар мен ойын типтері',
+  ];
+  const premiumFeatures = [
+    'Pro-дағы барлығы',
+    'Эксклюзив аватар және рамкалар',
+    'Приоритетті қолдау 24/7',
+    'Барлық болашақ жаңартулар тегін',
   ];
 
   const vipPlans = [
     {
-      id: 'monthly' as const,
-      name: 'VIP Monthly',
-      duration: '30 days',
-      badge: 'VIP',
-      priceLabel: MONTHLY_VIP_PRICE,
-      starsLabel: MONTHLY_VIP_STARS,
-      description: 'Ай сайынғы икемді жазылым',
-      highlight: 'Жылдам бастау',
+      id: 'basic' as const,
+      name: 'Қолжетімді',
+      duration: '365 days',
+      badge: 'BASIC',
+      priceLabel: BASIC_PRICE,
+      starsLabel: BASIC_STARS,
+      description: 'Жылдық негізгі жазылу',
+      highlight: 'Жылдық',
       popular: false,
+      isPremium: false,
+      features: basicFeatures,
     },
     {
-      id: 'yearly' as const,
-      name: 'VIP Yearly',
+      id: 'pro' as const,
+      name: 'Pro',
       duration: '365 days',
-      badge: 'BEST',
-      priceLabel: YEARLY_PASS_PRICE,
-      starsLabel: YEARLY_PASS_STARS,
-      description: '12 айға тиімді толық access',
-      highlight: 'Ең тиімді ұсыныс',
+      badge: 'ҮЗДІК ТАҢДАУ',
+      priceLabel: PRO_PRICE,
+      starsLabel: PRO_STARS,
+      description: 'Жылдық кеңейтілген access',
+      highlight: 'Ең танымал',
       popular: true,
+      isPremium: false,
+      features: proFeatures,
+    },
+    {
+      id: 'premium' as const,
+      name: 'Премиальный',
+      duration: '365 days',
+      badge: '👑 ПРЕМИАЛЬНЫЙ',
+      priceLabel: PREMIUM_PRICE,
+      starsLabel: PREMIUM_STARS,
+      description: 'Жылдық + машина ұтысы',
+      highlight: '🚗 Машина ұтысына билет',
+      popular: false,
+      isPremium: true,
+      features: premiumFeatures,
     },
   ];
   
@@ -555,71 +597,119 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {vipPlans.map((plan) => (
           <div
             key={plan.id}
             className={clsx(
               "p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden",
-              plan.popular
-                ? "bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-yellow-500/40 ring-2 ring-yellow-400 scale-105"
-                : "bg-white/50 dark:bg-black/30 border-amber-500/20 hover:border-amber-500/40"
+              plan.isPremium
+                ? "bg-gradient-to-br from-amber-500/25 via-yellow-500/15 to-rose-500/15 border-amber-400 ring-2 ring-amber-300 shadow-xl shadow-amber-500/30"
+                : plan.popular
+                  ? "bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-yellow-500/40 ring-2 ring-yellow-400 scale-[1.02]"
+                  : "bg-white/50 dark:bg-black/30 border-amber-500/20 hover:border-amber-500/40"
             )}
           >
-            {plan.popular && (
-              <div className="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-xl">
-                TOP VALUE
+            {(plan.popular || plan.isPremium) && (
+              <div className={clsx(
+                "absolute top-0 right-0 text-[10px] font-bold px-2 py-1 rounded-bl-xl",
+                plan.isPremium ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-stone-950" : "bg-yellow-500 text-white"
+              )}>
+                {plan.isPremium ? '👑 BEST' : 'TOP VALUE'}
               </div>
             )}
-            
+
             <div className="text-center mb-4">
               <div className={clsx(
-                "inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black tracking-[0.18em] mb-3",
-                plan.popular ? "bg-yellow-400 text-stone-950" : "bg-amber-500 text-white"
+                "inline-flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-black tracking-[0.18em] mb-3",
+                plan.isPremium
+                  ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-stone-950"
+                  : plan.popular
+                    ? "bg-yellow-400 text-stone-950"
+                    : "bg-amber-500 text-white"
               )}>
                 {plan.badge}
               </div>
-              <h3 className={clsx("text-xl font-black", plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100")}>
+              <h3 className={clsx(
+                "text-xl font-black",
+                plan.isPremium ? "text-amber-700 dark:text-amber-200" : plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100"
+              )}>
                 {plan.name}
               </h3>
-              <p className={clsx("text-sm", plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300")}>
-                ({plan.duration})
+              <p className={clsx(
+                "text-sm",
+                plan.isPremium ? "text-amber-600 dark:text-amber-300" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
+              )}>
+                (365 күн)
               </p>
-              <p className={clsx("text-xs mt-2", plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300")}>
+              <p className={clsx(
+                "text-xs mt-2",
+                plan.isPremium ? "text-amber-600 dark:text-amber-300" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
+              )}>
                 {plan.description}
               </p>
             </div>
-            
+
             <div className="text-center mb-4">
-              <div className={clsx("text-3xl font-black", plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100")}>
+              <div className={clsx(
+                "text-3xl font-black",
+                plan.isPremium ? "bg-gradient-to-b from-amber-300 to-yellow-600 bg-clip-text text-transparent" : plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100"
+              )}>
                 {plan.priceLabel}
               </div>
-              <div className={clsx("text-sm font-bold mt-1", plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300")}>
+              <div className={clsx(
+                "text-xs font-bold mt-1",
+                plan.isPremium ? "text-amber-500" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
+              )}>
                 {plan.starsLabel}
               </div>
-              <div className="text-xs font-bold text-emerald-500 mt-1">
+              <div className={clsx(
+                "text-xs font-bold mt-1",
+                plan.isPremium ? "text-amber-600 dark:text-amber-300" : "text-emerald-500"
+              )}>
                 {plan.highlight}
               </div>
             </div>
-            
+
+            {plan.isPremium && (
+              <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-400/50 bg-gradient-to-r from-amber-500/20 to-rose-500/10 p-3">
+                <div className="rounded-lg bg-amber-500/25 p-2">
+                  <Car size={20} className="text-amber-600 dark:text-amber-300" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-200">
+                    <Gift size={12} /> Машина ұтысы
+                  </div>
+                  <div className="mt-0.5 text-[11px] font-semibold leading-tight text-amber-600 dark:text-amber-300">
+                    Жылдық розыгрыштың қатысу билеті кіреді
+                  </div>
+                </div>
+              </div>
+            )}
+
             <ul className="space-y-2 mb-4">
-              {vipFeatures.map((feature, index) => (
-                <li key={index} className={clsx("text-xs flex items-start gap-2", plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300")}>
+              {plan.features.map((feature, index) => (
+                <li key={index} className={clsx(
+                  "text-xs flex items-start gap-2",
+                  plan.isPremium ? "text-amber-700 dark:text-amber-200" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
+                )}>
                   <span className="mt-0.5">✓</span>
                   {feature}
                 </li>
               ))}
             </ul>
-            
+
             <button
               onClick={() => onBuyPlan(plan.id)}
               className={clsx(
-              "w-full py-3 rounded-xl font-bold text-sm transition-all",
-              plan.popular
-                ? "bg-gradient-to-r from-yellow-400 to-orange-500 text-black hover:scale-105 shadow-lg shadow-yellow-500/30"
-                : "bg-amber-500 text-white hover:bg-amber-600"
-            )}>
-              {t('subscribe') || 'Subscribe'}
+                "w-full py-3 rounded-xl font-bold text-sm transition-all",
+                plan.isPremium
+                  ? "bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 text-stone-950 hover:scale-105 shadow-lg shadow-amber-500/40"
+                  : plan.popular
+                    ? "bg-gradient-to-r from-yellow-400 to-orange-500 text-black hover:scale-105 shadow-lg shadow-yellow-500/30"
+                    : "bg-amber-500 text-white hover:bg-amber-600"
+              )}>
+              {plan.isPremium ? 'Премиальный алу' : (t('subscribe') || 'Subscribe')}
             </button>
           </div>
         ))}
@@ -657,9 +747,13 @@ const ShopPage = () => {
   const handleBuyPlan = (plan: VipPurchaseOption) => {
     WebApp.HapticFeedback.notificationOccurred('success');
 
-    const price = plan === 'yearly' ? YEARLY_PASS_PRICE : MONTHLY_VIP_PRICE;
-
-    setPaymentModal({ title: plan === 'yearly' ? 'VIP YEARLY' : 'VIP MONTHLY', price });
+    const map = {
+      basic:   { title: 'BASIC YEARLY',   price: BASIC_PRICE },
+      pro:     { title: 'PRO YEARLY',     price: PRO_PRICE },
+      premium: { title: 'PREMIUM YEARLY', price: PREMIUM_PRICE },
+    } as const;
+    const picked = map[plan];
+    setPaymentModal({ title: picked.title, price: picked.price });
   };
 
   const handleBuySkin = (id: string, cost: number) => {
@@ -689,12 +783,12 @@ const ShopPage = () => {
   };
 
   return (
-    <div className={clsx("p-4 min-h-screen", bgClass)}>
-      <div className="flex items-center justify-between mb-6">
+    <div className={clsx("mobile-page p-4 min-h-screen", bgClass)}>
+      <div className="flex items-center justify-between mb-6 gap-3">
         <div className="flex items-center gap-3">
-          <h1 className={clsx("text-3xl font-bold", styles.textAccent)}>{t('shop')}</h1>
+          <h1 className={clsx("text-2xl sm:text-3xl font-bold", styles.textAccent)}>{t('shop')}</h1>
         </div>
-        <div className={clsx("flex items-center gap-2 px-4 py-2 rounded-full border", cardClass)}>
+        <div className={clsx("flex items-center gap-2 px-3 py-2 rounded-full border shrink-0", cardClass)}>
           <Coins size={20} className={styles.textAccent} fill="currentColor" />
           <span className={clsx("font-bold text-lg", styles.textPrimary)}>{coins}</span>
         </div>
@@ -704,7 +798,7 @@ const ShopPage = () => {
         <button
           onClick={() => setActiveTab('vip')}
           className={clsx(
-            "flex-1 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
+            "flex-1 min-h-[44px] py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
             getTabClass(activeTab === 'vip')
           )}
         >
@@ -714,7 +808,7 @@ const ShopPage = () => {
         <button
           onClick={() => setActiveTab('skins')}
           className={clsx(
-            "flex-1 py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
+            "flex-1 min-h-[44px] py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
             getTabClass(activeTab === 'skins')
           )}
         >
@@ -748,11 +842,17 @@ const ShopPage = () => {
         isOpen={!!paymentModal}
         onClose={() => {
           if (paymentModal) {
-            // VIP енді бір ғана premium жоспарымен сақталады.
-            if (paymentModal.title === 'VIP MONTHLY') {
-              upgradePlan('premium', MONTHLY_VIP_DURATION_DAYS);
-            } else if (paymentModal.title === 'VIP YEARLY') {
-              upgradePlan('premium', YEARLY_PASS_DURATION_DAYS);
+            // Barlyq tarif jyldyq (365 kun). Store-da "premium" flag-pen saqtaymyz,
+            // al naqty tier (basic/pro/premium) — game gating ushin localStorage-te.
+            if (paymentModal.title === 'BASIC YEARLY') {
+              upgradePlan('premium', YEARLY_DURATION_DAYS);
+              setFocusTier('basic');
+            } else if (paymentModal.title === 'PRO YEARLY') {
+              upgradePlan('premium', YEARLY_DURATION_DAYS);
+              setFocusTier('pro');
+            } else if (paymentModal.title === 'PREMIUM YEARLY') {
+              upgradePlan('premium', YEARLY_DURATION_DAYS);
+              setFocusTier('premium');
             }
           }
           setPaymentModal(null);

@@ -73,6 +73,7 @@ export default function Tournaments() {
   const user = useStore((state) => state.user);
   const tournament = useStore((state) => state.tournament);
   const joinTournament = useStore((state) => state.joinTournament);
+  const tournamentTickets = useStore((state) => state.tournamentTickets);
 
   const schedule = useMemo(() => getTournamentSchedule(), []);
   const isVip = plan === 'premium';
@@ -101,7 +102,7 @@ export default function Tournaments() {
 
   const currentUserRank = leaderboard.find((player) => player.isCurrentUser);
 
-  const handleJoin = (paymentMethod: 'stars' | 'ton' | 'vip') => {
+  const handleJoin = (paymentMethod: 'stars' | 'ton' | 'vip' | 'ticket') => {
     const result = joinTournament(paymentMethod);
     setFeedback(result.message);
 
@@ -113,7 +114,7 @@ export default function Tournaments() {
   };
 
   return (
-    <div className={clsx('min-h-screen px-4 pb-24 pt-6', styles.bgClass)}>
+    <div className={clsx('mobile-page min-h-screen px-4 pt-4 sm:pt-6', styles.bgClass)}>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
         <section className={clsx('overflow-hidden p-5', styles.panelClass)}>
           <div className="flex items-start justify-between gap-4">
@@ -123,7 +124,7 @@ export default function Tournaments() {
                 Weekly Tournament
               </div>
               <div>
-                <h1 className={clsx('text-3xl font-black', styles.textPrimary)}>Апталық турнир</h1>
+                <h1 className={clsx('text-2xl sm:text-3xl font-black', styles.textPrimary)}>Апталық турнир</h1>
                 <p className={clsx('mt-2 max-w-xl text-sm leading-6', styles.textSecondary)}>
                   Турнир жұма күні ашылып, жексенбіде жабылады. Қатысушылар 3 ойын ойнайды, ал финалдық орын
                   турнирлік Brain Score арқылы анықталады.
@@ -182,7 +183,7 @@ export default function Tournaments() {
                 onClick={() => handleJoin('stars')}
                 disabled={!schedule.isOpen || joinedCurrentWeek}
                 className={clsx(
-                  'rounded-2xl px-4 py-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
+                  'rounded-2xl px-4 py-4 min-h-[44px] text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
                   styles.btnPrimary
                 )}
               >
@@ -199,7 +200,7 @@ export default function Tournaments() {
                 onClick={() => handleJoin('ton')}
                 disabled={!schedule.isOpen || joinedCurrentWeek}
                 className={clsx(
-                  'rounded-2xl px-4 py-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
+                  'rounded-2xl px-4 py-4 min-h-[44px] text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
                   styles.btnSecondary
                 )}
               >
@@ -212,12 +213,42 @@ export default function Tournaments() {
               </button>
             </div>
 
+            {tournamentTickets > 0 ? (
+              <button
+                type="button"
+                onClick={() => handleJoin('ticket')}
+                disabled={!schedule.isOpen || joinedCurrentWeek}
+                className={clsx(
+                  'w-full rounded-2xl border px-4 py-4 min-h-[44px] text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
+                  'border-purple-400/30 bg-purple-500/10'
+                )}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-purple-200">
+                      <Trophy size={16} />
+                      Ticket entry
+                    </div>
+                    <div className={clsx('mt-2 text-lg font-black', styles.textPrimary)}>
+                      Тегін кіру
+                    </div>
+                    <div className={clsx('mt-1 text-xs', styles.textSecondary)}>
+                      Қолыңызда: {tournamentTickets} ticket
+                    </div>
+                  </div>
+                  <div className="rounded-2xl bg-purple-400/15 p-3 text-purple-200">
+                    <Trophy size={20} />
+                  </div>
+                </div>
+              </button>
+            ) : null}
+
             <button
               type="button"
               onClick={() => handleJoin('vip')}
               disabled={!schedule.isOpen || joinedCurrentWeek || !isVip || vipUsedThisWeek}
               className={clsx(
-                'w-full rounded-2xl border px-4 py-4 text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
+                'w-full rounded-2xl border px-4 py-4 min-h-[44px] text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
                 isVip ? 'border-emerald-400/30 bg-emerald-500/10' : styles.cardClass
               )}
             >
@@ -292,7 +323,7 @@ export default function Tournaments() {
               <button
                 type="button"
                 onClick={() => navigate('/daily-workout')}
-                className={clsx('mt-4 w-full rounded-2xl px-4 py-3 font-bold', styles.btnPrimary)}
+                className={clsx('mt-4 w-full rounded-2xl px-4 py-3 min-h-[44px] font-bold', styles.btnPrimary)}
               >
                 Ойындарды бастау
               </button>
@@ -358,16 +389,16 @@ export default function Tournaments() {
               <div
                 key={player.id}
                 className={clsx(
-                  'flex items-center justify-between rounded-2xl border p-4',
+                  'flex items-center justify-between gap-3 rounded-2xl border p-3 sm:p-4',
                   player.isCurrentUser ? 'border-blue-400/30 bg-blue-500/10' : 'border-white/5',
                   styles.cardClass
                 )}
               >
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 min-w-0">
                   <div className={clsx('w-8 text-center text-lg font-black', styles.textPrimary)}>{player.rank}</div>
                   <img src={player.avatar} alt={player.name} className="h-11 w-11 rounded-2xl object-cover" />
-                  <div>
-                    <div className={clsx('font-bold', styles.textPrimary)}>
+                  <div className="min-w-0">
+                    <div className={clsx('font-bold truncate', styles.textPrimary)}>
                       {player.name}
                       {player.isCurrentUser ? ' (Сіз)' : ''}
                     </div>

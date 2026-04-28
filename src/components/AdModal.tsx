@@ -52,7 +52,7 @@ const AdModal = ({ isOpen, onClose, onComplete, reward }: AdModalProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+    <div className="modal-shell fixed inset-0 z-[200] flex items-center justify-center p-4">
       <div 
         className={clsx(
           "absolute inset-0 bg-black/70 backdrop-blur-sm",
@@ -60,7 +60,7 @@ const AdModal = ({ isOpen, onClose, onComplete, reward }: AdModalProps) => {
         )}
         onClick={canClose ? handleClose : undefined}
       />
-      <div className="relative w-full max-w-sm bg-gray-900 rounded-2xl shadow-2xl overflow-hidden border border-white/10">
+      <div className="modal-card relative w-full max-w-sm bg-gray-900 rounded-2xl shadow-2xl overflow-hidden border border-white/10 flex flex-col">
         <div className="p-4 flex items-center justify-between border-b border-white/10">
           <div className="flex items-center gap-2">
             <Video size={20} className="text-yellow-400" />
@@ -70,7 +70,7 @@ const AdModal = ({ isOpen, onClose, onComplete, reward }: AdModalProps) => {
             onClick={handleClose}
             disabled={!canClose}
             className={clsx(
-              "p-1 rounded-full transition-colors",
+              "p-2 min-h-[44px] min-w-[44px] rounded-full transition-colors",
               canClose ? "hover:bg-white/10" : "opacity-50 cursor-not-allowed"
             )}
           >
@@ -78,7 +78,7 @@ const AdModal = ({ isOpen, onClose, onComplete, reward }: AdModalProps) => {
           </button>
         </div>
 
-        <div className="p-6 flex flex-col items-center">
+        <div className="p-5 sm:p-6 flex flex-col items-center overflow-y-auto">
           <div className="w-32 h-32 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mb-4 shadow-lg">
             <Video size={48} className="text-white" />
           </div>
@@ -109,7 +109,7 @@ const AdModal = ({ isOpen, onClose, onComplete, reward }: AdModalProps) => {
             onClick={handleClose}
             disabled={!canClose}
             className={clsx(
-              "w-full py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2",
+              "w-full min-h-[44px] py-3 rounded-xl font-medium transition-all flex items-center justify-center gap-2",
               canClose 
                 ? "bg-gradient-to-r from-yellow-400 to-orange-500 text-black hover:scale-105 active:scale-95" 
                 : "bg-white/10 text-white/50 cursor-not-allowed"

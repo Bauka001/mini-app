@@ -20,16 +20,16 @@ export default function AnalyticsPage() {
   const analytics = useMemo(() => buildVipAnalyticsSnapshot(history || [], brainStats), [brainStats, history]);
 
   return (
-    <div className={clsx('min-h-screen px-4 pb-24 pt-5', styles.bgClass)}>
+    <div className={clsx('mobile-page min-h-screen px-4 pt-4 sm:pt-5', styles.bgClass)}>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
         <header className={clsx('rounded-[32px] border p-5 relative overflow-hidden', styles.panelClass)}>
           <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/10 via-transparent to-cyan-400/10 pointer-events-none" />
-          <div className="relative z-10 flex items-start justify-between gap-4">
-            <div className="flex items-start gap-3">
+          <div className="relative z-10 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3 min-w-0">
               <button
                 type="button"
                 onClick={() => navigate(-1)}
-                className={clsx('rounded-2xl p-3 transition-colors', styles.cardClass)}
+                className={clsx('rounded-2xl p-3 min-h-[44px] min-w-[44px] transition-colors', styles.cardClass)}
               >
                 <ArrowLeft size={20} className={styles.textPrimary} />
               </button>
@@ -38,14 +38,14 @@ export default function AnalyticsPage() {
                   <Crown size={14} />
                   VIP Analytics
                 </div>
-                <h1 className={clsx('mt-3 text-3xl font-black', styles.textPrimary)}>Brain Score аналитикасы</h1>
+                <h1 className={clsx('mt-3 text-2xl sm:text-3xl font-black', styles.textPrimary)}>Brain Score аналитикасы</h1>
                 <p className={clsx('mt-2 max-w-2xl text-sm leading-6', styles.textSecondary)}>
                   Бұл бет VIP сатылымының негізгі нүктесі: ойыншы өз динамикасын, gold мәртебесін және турнирге дайындық деңгейін осы жерден көреді.
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-3 w-full lg:w-auto">
               <div className={clsx('rounded-2xl px-4 py-3', styles.cardClass)}>
                 <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>Статус</div>
                 <div className={clsx('mt-1 text-sm font-black', styles.textPrimary)}>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
@@ -14,7 +15,13 @@ import { GameWrapper } from '../../components/GameWrapper';
 import { useStore } from '../../store/useStoreImpl';
 import type { Language, Theme } from '../../store/useStore';
 import { soundManager } from '../../utils/soundManager';
-import { hapticFeedback } from '../../utils/telegram';
+import { Difficulty, DIFFICULTY_COIN_MULT } from '../../types/games';
+import { useGameTimer } from '../../hooks/useGameTimer';
+import { useLocalBest } from '../../hooks/useLocalBest';
+import { useHaptic } from '../../hooks/useHaptic';
+import { useGameSettings } from '../../store/gameSettings';
+import { DifficultySelector } from '../../components/games/DifficultySelector';
+import { GameHUD } from '../../components/games/GameHUD';
 
 type TieColor = {
   id: string;
@@ -83,8 +90,16 @@ type CopySet = {
   earpieceOff: string;
 };
 
-const INITIAL_TIME = 45;
-const MAX_TIME = 55;
+const GAME_ID = 'agent_spot';
+
+const DIFFICULTY_CONFIG: Record<
+  Difficulty,
+  { timeMs: number; startSize: number; maxSize: number; gracePeriodMs: number }
+> = {
+  easy:   { timeMs: 60_000, startSize: 3, maxSize: 4, gracePeriodMs: 1500 },
+  medium: { timeMs: 60_000, startSize: 4, maxSize: 5, gracePeriodMs: 1000 },
+  hard:   { timeMs: 45_000, startSize: 5, maxSize: 6, gracePeriodMs: 600 },
+};
 
 const COPY: Record<Language, CopySet> = {
   en: {
@@ -562,7 +577,13 @@ const AgentSpotBoard = ({
   language: Language;
 }) => {
   const copy = useMemo(() => COPY[language] || COPY.en, [language]);
-  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
+  const storedDifficulty = useGameSettings(s => s.difficultyPrefs[GAME_ID] ?? 'medium');
+  const setStoredDifficulty = useGameSettings(s => s.setDifficulty);
+  const [difficulty, setDifficulty] = useState<Difficulty>(storedDifficulty);
+  const config = DIFFICULTY_CONFIG[difficulty];
+  const { best, submit } = useLocalBest(GAME_ID, difficulty);
+  const haptic = useHaptic();
+
   const [score, setScore] = useState(0);
   const [round, setRound] = useState(1);
   const [combo, setCombo] = useState(0);
@@ -576,11 +597,22 @@ const AgentSpotBoard = ({
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   const [mistakeId, setMistakeId] = useState<string | null>(null);
 
-  const timerRef = useRef<number | null>(null);
   const endRef = useRef(false);
   const roundStartedAtRef = useRef(Date.now());
 
   const accuracy = hits + misses > 0 ? Math.round((hits / (hits + misses)) * 100) : 100;
+
+  const { timeLeftMs, reset: resetTimer } = useGameTimer({
+    durationMs: config.timeMs,
+    tickMs: 100,
+    isActive: !briefingVisible && !isPaused,
+    isPaused: isPaused,
+    onExpire: () => {
+      endRef.current = true;
+      const finalCoins = Math.max(12, Math.round(score / 220) + Math.floor(bestCombo * 1.5));
+      onFinish(score, finalCoins);
+    },
+  });
 
   const queueNextRound = useCallback(
     (nextRound: number) => {
@@ -593,14 +625,9 @@ const AgentSpotBoard = ({
       setSelectionLocked(true);
       roundStartedAtRef.current = Date.now();
 
-      if (timerRef.current) {
-        window.clearTimeout(timerRef.current);
-      }
-
       const revealMs = Math.max(520, 980 - nextRound * 32);
-      timerRef.current = window.setTimeout(() => {
+      window.setTimeout(() => {
         setBriefingVisible(false);
-        setSelectionLocked(false);
         roundStartedAtRef.current = Date.now();
       }, revealMs);
     },
@@ -609,49 +636,20 @@ const AgentSpotBoard = ({
 
   useEffect(() => {
     queueNextRound(1);
-    return () => {
-      if (timerRef.current) {
-        window.clearTimeout(timerRef.current);
-      }
-    };
-  }, [queueNextRound]);
+  }, []);
 
   useEffect(() => {
-    if (isPaused || endRef.current) return undefined;
+    setLastFeedback(timeLeftMs < 8000 ? copy.pressure : copy.fastScan);
+  }, [copy.fastScan, copy.pressure, timeLeftMs]);
 
-    const interval = window.setInterval(() => {
-      setTimeLeft((previous) => {
-        if (previous <= 0.1) {
-          window.clearInterval(interval);
-          return 0;
-        }
-        return previous - 0.1;
-      });
-    }, 100);
-
-    return () => window.clearInterval(interval);
-  }, [isPaused]);
-
-  useEffect(() => {
-    if (endRef.current || timeLeft > 0) return;
-    endRef.current = true;
-    const finalCoins = Math.max(12, Math.round(score / 220) + Math.floor(bestCombo * 1.5));
-    onFinish(score, finalCoins);
-  }, [bestCombo, onFinish, score, timeLeft]);
-
-  useEffect(() => {
-    setLastFeedback(timeLeft < 8 ? copy.pressure : copy.fastScan);
-  }, [copy.fastScan, copy.pressure, timeLeft]);
-
-  const handleCardSelect = (card: AgentCard) => {
+  const handleCardSelect = useCallback((card: AgentCard) => {
     if (selectionLocked || briefingVisible || endRef.current) return;
 
     const isCorrect = card.id === currentRound.answerId;
 
     if (isCorrect) {
-      hapticFeedback.notification('success');
+      haptic.notification('success');
       void soundManager.playSuccess();
-      setSelectionLocked(true);
       setHits((previous) => previous + 1);
       setHighlightedId(card.id);
 
@@ -664,24 +662,23 @@ const AgentSpotBoard = ({
       setCombo(nextCombo);
       setBestCombo((previous) => Math.max(previous, nextCombo));
       setScore((previous) => previous + gainedScore);
-      setTimeLeft((previous) => Math.min(MAX_TIME, previous + 1.35));
       setLastFeedback(nextCombo >= 4 ? copy.targetLock : copy.fastScan);
 
       window.setTimeout(() => {
+        setSelectionLocked(false);
         queueNextRound(round + 1);
       }, 320);
 
       return;
     }
 
-    hapticFeedback.impact('heavy');
+    haptic.impact('heavy');
     void soundManager.playError();
     setMisses((previous) => previous + 1);
     setCombo(0);
     setMistakeId(card.id);
     setHighlightedId(currentRound.answerId);
     setSelectionLocked(true);
-    setTimeLeft((previous) => Math.max(0, previous - 2.4));
     setLastFeedback(copy.badTap);
 
     window.setTimeout(() => {
@@ -689,7 +686,7 @@ const AgentSpotBoard = ({
       setHighlightedId(null);
       setSelectionLocked(false);
     }, 480);
-  };
+  }, [selectionLocked, briefingVisible, combo, currentRound.answerId, copy.targetLock, copy.fastScan, copy.badTap, haptic, queueNextRound, round]);
 
   return (
     <div
@@ -703,6 +700,42 @@ const AgentSpotBoard = ({
       <div className="pointer-events-none absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:24px_24px]" />
 
       <div className="relative z-10 mx-auto flex h-full w-full max-w-md flex-col">
+        <div className="w-full max-w-md mx-auto z-10 mb-4">
+          <GameHUD
+            score={score}
+            timeLeftSec={timeLeftMs / 1000}
+            timeTotalSec={config.timeMs / 1000}
+            best={best}
+            combo={combo}
+            showSoundToggle
+            showHapticToggle
+          />
+        </div>
+
+        <motion.div
+          className="mb-4 flex flex-col items-center z-10 w-full gap-3"
+          initial={{ y: -10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+        >
+          <DifficultySelector
+            value={difficulty}
+            onChange={(next: Difficulty) => {
+              setStoredDifficulty(GAME_ID, next);
+              setDifficulty(next);
+              setRound(1);
+              setScore(0);
+              setCombo(0);
+              setBestCombo(0);
+              setHits(0);
+              setMisses(0);
+              resetTimer();
+              queueNextRound(1);
+            }}
+            size="sm"
+            disabled={!briefingVisible || selectionLocked}
+          />
+        </motion.div>
+
         <div className="rounded-[28px] border border-white/10 bg-black/18 p-4 backdrop-blur-xl">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -721,35 +754,6 @@ const AgentSpotBoard = ({
                 {copy.round}
               </div>
               <div className="mt-1 text-lg font-black text-white">{round}</div>
-            </div>
-          </div>
-
-          <div className="mt-4 grid grid-cols-4 gap-2">
-            <div className="rounded-2xl border border-white/8 bg-white/6 px-3 py-2">
-              <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">{copy.score}</div>
-              <div className="mt-1 text-base font-black text-white">{score}</div>
-            </div>
-            <div className="rounded-2xl border border-white/8 bg-white/6 px-3 py-2">
-              <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">{copy.combo}</div>
-              <div className="mt-1 text-base font-black text-white">x{combo}</div>
-            </div>
-            <div className="rounded-2xl border border-white/8 bg-white/6 px-3 py-2">
-              <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">{copy.accuracy}</div>
-              <div className="mt-1 text-base font-black text-white">{accuracy}%</div>
-            </div>
-            <div
-              className={clsx(
-                'rounded-2xl border px-3 py-2',
-                timeLeft < 8 ? 'border-red-400/35 bg-red-400/12' : 'border-white/8 bg-white/6'
-              )}
-            >
-              <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">
-                <TimerReset size={11} />
-                {copy.timer}
-              </div>
-              <div className={clsx('mt-1 text-base font-black', timeLeft < 8 ? 'text-red-300' : 'text-white')}>
-                {timeLeft.toFixed(1)}
-              </div>
             </div>
           </div>
 
@@ -784,21 +788,36 @@ const AgentSpotBoard = ({
         )}
 
         <div
+          role="grid"
+          aria-label="Agent selection grid"
           className={clsx(
             'relative mt-4 grid flex-1 content-start gap-3 pb-1',
             currentRound.gridColumns === 2 ? 'grid-cols-2' : 'grid-cols-3'
           )}
         >
           {currentRound.cards.map((card) => (
-            <AgentPortraitCard
+            <motion.div
               key={card.id}
-              card={card}
-              disabled={selectionLocked || briefingVisible}
-              onSelect={() => handleCardSelect(card)}
-              isCorrect={highlightedId === card.id && card.id === currentRound.answerId}
-              isMistake={mistakeId === card.id}
-              isRevealed={highlightedId === card.id}
-            />
+              role="gridcell"
+              onClick={() => handleCardSelect(card)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleCardSelect(card);
+                }
+              }}
+              tabIndex={selectionLocked || briefingVisible ? -1 : 0}
+              className="cursor-pointer focus:outline-none focus:ring-2 focus:ring-cyan-300 rounded-[28px]"
+            >
+              <AgentPortraitCard
+                card={card}
+                disabled={selectionLocked || briefingVisible}
+                onSelect={() => handleCardSelect(card)}
+                isCorrect={highlightedId === card.id && card.id === currentRound.answerId}
+                isMistake={mistakeId === card.id}
+                isRevealed={highlightedId === card.id}
+              />
+            </motion.div>
           ))}
         </div>
 
@@ -821,32 +840,28 @@ const AgentSpotBoard = ({
   );
 };
 
-export default function AgentSpotGame() {
-  const addGameResult = useStore((state) => state.addGameResult);
-  const theme = useStore((state) => state.theme);
-  const language = useStore((state) => state.language);
-  const copy = COPY[language] || COPY.en;
+export const AgentSpotGame = () => {
+  const { t } = useTranslation();
+  const { addGameResult, theme, language } = useStore();
 
   return (
-    <GameWrapper title={copy.title} instructions={copy.instructions}>
+    <GameWrapper
+      title={t('game_agent_spot', 'Agent Spot')}
+      instructions={t('agent_spot_desc', 'Scan the suspects and tap the fake badge, intruder or suspicious clue before time runs out.')}
+    >
       {({ onEnd, isPaused }) => (
         <AgentSpotBoard
           isPaused={isPaused}
           theme={theme}
           language={language}
           onFinish={(score, coins) => {
-            setTimeout(() => {
-              addGameResult({
-                gameId: 'agent_spot',
-                score,
-                coinsEarned: coins,
-              });
-            }, 0);
-
-            onEnd(`${score} ${copy.resultsSuffix}`, coins);
+            queueMicrotask(() => addGameResult({ gameId: GAME_ID, score, coinsEarned: coins }));
+            onEnd(score, coins);
           }}
         />
       )}
     </GameWrapper>
   );
-}
+};
+
+export default AgentSpotGame;

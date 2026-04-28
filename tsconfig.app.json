@@ -23,6 +23,5 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
-  "exclude": ["src/pages/Guilds.tsx"]
+  "include": ["src"]
 }

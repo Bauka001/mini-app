@@ -1,0 +1,2040 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a0f08">
+<title>Көзқырағы — Focus Game</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-1: #1a0f08;
+    --bg-2: #2b1810;
+    --bg-3: #4a2c1a;
+    --bg-glow: #7a4824;
+    --sky-1: #f4b860;
+    --sky-2: #e87a4c;
+    --sky-3: #8b3a3a;
+    --accent: #d4a84b;
+    --accent-soft: #f5d98e;
+    --card: #fef6e4;
+    --card-dark: #f5e6c8;
+    --text: #2b1810;
+    --text-soft: #6b4423;
+    --gold: #d4a84b;
+    --gold-dark: #a8842e;
+    --success: #6b9e4a;
+    --success-glow: rgba(107, 158, 74, 0.45);
+    --danger: #c14949;
+    --danger-glow: rgba(193, 73, 73, 0.4);
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 6px 20px rgba(26, 15, 8, 0.4);
+    --shadow-lg: 0 12px 32px rgba(26, 15, 8, 0.5);
+    --shadow-inner: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -2px 4px rgba(0, 0, 0, 0.12);
+    --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-feature-settings: "ss01", "cv11";
+    background: var(--bg-1);
+    color: var(--text);
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #app {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-width: 500px;
+    margin: 0 auto;
+    overflow: hidden;
+    background: var(--bg-1);
+  }
+
+  /* === GLOBAL BACKDROP (steppe parallax) === */
+  .backdrop {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .backdrop .sky {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 55% at 72% 12%, rgba(244, 184, 96, 0.28), transparent 62%),
+      radial-gradient(ellipse 120% 80% at 50% 110%, rgba(232, 122, 76, 0.18), transparent 60%),
+      linear-gradient(180deg, #130a05 0%, #2b1810 45%, #4a2c1a 100%);
+  }
+  .backdrop .sun {
+    position: absolute;
+    top: 8%;
+    right: 14%;
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, #fff3cf 0%, #f4b860 35%, rgba(232, 122, 76, 0.4) 65%, transparent 75%);
+    filter: blur(0.5px);
+    animation: sunPulse 6s ease-in-out infinite;
+  }
+  @keyframes sunPulse {
+    0%, 100% { opacity: 0.95; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+  }
+  .backdrop svg.layer {
+    position: absolute;
+    bottom: 0;
+    left: -5%;
+    width: 110%;
+    will-change: transform;
+    transition: transform 0.4s var(--ease-out);
+  }
+  .backdrop .layer-far    { bottom: 22%; opacity: 0.55; }
+  .backdrop .layer-mid    { bottom: 10%; opacity: 0.75; }
+  .backdrop .layer-near   { bottom: 0;   opacity: 1;    }
+  .backdrop .grain {
+    position: absolute;
+    inset: 0;
+    opacity: 0.07;
+    mix-blend-mode: overlay;
+    pointer-events: none;
+  }
+  .backdrop .bird {
+    position: absolute;
+    top: 18%;
+    left: 12%;
+    width: 44px;
+    opacity: 0.35;
+    animation: drift 18s linear infinite;
+  }
+  @keyframes drift {
+    0%   { transform: translate(0, 0); }
+    50%  { transform: translate(260px, 30px); }
+    100% { transform: translate(0, 0); }
+  }
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    padding: 20px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    z-index: 1;
+    animation: fadeIn 0.35s var(--ease-out);
+  }
+  .screen.active { display: flex; }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* === HOME SCREEN === */
+  #home-screen {
+    justify-content: space-between;
+    align-items: center;
+    text-align: center;
+  }
+
+  .home-top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    margin-top: 36px;
+    position: relative;
+  }
+
+  .logo-eagle {
+    width: 96px;
+    height: 96px;
+    filter: drop-shadow(0 8px 24px rgba(244, 184, 96, 0.35)) drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    animation: eagleSway 5s ease-in-out infinite;
+    transform-origin: 50% 85%;
+  }
+  @keyframes eagleSway {
+    0%, 100% { transform: rotate(-2.5deg) translateY(0); }
+    50%      { transform: rotate(2.5deg) translateY(-6px); }
+  }
+
+  .title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 900;
+    font-size: 40px;
+    color: var(--sky-1);
+    letter-spacing: 2px;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6), 0 0 28px rgba(244, 184, 96, 0.2);
+    line-height: 1;
+  }
+
+  .title-accent {
+    font-family: 'Inter', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 5px;
+    color: var(--accent-soft);
+    opacity: 0.7;
+    text-transform: uppercase;
+    margin-top: -2px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: var(--card-dark);
+    opacity: 0.78;
+    max-width: 280px;
+    line-height: 1.55;
+    font-weight: 400;
+  }
+
+  .home-middle {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    max-width: 340px;
+  }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-around;
+    background: linear-gradient(180deg, rgba(254, 246, 228, 0.09) 0%, rgba(254, 246, 228, 0.04) 100%);
+    border: 1px solid rgba(244, 184, 96, 0.2);
+    border-radius: 20px;
+    padding: 18px 14px;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: var(--shadow-md), var(--shadow-inner);
+  }
+  .stat-item { text-align: center; flex: 1; position: relative; }
+  .stat-item + .stat-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 20%;
+    bottom: 20%;
+    width: 1px;
+    background: linear-gradient(180deg, transparent, rgba(244, 184, 96, 0.25), transparent);
+  }
+  .stat-val {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--sky-1);
+    line-height: 1;
+  }
+  .stat-lbl {
+    font-size: 10px;
+    color: var(--card-dark);
+    opacity: 0.6;
+    margin-top: 6px;
+    letter-spacing: 1.5px;
+    font-weight: 600;
+  }
+
+  .home-bottom {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 340px;
+    margin-bottom: 16px;
+  }
+
+  /* === BUTTONS === */
+  .btn {
+    border: none;
+    border-radius: 16px;
+    padding: 18px 24px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s var(--spring), box-shadow 0.2s var(--ease-out), filter 0.2s;
+    font-family: inherit;
+    letter-spacing: 0.3px;
+    position: relative;
+    overflow: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.96); }
+  .btn:focus-visible,
+  .level-card:focus-visible,
+  .pack-card:focus-visible,
+  .q-option:focus-visible,
+  .back-btn:focus-visible {
+    outline: 2px solid var(--sky-1);
+    outline-offset: 3px;
+  }
+
+  .btn-primary {
+    background: linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 100%);
+    color: #2b1810;
+    box-shadow: var(--shadow-md), var(--shadow-inner), 0 0 0 1px rgba(255, 235, 180, 0.3) inset;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+  .btn-primary::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, transparent 45%);
+    pointer-events: none;
+  }
+  .btn-primary:active { filter: brightness(0.95); }
+
+  .btn-secondary {
+    background: rgba(254, 246, 228, 0.08);
+    color: var(--card);
+    border: 1px solid rgba(244, 184, 96, 0.25);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+  .btn-secondary:active { background: rgba(254, 246, 228, 0.14); }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--card-dark);
+    font-size: 13px;
+    font-weight: 500;
+    padding: 12px;
+    opacity: 0.72;
+  }
+  .btn-ghost:active { opacity: 1; }
+
+  .btn-pack {
+    background: linear-gradient(180deg, rgba(212, 168, 75, 0.18) 0%, rgba(212, 168, 75, 0.08) 100%);
+    color: var(--accent-soft);
+    border: 1px solid rgba(212, 168, 75, 0.45);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .btn-pack:active { background: rgba(212, 168, 75, 0.28); }
+  .pack-spark {
+    color: var(--gold);
+    font-size: 14px;
+    animation: sparkSpin 3s linear infinite;
+    display: inline-block;
+  }
+  @keyframes sparkSpin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  .pack-pill {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--gold) 0%, var(--gold-dark) 100%);
+    color: #1a0f08;
+    box-shadow: 0 2px 6px rgba(212, 168, 75, 0.4);
+  }
+
+  .btn-gold {
+    background: linear-gradient(180deg, #f5d98e 0%, var(--gold) 45%, var(--gold-dark) 100%);
+    color: #1a0f08;
+    box-shadow: 0 8px 22px rgba(212, 168, 75, 0.45), inset 0 1px 0 rgba(255, 245, 210, 0.55);
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.2);
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-gold::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -60%;
+    width: 40%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+    transform: skewX(-20deg);
+    animation: goldShimmer 3.2s ease-in-out infinite;
+  }
+  @keyframes goldShimmer {
+    0%   { left: -60%; }
+    55%  { left: 120%; }
+    100% { left: 120%; }
+  }
+
+  /* === PACKAGES SCREEN === */
+  #packages-screen {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .pack-intro {
+    text-align: center;
+    margin-bottom: 18px;
+  }
+  .pack-intro-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--card);
+    letter-spacing: 0.3px;
+    margin-bottom: 4px;
+  }
+  .pack-intro-sub {
+    font-size: 12px;
+    color: var(--card-dark);
+    opacity: 0.7;
+    letter-spacing: 0.4px;
+  }
+
+  .pack-list {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    overflow-y: auto;
+    padding: 4px 2px 16px;
+    scrollbar-width: none;
+  }
+  .pack-list::-webkit-scrollbar { display: none; }
+
+  .pack-card {
+    background: linear-gradient(180deg, rgba(254, 246, 228, 0.08) 0%, rgba(254, 246, 228, 0.03) 100%);
+    border: 1px solid rgba(244, 184, 96, 0.2);
+    border-radius: 22px;
+    padding: 20px 18px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-md);
+    position: relative;
+    overflow: hidden;
+    animation: packIn 0.45s var(--spring) backwards;
+  }
+  .pack-card:nth-child(1) { animation-delay: 0.05s; }
+  .pack-card:nth-child(2) { animation-delay: 0.15s; }
+  .pack-card:nth-child(3) { animation-delay: 0.25s; }
+  @keyframes packIn {
+    from { opacity: 0; transform: translateY(14px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .pack-card.pack-pro {
+    border-color: rgba(244, 184, 96, 0.55);
+    background: linear-gradient(180deg, rgba(244, 184, 96, 0.14) 0%, rgba(232, 122, 76, 0.06) 100%);
+    box-shadow: 0 10px 28px rgba(244, 184, 96, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+
+  .pack-card.pack-premium {
+    border: 1.5px solid var(--gold);
+    background:
+      radial-gradient(ellipse 100% 60% at 50% 0%, rgba(245, 217, 142, 0.22), transparent 70%),
+      linear-gradient(180deg, rgba(212, 168, 75, 0.16) 0%, rgba(139, 58, 58, 0.08) 100%);
+    box-shadow: 0 14px 36px rgba(212, 168, 75, 0.3), inset 0 1px 0 rgba(255, 245, 210, 0.14);
+  }
+  .pack-card.pack-premium::before {
+    content: '';
+    position: absolute;
+    top: -50%; left: -20%;
+    width: 140%; height: 80%;
+    background: radial-gradient(ellipse, rgba(245, 217, 142, 0.12), transparent 60%);
+    pointer-events: none;
+    animation: premiumGlow 5s ease-in-out infinite;
+  }
+  @keyframes premiumGlow {
+    0%, 100% { opacity: 0.5; transform: translateX(-8%); }
+    50%      { opacity: 1; transform: translateX(8%); }
+  }
+
+  .pack-badge {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: linear-gradient(180deg, var(--sky-1) 0%, var(--sky-2) 100%);
+    color: #1a0f08;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    padding: 5px 10px;
+    border-radius: 10px;
+    box-shadow: 0 3px 10px rgba(244, 184, 96, 0.4);
+  }
+  .pack-badge-gold {
+    background: linear-gradient(180deg, #f5d98e 0%, var(--gold) 100%);
+  }
+
+  .pack-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .pack-name {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--card);
+    letter-spacing: 0.5px;
+  }
+  .pack-premium .pack-name { color: var(--accent-soft); }
+  .pack-icon {
+    font-size: 32px;
+    filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.3));
+  }
+
+  .pack-price {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px dashed rgba(244, 184, 96, 0.2);
+  }
+  .pack-amount {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 34px;
+    font-weight: 800;
+    color: var(--sky-1);
+    letter-spacing: -0.5px;
+  }
+  .pack-premium .pack-amount {
+    background: linear-gradient(180deg, #f5d98e 0%, var(--gold) 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .pack-curr {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--sky-1);
+  }
+  .pack-premium .pack-curr { color: var(--gold); }
+  .pack-period {
+    font-size: 13px;
+    color: var(--card-dark);
+    opacity: 0.65;
+    margin-left: 4px;
+    font-weight: 500;
+  }
+
+  .pack-highlight {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+    background: linear-gradient(90deg, rgba(212, 168, 75, 0.22) 0%, rgba(139, 58, 58, 0.1) 100%);
+    border: 1px solid rgba(245, 217, 142, 0.35);
+    border-radius: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .pack-highlight-icon {
+    font-size: 30px;
+    filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.35));
+    flex-shrink: 0;
+  }
+  .pack-highlight-body { flex: 1; }
+  .pack-highlight-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--accent-soft);
+    letter-spacing: 0.3px;
+    margin-bottom: 2px;
+  }
+  .pack-highlight-sub {
+    font-size: 11px;
+    color: var(--card-dark);
+    opacity: 0.75;
+    line-height: 1.35;
+  }
+
+  .pack-feats {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .pack-feats li {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--card);
+    line-height: 1.4;
+    opacity: 0.92;
+  }
+  .pack-feats b { color: var(--accent-soft); font-weight: 700; }
+  .tick {
+    flex-shrink: 0;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(107, 158, 74, 0.25);
+    color: #8ac06a;
+    font-size: 11px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 1px;
+  }
+  .pack-premium .tick {
+    background: rgba(212, 168, 75, 0.25);
+    color: var(--accent-soft);
+  }
+
+  .pack-btn {
+    width: 100%;
+    padding: 14px 20px;
+    font-size: 15px;
+    border-radius: 14px;
+  }
+
+  .pack-foot {
+    text-align: center;
+    font-size: 11px;
+    color: var(--card-dark);
+    opacity: 0.55;
+    margin-top: 8px;
+    letter-spacing: 0.4px;
+  }
+
+  /* === LEVEL SELECT === */
+  #levels-screen .header h2 {
+    font-family: 'Fraunces', Georgia, serif;
+  }
+
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+  }
+  .header h2 { color: var(--sky-1); font-size: 22px; font-weight: 700; letter-spacing: 1px; }
+  .back-btn {
+    background: rgba(254, 246, 228, 0.08);
+    border: 1px solid rgba(244, 184, 96, 0.18);
+    color: var(--card);
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: transform 0.15s var(--spring), background 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .back-btn:active { transform: scale(0.92); background: rgba(254, 246, 228, 0.16); }
+
+  .levels-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    overflow-y: auto;
+    padding: 4px 2px 20px;
+    align-content: start;
+    scrollbar-width: none;
+  }
+  .levels-grid::-webkit-scrollbar { display: none; }
+
+  .level-card {
+    aspect-ratio: 1 / 1;
+    background: linear-gradient(160deg, #fef6e4 0%, #f0dcb3 100%);
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: transform 0.18s var(--spring), box-shadow 0.25s var(--ease-out);
+    box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    position: relative;
+    border: 1.5px solid transparent;
+    overflow: hidden;
+    animation: cardIn 0.4s var(--spring) backwards;
+  }
+  .level-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.22) 0%, transparent 40%);
+    pointer-events: none;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.95); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .level-card:active { transform: scale(0.95); }
+
+  .level-card.locked {
+    background: rgba(254, 246, 228, 0.05);
+    cursor: not-allowed;
+    box-shadow: inset 0 0 0 1px rgba(244, 184, 96, 0.1);
+    border-color: transparent;
+    filter: grayscale(0.6);
+  }
+  .level-card.locked::before { display: none; }
+  .level-card.locked .level-num { color: var(--card-dark); opacity: 0.25; }
+  .level-card.locked:active { transform: scale(1); }
+
+  .level-card.current {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(212, 168, 75, 0.25), 0 8px 24px rgba(212, 168, 75, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    animation: cardIn 0.4s var(--spring) backwards, currentPulse 2.4s ease-in-out infinite 0.4s;
+  }
+  @keyframes currentPulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(212, 168, 75, 0.25), 0 8px 24px rgba(212, 168, 75, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+    50%      { box-shadow: 0 0 0 4px rgba(212, 168, 75, 0.45), 0 10px 30px rgba(212, 168, 75, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5); }
+  }
+
+  .level-card.completed {
+    background:
+      linear-gradient(135deg, rgba(255, 235, 180, 0.5) 0%, transparent 40%, rgba(212, 168, 75, 0.12) 100%),
+      linear-gradient(160deg, #fef6e4 0%, #f5d98e 100%);
+  }
+
+  .level-num {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1;
+    position: relative;
+    z-index: 1;
+  }
+  .level-stars {
+    display: flex;
+    gap: 2px;
+    font-size: 13px;
+    position: relative;
+    z-index: 1;
+  }
+  .star { color: var(--gold); filter: drop-shadow(0 1px 1px rgba(168, 132, 46, 0.4)); }
+  .star.off { color: rgba(107, 68, 35, 0.22); filter: none; }
+  .lock-icon {
+    font-size: 22px;
+    opacity: 0.45;
+    color: var(--card-dark);
+  }
+
+  /* === GAME SCREEN === */
+  #game-screen {
+    padding: 16px;
+  }
+
+  .game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--card);
+    margin-bottom: 14px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .game-header .level-badge {
+    background: linear-gradient(180deg, var(--gold) 0%, var(--gold-dark) 100%);
+    color: #1a0f08;
+    padding: 6px 14px;
+    border-radius: 14px;
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.8px;
+    box-shadow: 0 2px 8px rgba(212, 168, 75, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+  .game-header #game-hint, .game-header #q-counter {
+    color: var(--card-dark);
+    opacity: 0.8;
+    letter-spacing: 0.5px;
+  }
+
+  .timer-bar {
+    height: 6px;
+    background: rgba(254, 246, 228, 0.1);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+  }
+  .timer-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--sky-1), var(--sky-2), var(--sky-3));
+    background-size: 300% 100%;
+    background-position: 0% 0%;
+    width: 100%;
+    transform-origin: left;
+    border-radius: 999px;
+    box-shadow: 0 0 10px rgba(244, 184, 96, 0.5);
+  }
+
+  .scene-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+  }
+
+  .scene {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    max-width: 420px;
+    max-height: 100%;
+    background:
+      radial-gradient(ellipse at 72% 18%, rgba(255, 243, 207, 0.55), transparent 55%),
+      linear-gradient(180deg, #87a8cb 0%, #d4a574 58%, #8b6239 100%);
+    border-radius: 24px;
+    box-shadow:
+      inset 0 2px 24px rgba(0, 0, 0, 0.18),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+      0 10px 30px rgba(0, 0, 0, 0.45);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(5, 1fr);
+    padding: 10px;
+    gap: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scene::before {
+    content: '';
+    position: absolute;
+    top: 8%;
+    right: 12%;
+    width: 52px;
+    height: 52px;
+    background: radial-gradient(circle, #fff5cc 0%, #f4b860 55%, transparent 72%);
+    border-radius: 50%;
+    pointer-events: none;
+    filter: blur(0.5px);
+  }
+  .scene::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 30%;
+    background: linear-gradient(180deg, transparent, rgba(139, 98, 57, 0.35));
+    pointer-events: none;
+  }
+
+  .scene-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(22px, 7vw, 36px);
+    opacity: 0;
+    transform: scale(0.5);
+    animation: sceneCellIn 0.4s var(--spring) forwards;
+    position: relative;
+    z-index: 1;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.25));
+  }
+
+  @keyframes sceneCellIn {
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  .scene.hidden {
+    background: linear-gradient(180deg, var(--bg-2) 0%, var(--bg-1) 100%);
+    box-shadow: inset 0 2px 24px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(244, 184, 96, 0.08);
+  }
+  .scene.hidden::before { opacity: 0.25; filter: blur(10px); }
+  .scene.hidden::after  { display: none; }
+  .scene.hidden .scene-cell { display: none; }
+
+  .scene-placeholder {
+    display: none;
+    color: var(--card-dark);
+    font-size: 15px;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    text-align: center;
+    padding: 20px;
+    line-height: 1.6;
+    grid-column: 1 / -1;
+    grid-row: 1 / -1;
+    opacity: 0.85;
+    letter-spacing: 0.5px;
+  }
+  .scene.hidden .scene-placeholder { display: flex; }
+
+  /* === QUESTION SCREEN === */
+  #question-screen {
+    padding: 16px;
+    justify-content: space-between;
+  }
+
+  .q-progress {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 20px;
+  }
+  .q-dot {
+    flex: 1;
+    height: 4px;
+    background: rgba(254, 246, 228, 0.1);
+    border-radius: 2px;
+    transition: background 0.3s var(--ease-out);
+  }
+  .q-dot.done    { background: var(--success); box-shadow: 0 0 6px var(--success-glow); }
+  .q-dot.wrong   { background: var(--danger);  box-shadow: 0 0 6px var(--danger-glow);  }
+  .q-dot.current { background: var(--sky-1);   box-shadow: 0 0 8px rgba(244, 184, 96, 0.5); }
+
+  .q-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    padding: 10px 10px 20px;
+    text-align: center;
+  }
+
+  .q-icon {
+    font-size: 56px;
+    filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.35));
+    animation: qIconIn 0.5s var(--spring);
+  }
+  @keyframes qIconIn {
+    from { opacity: 0; transform: scale(0.6) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  .q-text {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--card);
+    line-height: 1.35;
+    max-width: 340px;
+    letter-spacing: 0.3px;
+  }
+
+  .q-sheet {
+    width: 100%;
+    background: linear-gradient(180deg, rgba(254, 246, 228, 0.06) 0%, rgba(254, 246, 228, 0.02) 100%);
+    border-top: 1px solid rgba(244, 184, 96, 0.18);
+    border-radius: 24px 24px 0 0;
+    padding: 20px 16px max(20px, env(safe-area-inset-bottom));
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    margin: 0 -16px -16px;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
+  }
+
+  .q-options {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+  .q-options.cols-2 { grid-template-columns: 1fr 1fr; }
+
+  .q-option {
+    background: linear-gradient(180deg, #fef6e4 0%, #f0dcb3 100%);
+    color: var(--text);
+    padding: 18px 14px;
+    border-radius: 16px;
+    font-size: 18px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    transition: transform 0.15s var(--spring), box-shadow 0.25s var(--ease-out), background 0.3s;
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 64px;
+    position: relative;
+    overflow: hidden;
+    animation: optIn 0.35s var(--spring) backwards;
+  }
+  .q-option::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 45%);
+    pointer-events: none;
+  }
+  @keyframes optIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .q-option:active { transform: scale(0.96); }
+  .q-option.correct {
+    background: linear-gradient(180deg, #8ac06a 0%, var(--success) 100%);
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(138, 192, 106, 0.45), 0 8px 22px var(--success-glow);
+    animation: correctPulse 0.55s var(--spring);
+  }
+  @keyframes correctPulse {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.06); }
+    100% { transform: scale(1); }
+  }
+  .q-option.wrong {
+    background: linear-gradient(180deg, #d96060 0%, var(--danger) 100%);
+    color: #fff;
+    box-shadow: 0 0 0 2px rgba(217, 96, 96, 0.45), 0 8px 22px var(--danger-glow);
+    animation: shake 0.45s var(--ease-out);
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+  .q-option.emoji-opt { font-size: 40px; }
+
+  /* === SPARKLES === */
+  .sparkle {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    pointer-events: none;
+    z-index: 999;
+    color: var(--gold);
+    font-size: 16px;
+    animation: sparkleOut 0.7s var(--ease-out) forwards;
+  }
+  @keyframes sparkleOut {
+    0%   { opacity: 0; transform: translate(0, 0) scale(0); }
+    20%  { opacity: 1; transform: translate(var(--dx, 0), var(--dy, 0)) scale(1.2); }
+    100% { opacity: 0; transform: translate(calc(var(--dx, 0) * 1.8), calc(var(--dy, 0) * 1.8 - 20px)) scale(0.3); }
+  }
+
+  /* === RESULT SCREEN === */
+  #result-screen {
+    justify-content: space-between;
+    align-items: center;
+    text-align: center;
+  }
+
+  .result-top {
+    margin-top: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .result-icon {
+    font-size: 84px;
+    filter: drop-shadow(0 10px 24px rgba(244, 184, 96, 0.4));
+    animation: pop 0.55s var(--spring);
+  }
+  @keyframes pop {
+    0%   { transform: scale(0) rotate(-15deg); }
+    70%  { transform: scale(1.1) rotate(5deg); }
+    100% { transform: scale(1) rotate(0); }
+  }
+
+  .result-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--sky-1);
+    letter-spacing: 1px;
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+    animation: fadeInUp 0.4s var(--ease-out) 0.1s backwards;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .result-stars {
+    display: flex;
+    gap: 12px;
+    font-size: 56px;
+    margin: 12px 0 4px;
+  }
+  .result-stars .star {
+    filter: drop-shadow(0 4px 14px rgba(212, 168, 75, 0.6));
+    animation: starPop 0.55s var(--spring) backwards;
+  }
+  .result-stars .star.off {
+    filter: none;
+    animation: starPopOff 0.35s var(--ease-out) backwards;
+  }
+  .result-stars .star:nth-child(1) { animation-delay: 0.15s; }
+  .result-stars .star:nth-child(2) { animation-delay: 0.35s; }
+  .result-stars .star:nth-child(3) { animation-delay: 0.55s; }
+  @keyframes starPop {
+    0%   { opacity: 0; transform: scale(0) rotate(-30deg); }
+    60%  { opacity: 1; transform: scale(1.25) rotate(10deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0); }
+  }
+  @keyframes starPopOff {
+    from { opacity: 0; transform: scale(0.6); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .result-stats {
+    font-size: 15px;
+    color: var(--card-dark);
+    line-height: 1.7;
+    animation: fadeInUp 0.4s var(--ease-out) 0.6s backwards;
+  }
+  .result-stats strong { color: var(--card); font-weight: 700; }
+
+  .result-bottom {
+    width: 100%;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+    animation: fadeInUp 0.4s var(--ease-out) 0.75s backwards;
+  }
+
+  /* === TUTORIAL BUBBLE === */
+  .hint {
+    background: rgba(212, 168, 75, 0.12);
+    border: 1px solid var(--gold);
+    color: var(--sky-1);
+    padding: 10px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+
+  /* === READY COUNTDOWN === */
+  .ready-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(26, 15, 8, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    backdrop-filter: blur(10px);
+  }
+  .ready-num {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 132px;
+    font-weight: 900;
+    color: var(--sky-1);
+    animation: pop 0.5s var(--spring);
+    text-shadow: 0 4px 28px rgba(244, 184, 96, 0.5), 0 2px 6px rgba(0, 0, 0, 0.6);
+  }
+  .ready-go {
+    font-size: 52px;
+    color: var(--gold);
+    font-weight: 800;
+  }
+
+  /* === ACCESSIBILITY === */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  @media (max-height: 640px) {
+    .logo-eagle { width: 72px; height: 72px; }
+    .title { font-size: 32px; }
+    .home-top { margin-top: 18px; gap: 8px; }
+    .result-top { margin-top: 28px; }
+    .result-icon { font-size: 68px; }
+    .result-stars { font-size: 44px; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Hidden SVG defs (grain filter, eagle silhouette) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <filter id="grainFilter">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7"/>
+      <feColorMatrix values="0 0 0 0 0.95  0 0 0 0 0.8  0 0 0 0 0.5  0 0 0 1 0"/>
+    </filter>
+    <symbol id="eagleSvg" viewBox="0 0 120 120">
+      <defs>
+        <linearGradient id="eagleGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#f4b860"/>
+          <stop offset="55%" stop-color="#e87a4c"/>
+          <stop offset="100%" stop-color="#8b3a3a"/>
+        </linearGradient>
+      </defs>
+      <g fill="url(#eagleGrad)">
+        <!-- body + head -->
+        <path d="M60 22 C55 22 52 27 52 33 L52 42 C52 48 55 52 60 52 C65 52 68 48 68 42 L68 33 C68 27 65 22 60 22 Z"/>
+        <!-- beak -->
+        <path d="M60 30 L58 26 L60 24 L62 26 Z" fill="#2b1810"/>
+        <!-- eye -->
+        <circle cx="57" cy="32" r="1.2" fill="#1a0f08"/>
+        <!-- left wing -->
+        <path d="M52 40 C40 36 24 40 10 54 C20 50 32 48 44 52 C38 56 32 62 28 70 C38 62 48 58 52 56 Z"/>
+        <!-- right wing -->
+        <path d="M68 40 C80 36 96 40 110 54 C100 50 88 48 76 52 C82 56 88 62 92 70 C82 62 72 58 68 56 Z"/>
+        <!-- tail -->
+        <path d="M56 52 L52 78 L60 72 L68 78 L64 52 Z"/>
+        <!-- feather details -->
+        <path d="M50 50 L30 58 L46 56 Z" opacity="0.5"/>
+        <path d="M70 50 L90 58 L74 56 Z" opacity="0.5"/>
+      </g>
+    </symbol>
+    <symbol id="birdSvg" viewBox="0 0 40 12">
+      <path d="M2 6 Q8 2 14 6 Q20 2 26 6 Q32 2 38 6" stroke="#f4b860" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="app">
+
+  <!-- Global steppe backdrop (persists across screens) -->
+  <div class="backdrop" id="backdrop">
+    <div class="sky"></div>
+    <div class="sun"></div>
+    <svg class="bird" viewBox="0 0 40 12" aria-hidden="true"><use href="#birdSvg"/></svg>
+    <!-- Far mountains -->
+    <svg class="layer layer-far" viewBox="0 0 500 120" preserveAspectRatio="none">
+      <path d="M0 120 L0 70 L40 55 L80 62 L120 40 L170 58 L220 48 L270 62 L320 44 L370 58 L420 50 L470 62 L500 52 L500 120 Z"
+            fill="#3a2418" opacity="0.85"/>
+    </svg>
+    <!-- Mid mountains -->
+    <svg class="layer layer-mid" viewBox="0 0 500 140" preserveAspectRatio="none">
+      <path d="M0 140 L0 90 L30 70 L70 85 L110 60 L150 82 L200 68 L250 88 L300 64 L350 85 L400 72 L450 88 L500 76 L500 140 Z"
+            fill="#4a2c1a"/>
+    </svg>
+    <!-- Near dunes / grass -->
+    <svg class="layer layer-near" viewBox="0 0 500 160" preserveAspectRatio="none">
+      <path d="M0 160 L0 110 C60 94 120 118 200 100 C280 82 340 116 420 98 C460 90 490 104 500 102 L500 160 Z"
+            fill="#7a4824"/>
+      <path d="M0 160 L0 132 C80 124 160 142 240 128 C320 114 380 138 460 126 C480 124 495 130 500 130 L500 160 Z"
+            fill="#8b3a3a" opacity="0.6"/>
+    </svg>
+    <!-- Grain overlay -->
+    <svg class="grain" preserveAspectRatio="none">
+      <rect width="100%" height="100%" filter="url(#grainFilter)"/>
+    </svg>
+  </div>
+
+  <!-- HOME SCREEN -->
+  <div id="home-screen" class="screen active">
+    <div class="home-top">
+      <svg class="logo-eagle" viewBox="0 0 120 120" aria-label="Көзқырағы"><use href="#eagleSvg"/></svg>
+      <div>
+        <div class="title">КӨЗҚЫРАҒЫ</div>
+        <div class="title-accent">дала · зейін · жады</div>
+      </div>
+      <div class="subtitle">Қыран көзіңмен даланы шол. Көрген нәрсеңді есте сақта. Зейініңді жаттықтыр.</div>
+    </div>
+
+    <div class="home-middle">
+      <div class="stat-row">
+        <div class="stat-item">
+          <div class="stat-val" id="home-level">1</div>
+          <div class="stat-lbl">ДЕҢГЕЙ</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="home-stars">0</div>
+          <div class="stat-lbl">ЖҰЛДЫЗ</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-val" id="home-streak">0</div>
+          <div class="stat-lbl">СЕРИЯ</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="home-bottom">
+      <button class="btn btn-primary" onclick="startCurrentLevel()">▶ ОЙНАУ</button>
+      <button class="btn btn-secondary" onclick="showScreen('levels-screen'); renderLevels();">Деңгейлер</button>
+      <button class="btn btn-pack" onclick="showScreen('packages-screen'); haptic('light');">
+        <span class="pack-spark">✦</span> Пакеттер <span class="pack-pill">PRO</span>
+      </button>
+      <button class="btn btn-ghost" onclick="showHowTo()">Қалай ойнау керек?</button>
+    </div>
+  </div>
+
+  <!-- LEVELS SCREEN -->
+  <div id="levels-screen" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('home-screen')">←</button>
+      <h2>Деңгейлер</h2>
+      <div style="width: 44px;"></div>
+    </div>
+    <div class="levels-grid" id="levels-grid"></div>
+  </div>
+
+  <!-- PACKAGES SCREEN -->
+  <div id="packages-screen" class="screen">
+    <div class="header">
+      <button class="back-btn" onclick="showScreen('home-screen')">←</button>
+      <h2>Пакеттер</h2>
+      <div style="width: 44px;"></div>
+    </div>
+    <div class="pack-intro">
+      <div class="pack-intro-title">Зейініңді келесі деңгейге көтер</div>
+      <div class="pack-intro-sub">Бір жылдық жазылу · кез келген кезде тоқтата аласың</div>
+    </div>
+    <div class="pack-list">
+
+      <!-- BASIC -->
+      <div class="pack-card pack-basic">
+        <div class="pack-head">
+          <div class="pack-name">Қолжетімді</div>
+          <div class="pack-icon">🌾</div>
+        </div>
+        <div class="pack-price">
+          <span class="pack-amount">6 990</span>
+          <span class="pack-curr">₸</span>
+          <span class="pack-period">/ жылына</span>
+        </div>
+        <ul class="pack-feats">
+          <li><span class="tick">✓</span> Барлық 12 деңгей ашылады</li>
+          <li><span class="tick">✓</span> Жарнамасыз тыныш ойын</li>
+          <li><span class="tick">✓</span> Прогресс бұлтта сақталады</li>
+          <li><span class="tick">✓</span> Күнделікті 1 challenge</li>
+        </ul>
+        <button class="btn btn-secondary pack-btn" onclick="selectPackage('basic')">Таңдау</button>
+      </div>
+
+      <!-- PRO -->
+      <div class="pack-card pack-pro">
+        <div class="pack-badge">⚡ ҮЗДІК ТАҢДАУ</div>
+        <div class="pack-head">
+          <div class="pack-name">Pro</div>
+          <div class="pack-icon">🦅</div>
+        </div>
+        <div class="pack-price">
+          <span class="pack-amount">8 590</span>
+          <span class="pack-curr">₸</span>
+          <span class="pack-period">/ жылына</span>
+        </div>
+        <ul class="pack-feats">
+          <li><span class="tick">✓</span> Қолжетімдідегі <b>барлығы</b></li>
+          <li><span class="tick">✓</span> Жаңа сахналар апта сайын</li>
+          <li><span class="tick">✓</span> Leaderboard — достарыңмен жарыс</li>
+          <li><span class="tick">✓</span> Детальді статистика мен аналитика</li>
+          <li><span class="tick">✓</span> Қосымша сұрақ типтері (location, order)</li>
+        </ul>
+        <button class="btn btn-primary pack-btn" onclick="selectPackage('pro')">Pro алу</button>
+      </div>
+
+      <!-- PREMIUM -->
+      <div class="pack-card pack-premium">
+        <div class="pack-badge pack-badge-gold">👑 ПРЕМИУМ</div>
+        <div class="pack-head">
+          <div class="pack-name">Премиум</div>
+          <div class="pack-icon">💎</div>
+        </div>
+        <div class="pack-price">
+          <span class="pack-amount">9 990</span>
+          <span class="pack-curr">₸</span>
+          <span class="pack-period">/ жылына</span>
+        </div>
+        <div class="pack-highlight">
+          <div class="pack-highlight-icon">🚗</div>
+          <div class="pack-highlight-body">
+            <div class="pack-highlight-title">Машина ұтысына билет</div>
+            <div class="pack-highlight-sub">Жылдық розыгрыштың арнайы қатысушысысыз</div>
+          </div>
+        </div>
+        <ul class="pack-feats">
+          <li><span class="tick">✓</span> Pro пакеттегі <b>барлығы</b></li>
+          <li><span class="tick">✓</span> Эксклюзив аватар және рамкалар</li>
+          <li><span class="tick">✓</span> Приоритетті қолдау 24/7</li>
+          <li><span class="tick">✓</span> Барлық болашақ жаңартулар тегін</li>
+        </ul>
+        <button class="btn btn-gold pack-btn" onclick="selectPackage('premium')">Премиум алу</button>
+      </div>
+
+    </div>
+    <div class="pack-foot">Төлем Telegram Stars арқылы ⭐ · Автоматты жаңару</div>
+  </div>
+
+  <!-- GAME SCREEN (scene watching) -->
+  <div id="game-screen" class="screen">
+    <div class="game-header">
+      <div class="level-badge" id="game-level-badge">1-деңгей</div>
+      <div id="game-hint">Есте сақта!</div>
+    </div>
+    <div class="timer-bar"><div class="timer-fill" id="timer-fill"></div></div>
+    <div class="scene-wrapper">
+      <div class="scene" id="scene">
+        <div class="scene-placeholder">Көрініс жабық.<br>Енді сұрақтар басталады.</div>
+      </div>
+    </div>
+    <div class="ready-overlay" id="ready-overlay" style="display: none;">
+      <div class="ready-num" id="ready-num">3</div>
+    </div>
+  </div>
+
+  <!-- QUESTION SCREEN -->
+  <div id="question-screen" class="screen">
+    <div class="game-header">
+      <div class="level-badge" id="q-level-badge">1-деңгей</div>
+      <div id="q-counter">1 / 1</div>
+    </div>
+    <div class="q-progress" id="q-progress"></div>
+    <div class="q-content">
+      <div class="q-icon" id="q-icon">🤔</div>
+      <div class="q-text" id="q-text">Сұрақ</div>
+    </div>
+    <div class="q-sheet">
+      <div class="q-options" id="q-options"></div>
+    </div>
+  </div>
+
+  <!-- RESULT SCREEN -->
+  <div id="result-screen" class="screen">
+    <div class="result-top">
+      <div class="result-icon" id="result-icon">🎉</div>
+      <div class="result-title" id="result-title">Тамаша!</div>
+      <div class="result-stars" id="result-stars"></div>
+      <div class="result-stats" id="result-stats"></div>
+    </div>
+    <div class="result-bottom">
+      <button class="btn btn-primary" id="result-next-btn" onclick="nextLevel()">Келесі деңгей →</button>
+      <button class="btn btn-secondary" onclick="retryLevel()">Қайта ойнау</button>
+      <button class="btn btn-ghost" onclick="showScreen('home-screen'); updateHome();">Басты бетке</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // ============ TELEGRAM WEBAPP INTEGRATION ============
+  const tg = window.Telegram?.WebApp;
+  if (tg) {
+    tg.ready();
+    tg.expand();
+    try { tg.requestFullscreen && tg.requestFullscreen(); } catch(e){}
+    try { tg.setHeaderColor('#1a0f08'); tg.setBackgroundColor('#1a0f08'); } catch(e){}
+  }
+
+  function haptic(type = 'light') {
+    try {
+      if (tg?.HapticFeedback) {
+        if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+        else if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+        else tg.HapticFeedback.impactOccurred(type);
+      }
+    } catch(e){}
+  }
+
+  // ============ PARALLAX BACKDROP ============
+  (function initParallax() {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) return;
+    const layers = document.querySelectorAll('.backdrop .layer');
+    const sun = document.querySelector('.backdrop .sun');
+    let tx = 0, ty = 0;
+    function apply(x, y) {
+      layers.forEach((l, i) => {
+        const depth = (i + 1) * 6;
+        l.style.transform = `translate(${x * depth}px, ${y * depth * 0.3}px)`;
+      });
+      if (sun) sun.style.transform = `translate(${x * -4}px, ${y * -2}px) scale(1)`;
+    }
+    if (window.DeviceOrientationEvent && /Mobi|Android|iPhone/i.test(navigator.userAgent)) {
+      window.addEventListener('deviceorientation', (e) => {
+        if (e.gamma == null || e.beta == null) return;
+        tx = Math.max(-1, Math.min(1, e.gamma / 25));
+        ty = Math.max(-1, Math.min(1, (e.beta - 45) / 45));
+        apply(tx, ty);
+      });
+    } else {
+      window.addEventListener('mousemove', (e) => {
+        tx = (e.clientX / window.innerWidth - 0.5) * 2;
+        ty = (e.clientY / window.innerHeight - 0.5) * 2;
+        apply(tx, ty);
+      });
+    }
+  })();
+
+  // ============ GAME DATA ============
+  const OBJECTS = [
+    { emoji: '🦅', name: 'қыран' },
+    { emoji: '🐎', name: 'жылқы' },
+    { emoji: '🐪', name: 'түйе' },
+    { emoji: '🐑', name: 'қой' },
+    { emoji: '🐐', name: 'ешкі' },
+    { emoji: '⛺', name: 'киіз үй' },
+    { emoji: '🔥', name: 'от' },
+    { emoji: '🌳', name: 'ағаш' },
+    { emoji: '🪨', name: 'тас' },
+    { emoji: '🌸', name: 'гүл' },
+    { emoji: '🌙', name: 'ай' },
+    { emoji: '⭐', name: 'жұлдыз' },
+    { emoji: '🏹', name: 'жебе' },
+    { emoji: '🐺', name: 'қасқыр' },
+    { emoji: '🦌', name: 'бұғы' },
+    { emoji: '🐇', name: 'қоян' },
+  ];
+
+  // Level config: [objects, viewTime_ms, questions]
+  const LEVELS = [
+    { n: 4,  t: 5500, q: 1 }, // 1 — tutorial
+    { n: 5,  t: 5000, q: 1 }, // 2
+    { n: 6,  t: 4500, q: 2 }, // 3
+    { n: 7,  t: 4500, q: 2 }, // 4
+    { n: 8,  t: 4000, q: 2 }, // 5
+    { n: 9,  t: 3500, q: 3 }, // 6
+    { n: 10, t: 3500, q: 3 }, // 7
+    { n: 11, t: 3000, q: 3 }, // 8
+    { n: 12, t: 2800, q: 4 }, // 9
+    { n: 13, t: 2500, q: 4 }, // 10
+    { n: 14, t: 2500, q: 4 }, // 11
+    { n: 15, t: 2200, q: 5 }, // 12
+  ];
+
+  // ============ STATE ============
+  const STORAGE_KEY = 'kozkyragy_progress_v1';
+
+  let state = loadState();
+
+  function loadState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch(e){}
+    return {
+      currentLevel: 1,        // highest unlocked level
+      stars: {},              // { "1": 3, "2": 2, ... }
+      totalStars: 0,
+      streak: 0,              // consecutive perfect levels
+    };
+  }
+
+  function saveState() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e){}
+  }
+
+  // ============ SCREEN MANAGEMENT ============
+  function showScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+  }
+
+  function updateHome() {
+    document.getElementById('home-level').textContent = state.currentLevel;
+    const totalStars = Object.values(state.stars).reduce((a, b) => a + b, 0);
+    document.getElementById('home-stars').textContent = totalStars;
+    document.getElementById('home-streak').textContent = state.streak;
+  }
+
+  // ============ LEVELS SCREEN ============
+  function renderLevels() {
+    const grid = document.getElementById('levels-grid');
+    grid.innerHTML = '';
+    for (let i = 1; i <= LEVELS.length; i++) {
+      const unlocked = i <= state.currentLevel;
+      const stars = state.stars[i] || 0;
+      const isCurrent = i === state.currentLevel;
+      const isCompleted = stars > 0 && !isCurrent;
+      const card = document.createElement('div');
+      card.className = 'level-card'
+        + (!unlocked ? ' locked' : '')
+        + (isCurrent ? ' current' : '')
+        + (isCompleted ? ' completed' : '');
+      card.style.animationDelay = ((i - 1) * 30) + 'ms';
+      if (!unlocked) {
+        card.innerHTML = `<div class="lock-icon">🔒</div><div class="level-num">${i}</div>`;
+      } else {
+        const starsHtml = [1,2,3].map(s => `<span class="star ${s > stars ? 'off' : ''}">★</span>`).join('');
+        card.innerHTML = `<div class="level-num">${i}</div><div class="level-stars">${starsHtml}</div>`;
+        card.onclick = () => { haptic('light'); startLevel(i); };
+      }
+      grid.appendChild(card);
+    }
+  }
+
+  // ============ GAME FLOW ============
+  let currentGame = null;
+
+  function startCurrentLevel() {
+    haptic('medium');
+    startLevel(state.currentLevel);
+  }
+
+  function startLevel(levelNum) {
+    const cfg = LEVELS[levelNum - 1];
+    if (!cfg) return;
+
+    const scene = generateScene(cfg.n);
+    const questions = generateQuestions(scene, cfg.q, levelNum);
+
+    currentGame = {
+      level: levelNum,
+      cfg,
+      scene,
+      questions,
+      qIndex: 0,
+      correct: 0,
+      wrong: 0,
+    };
+
+    showScreen('game-screen');
+    document.getElementById('game-level-badge').textContent = levelNum + '-деңгей';
+    document.getElementById('game-hint').textContent = 'Есте сақта!';
+    renderScene(scene);
+    startViewTimer(cfg.t);
+  }
+
+  // ============ SCENE GENERATION ============
+  function generateScene(numObjects) {
+    // Grid: 5x5 = 25 cells
+    const cells = [];
+
+    // Pick a "hero" object that appears multiple times (for count questions)
+    const heroPool = [...OBJECTS].sort(() => Math.random() - 0.5);
+    const hero = heroPool[0];
+    const heroCount = Math.min(numObjects, Math.max(2, Math.min(4, Math.ceil(numObjects / 3))));
+
+    // Pick unique "filler" objects (each appears once)
+    const fillers = heroPool.slice(1, 1 + (numObjects - heroCount));
+
+    // Assemble all objects
+    const allObjects = [];
+    for (let i = 0; i < heroCount; i++) allObjects.push(hero);
+    fillers.forEach(f => allObjects.push(f));
+
+    // Shuffle and place in random cells
+    const positions = [];
+    const usedCells = new Set();
+    while (positions.length < allObjects.length) {
+      const pos = Math.floor(Math.random() * 25);
+      if (!usedCells.has(pos)) {
+        usedCells.add(pos);
+        positions.push(pos);
+      }
+    }
+
+    // Fisher-Yates in-place shuffle (sort comparator-ы biased)
+    for (let i = allObjects.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [allObjects[i], allObjects[j]] = [allObjects[j], allObjects[i]];
+    }
+
+    allObjects.forEach((obj, idx) => {
+      cells.push({
+        obj,
+        pos: positions[idx],
+      });
+    });
+
+    return {
+      cells,
+      hero,
+      heroCount,
+      allEmojis: cells.map(c => c.obj.emoji),
+      uniqueObjects: [hero, ...fillers],
+    };
+  }
+
+  function renderScene(scene) {
+    const el = document.getElementById('scene');
+    el.classList.remove('hidden');
+    // Clear (keep placeholder)
+    el.innerHTML = '<div class="scene-placeholder">Көрініс жабық.<br>Енді сұрақтар басталады.</div>';
+    // Build 5x5 grid
+    const grid = new Array(25).fill(null);
+    scene.cells.forEach(c => { grid[c.pos] = c.obj.emoji; });
+    for (let i = 0; i < 25; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'scene-cell';
+      cell.textContent = grid[i] || '';
+      // stagger fade-in
+      cell.style.animationDelay = (i * 18) + 'ms';
+      el.appendChild(cell);
+    }
+  }
+
+  // ============ VIEW TIMER ============
+  function startViewTimer(duration) {
+    const bar = document.getElementById('timer-fill');
+    bar.style.transition = 'none';
+    bar.style.transform = 'scaleX(1)';
+    bar.style.backgroundPosition = '0% 0%';
+    // Force reflow
+    void bar.offsetWidth;
+    bar.style.transition = `transform ${duration}ms linear, background-position ${duration}ms linear`;
+    bar.style.transform = 'scaleX(0)';
+    bar.style.backgroundPosition = '100% 0%';
+
+    setTimeout(() => {
+      haptic('medium');
+      // Hide scene
+      document.getElementById('scene').classList.add('hidden');
+      document.getElementById('game-hint').textContent = 'Уақыт бітті!';
+      setTimeout(() => {
+        showQuestion();
+      }, 500);
+    }, duration);
+  }
+
+  // ============ QUESTION GENERATION ============
+  function generateQuestions(scene, count, levelNum) {
+    const questions = [];
+    const usedTypes = [];
+
+    // Types available, weighted by level
+    let types = ['presence', 'absence', 'count'];
+    if (levelNum >= 4) types.push('count-exact');
+
+    // Ensure first question on early levels is easy "presence"
+    if (levelNum <= 2) {
+      questions.push(buildQuestion('presence', scene));
+      usedTypes.push('presence');
+      count--;
+    }
+
+    for (let i = 0; i < count; i++) {
+      // Rotate through types, prefer unused
+      const availableTypes = types.filter(t => !usedTypes.includes(t));
+      const pool = availableTypes.length > 0 ? availableTypes : types;
+      const type = pool[Math.floor(Math.random() * pool.length)];
+      usedTypes.push(type);
+      const q = buildQuestion(type, scene);
+      if (q) questions.push(q);
+    }
+
+    return questions;
+  }
+
+  function buildQuestion(type, scene) {
+    const shownEmojis = new Set(scene.allEmojis);
+    const unused = OBJECTS.filter(o => !shownEmojis.has(o.emoji));
+
+    if (type === 'presence') {
+      // Which of these WAS in the scene?
+      const correct = pick(scene.uniqueObjects);
+      const wrong = shuffle(unused).slice(0, 3);
+      if (wrong.length < 3) return buildQuestion('absence', scene);
+      const opts = shuffle([correct, ...wrong]);
+      return {
+        icon: '👁️',
+        text: 'Осылардың қайсысы көріністе БОЛДЫ?',
+        options: opts.map(o => ({ label: o.emoji, correct: o.emoji === correct.emoji })),
+        optionStyle: 'emoji',
+        cols: 2,
+      };
+    }
+
+    if (type === 'absence') {
+      // Which was NOT in the scene?
+      const correct = pick(unused);
+      if (!correct) return buildQuestion('presence', scene);
+      const wrong = shuffle(scene.uniqueObjects).slice(0, 3);
+      const opts = shuffle([correct, ...wrong]);
+      return {
+        icon: '❓',
+        text: 'Қайсысы көріністе БОЛҒАН ЖОҚ?',
+        options: opts.map(o => ({ label: o.emoji, correct: o.emoji === correct.emoji })),
+        optionStyle: 'emoji',
+        cols: 2,
+      };
+    }
+
+    if (type === 'count' || type === 'count-exact') {
+      // How many of [hero] were there?
+      const hero = scene.hero;
+      const correct = scene.heroCount;
+      const options = new Set([correct]);
+      let safetyCounter = 0;
+      while (options.size < 4 && safetyCounter < 50) {
+        const delta = Math.floor(Math.random() * 7) - 3; // [-3..+3]
+        const candidate = Math.max(1, correct + delta);
+        if (candidate !== correct) options.add(candidate);
+        safetyCounter++;
+      }
+      // Fallback: егер heroCount тым кіші болса, жоғарғы жаққа толықтыру
+      let extra = correct + 1;
+      while (options.size < 4) {
+        if (!options.has(extra)) options.add(extra);
+        extra++;
+      }
+      const opts = shuffle([...options]).map(n => ({ label: String(n), correct: n === correct }));
+      return {
+        icon: hero.emoji,
+        text: `Қанша ${hero.name} болды?`,
+        options: opts,
+        optionStyle: 'number',
+        cols: 2,
+      };
+    }
+
+    return null;
+  }
+
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // ============ QUESTION SCREEN ============
+  function showQuestion() {
+    const g = currentGame;
+    if (!g) return;
+    const q = g.questions[g.qIndex];
+
+    showScreen('question-screen');
+    document.getElementById('q-level-badge').textContent = g.level + '-деңгей';
+    document.getElementById('q-counter').textContent = (g.qIndex + 1) + ' / ' + g.questions.length;
+
+    // Progress dots
+    const progress = document.getElementById('q-progress');
+    progress.innerHTML = '';
+    for (let i = 0; i < g.questions.length; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'q-dot';
+      if (i < g.qIndex) {
+        dot.classList.add(g.answered && g.answered[i] ? 'done' : 'wrong');
+      } else if (i === g.qIndex) {
+        dot.classList.add('current');
+      }
+      progress.appendChild(dot);
+    }
+
+    document.getElementById('q-icon').textContent = q.icon;
+    document.getElementById('q-text').textContent = q.text;
+
+    const optionsEl = document.getElementById('q-options');
+    optionsEl.innerHTML = '';
+    optionsEl.className = 'q-options' + (q.cols === 2 ? ' cols-2' : '');
+
+    q.options.forEach((opt, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'q-option' + (q.optionStyle === 'emoji' ? ' emoji-opt' : '');
+      btn.textContent = opt.label;
+      btn.style.animationDelay = (i * 50) + 'ms';
+      btn.onclick = () => selectAnswer(btn, opt.correct, optionsEl);
+      optionsEl.appendChild(btn);
+    });
+  }
+
+  function selectAnswer(btn, isCorrect, container) {
+    // Disable all buttons
+    [...container.children].forEach(b => b.onclick = null);
+    const g = currentGame;
+    if (!g.answered) g.answered = [];
+
+    if (isCorrect) {
+      btn.classList.add('correct');
+      g.correct++;
+      g.answered.push(true);
+      haptic('success');
+      spawnSparkles(btn);
+    } else {
+      btn.classList.add('wrong');
+      g.wrong++;
+      g.answered.push(false);
+      haptic('error');
+      // Highlight correct answer
+      [...container.children].forEach(b => {
+        const idx = [...container.children].indexOf(b);
+        if (g.questions[g.qIndex].options[idx].correct) b.classList.add('correct');
+      });
+    }
+
+    setTimeout(() => {
+      g.qIndex++;
+      if (g.qIndex < g.questions.length) {
+        showQuestion();
+      } else {
+        showResult();
+      }
+    }, isCorrect ? 800 : 1500);
+  }
+
+  function spawnSparkles(target) {
+    const r = target.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const glyphs = ['✦', '✧', '⋆', '✨'];
+    for (let i = 0; i < 6; i++) {
+      const s = document.createElement('span');
+      s.className = 'sparkle';
+      s.textContent = glyphs[i % glyphs.length];
+      const angle = (Math.PI * 2 * i) / 6 + Math.random() * 0.5;
+      const dist = 40 + Math.random() * 30;
+      s.style.left = cx + 'px';
+      s.style.top = cy + 'px';
+      s.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      s.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+      s.style.animationDelay = (i * 20) + 'ms';
+      document.body.appendChild(s);
+      setTimeout(() => s.remove(), 900);
+    }
+  }
+
+  // ============ RESULT SCREEN ============
+  function showResult() {
+    const g = currentGame;
+    const total = g.questions.length;
+    const correct = g.correct;
+
+    // Calculate stars
+    let stars = 0;
+    if (correct === total) stars = 3;
+    else if (correct >= Math.ceil(total * 0.7)) stars = 2;
+    else if (correct >= 1) stars = 1;
+
+    // Update progress
+    const prevStars = state.stars[g.level] || 0;
+    if (stars > prevStars) state.stars[g.level] = stars;
+
+    // Unlock next level if passed (at least 1 star)
+    if (stars >= 1 && g.level === state.currentLevel && state.currentLevel < LEVELS.length) {
+      state.currentLevel = g.level + 1;
+    }
+
+    // Streak
+    if (stars === 3) state.streak++;
+    else state.streak = 0;
+
+    saveState();
+
+    // UI
+    showScreen('result-screen');
+    let title, icon;
+    if (stars === 3) { title = 'Тамаша!'; icon = '🎉'; }
+    else if (stars === 2) { title = 'Жақсы!'; icon = '👍'; }
+    else if (stars === 1) { title = 'Өтті'; icon = '✅'; }
+    else { title = 'Тағы да көрейік'; icon = '💪'; }
+
+    document.getElementById('result-icon').textContent = icon;
+    document.getElementById('result-title').textContent = title;
+
+    const starsEl = document.getElementById('result-stars');
+    starsEl.innerHTML = '';
+    for (let i = 1; i <= 3; i++) {
+      const s = document.createElement('span');
+      s.className = 'star' + (i > stars ? ' off' : '');
+      s.textContent = '★';
+      starsEl.appendChild(s);
+    }
+
+    // Haptic per star reveal
+    for (let i = 1; i <= stars; i++) {
+      setTimeout(() => haptic('medium'), 150 + (i - 1) * 200);
+    }
+
+    document.getElementById('result-stats').innerHTML =
+      `<strong>${correct}</strong> / ${total} дұрыс жауап<br>` +
+      (stars === 3 ? '<strong>Барлығы дәл!</strong> Серия жалғасуда 🔥' : '');
+
+    // Next button logic
+    const nextBtn = document.getElementById('result-next-btn');
+    if (g.level >= LEVELS.length) {
+      nextBtn.textContent = '🏆 Барлық деңгей аяқталды!';
+      nextBtn.disabled = true;
+    } else if (stars === 0) {
+      nextBtn.style.display = 'none';
+    } else {
+      nextBtn.textContent = 'Келесі деңгей →';
+      nextBtn.style.display = '';
+      nextBtn.disabled = false;
+    }
+
+    setTimeout(() => haptic(stars >= 2 ? 'success' : 'light'), 700);
+  }
+
+  function nextLevel() {
+    const next = currentGame.level + 1;
+    if (next <= LEVELS.length) { haptic('medium'); startLevel(next); }
+  }
+
+  function retryLevel() {
+    haptic('light');
+    startLevel(currentGame.level);
+  }
+
+  // ============ PACKAGES ============
+  const PACKAGES = {
+    basic:   { name: 'Қолжетімді', price: 6990, emoji: '🌾' },
+    pro:     { name: 'Pro',        price: 8590, emoji: '🦅' },
+    premium: { name: 'Премиум',    price: 9990, emoji: '💎' },
+  };
+
+  function selectPackage(id) {
+    const p = PACKAGES[id];
+    if (!p) return;
+    haptic('medium');
+    const extra = id === 'premium'
+      ? '\n\n🚗 Машина ұтысына билет ҚОСЫЛАДЫ — жылдық розыгрышқа қатысасыз!'
+      : '';
+    const msg =
+      `${p.emoji} ${p.name} пакеті\n\n` +
+      `Бағасы: ${p.price.toLocaleString('kk-KZ')} ₸ / жылына${extra}\n\n` +
+      `Төлем Telegram Stars арқылы жасалады. Жалғастырайық па?`;
+
+    if (tg?.showConfirm) {
+      tg.showConfirm(msg, (ok) => { if (ok) openPayment(id); });
+    } else if (confirm(msg)) {
+      openPayment(id);
+    }
+  }
+
+  function openPayment(id) {
+    const p = PACKAGES[id];
+    haptic('success');
+    const done =
+      `✓ ${p.name} пакеті таңдалды\n\n` +
+      `Жақын арада төлем терезесі ашылады. Бұл демо нұсқа — backend Telegram Stars invoice орнатылмаған.`;
+    if (tg?.showAlert) tg.showAlert(done); else alert(done);
+    // TODO: wire up tg.openInvoice(url) when backend is ready
+  }
+
+  // ============ HOW TO ============
+  function showHowTo() {
+    const msg =
+      '🦅 КӨЗҚЫРАҒЫ ЕРЕЖЕСІ\n\n' +
+      '1. Экранда бірнеше секундқа көрініс шығады\n' +
+      '2. Барлық объектіні есте сақта\n' +
+      '3. Көрініс жабылғанда — сұрақтарға жауап бер\n\n' +
+      '⭐ Барлығы дұрыс — 3 жұлдыз\n' +
+      '⭐ Көбі дұрыс — 2 жұлдыз\n' +
+      '⭐ Бірі дұрыс — 1 жұлдыз\n\n' +
+      'Әр деңгейде уақыт азайып, объект саны көбейеді.\nЗейінді жаттықтыр!';
+    if (tg?.showAlert) tg.showAlert(msg); else alert(msg);
+  }
+
+  // ============ INIT ============
+  updateHome();
+</script>
+</body>
+</html>

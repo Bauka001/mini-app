@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import {
@@ -15,8 +16,12 @@ import {
 import { GameWrapper } from '../../components/GameWrapper';
 import { useStore } from '../../store/useStoreImpl';
 import type { Language } from '../../store/useStore';
-import { hapticFeedback } from '../../utils/telegram';
 import { soundManager } from '../../utils/soundManager';
+import { Difficulty, DIFFICULTY_COIN_MULT } from '../../types/games';
+import { useGameTimer } from '../../hooks/useGameTimer';
+import { useLocalBest } from '../../hooks/useLocalBest';
+import { useHaptic } from '../../hooks/useHaptic';
+import { useGameSettings } from '../../store/gameSettings';
 
 type MissionType = 'trace' | 'reverse' | 'mirror' | 'checkpoint' | 'turns';
 type Tier = 'field' | 'stealth' | 'elite';
@@ -61,9 +66,17 @@ type CopySet = {
   missionLabels: Record<MissionType, { title: string; subtitle: string }>;
 };
 
-const INITIAL_TIME = 180;
-const MAX_TIME = 220;
+const GAME_ID = 'agent_sequence';
 const MAX_STRIKES = 3;
+
+const DIFFICULTY_CONFIG: Record<
+  Difficulty,
+  { timeMs: number; startLen: number; grid: number; previewMsFloor: number }
+> = {
+  easy:   { timeMs: 75_000, startLen: 3, grid: 3, previewMsFloor: 700 },
+  medium: { timeMs: 60_000, startLen: 4, grid: 4, previewMsFloor: 550 },
+  hard:   { timeMs: 45_000, startLen: 5, grid: 5, previewMsFloor: 400 },
+};
 
 const COPY: Record<Language, CopySet> = {
   en: {
@@ -345,30 +358,30 @@ const buildRound = (round: number, copy: CopySet): RoundData => {
   };
 };
 
-export default function AgentSequenceGame() {
-  const addGameResult = useStore((state) => state.addGameResult);
-  const language = useStore((state) => state.language);
-  const copy = COPY[language] || COPY.en;
+export const AgentSequenceGame = () => {
+  const { t } = useTranslation();
+  const { addGameResult, language } = useStore();
 
   return (
-    <GameWrapper title={copy.title} instructions={copy.instructions}>
+    <GameWrapper
+      title={t('game_agent_sequence', 'Agent Sequence')}
+      instructions={t('agent_sequence_desc', 'Memorize secret route, then rebuild it with taps before the signal collapses.')}
+    >
       {({ onEnd, isPaused }) => (
         <AgentSequenceBoard
           language={language}
           isPaused={isPaused}
           onFinish={(score, coins) => {
-            addGameResult({
-              gameId: 'agent_sequence',
-              score,
-              coinsEarned: coins,
-            });
-            onEnd(`${score} ${copy.resultsSuffix}`, coins);
+            queueMicrotask(() => addGameResult({ gameId: GAME_ID, score, coinsEarned: coins }));
+            onEnd(score, coins);
           }}
         />
       )}
     </GameWrapper>
   );
-}
+};
+
+export default AgentSequenceGame;
 
 function AgentSequenceBoard({
   onFinish,
@@ -380,7 +393,13 @@ function AgentSequenceBoard({
   language: Language;
 }) {
   const copy = useMemo(() => COPY[language] || COPY.en, [language]);
-  const [timeLeft, setTimeLeft] = useState(INITIAL_TIME);
+  const storedDifficulty = useGameSettings(s => s.difficultyPrefs[GAME_ID] ?? 'medium');
+  const setStoredDifficulty = useGameSettings(s => s.setDifficulty);
+  const [difficulty, setDifficulty] = useState<Difficulty>(storedDifficulty);
+  const config = DIFFICULTY_CONFIG[difficulty];
+  const { best, submit } = useLocalBest(GAME_ID, difficulty);
+  const haptic = useHaptic();
+
   const [score, setScore] = useState(0);
   const [round, setRound] = useState(1);
   const [streak, setStreak] = useState(0);
@@ -392,11 +411,15 @@ function AgentSequenceBoard({
   const [previewIndex, setPreviewIndex] = useState(-1);
   const [currentRound, setCurrentRound] = useState<RoundData>(() => buildRound(1, copy));
   const [selectedKeys, setSelectedKeys] = useState<string[]>([]);
+  const [selectedKeysSet, setSelectedKeysSet] = useState<Set<string>>(new Set());
   const [wrongKey, setWrongKey] = useState<string | null>(null);
+  const [lastUndoTime, setLastUndoTime] = useState(0);
 
   const endRef = useRef(false);
   const previewTimerRef = useRef<number | null>(null);
   const roundStartedAtRef = useRef(Date.now());
+  const processingRef = useRef(false);
+  const isMountedRef = useRef(true);
 
   const clearPreviewTimer = () => {
     if (previewTimerRef.current) {
@@ -407,100 +430,114 @@ function AgentSequenceBoard({
 
   const startRound = useCallback(
     (nextRound: number) => {
+      if (processingRef.current || !isMountedRef.current) return;
+      processingRef.current = true;
+
       clearPreviewTimer();
 
       const nextData = buildRound(nextRound, copy);
+      const previewMs = Math.max(config.previewMsFloor, 850 - nextRound * 28);
+
       setCurrentRound(nextData);
       setRound(nextRound);
       setPhase('briefing');
       setPreviewIndex(-1);
       setSelectedKeys([]);
+      setSelectedKeysSet(new Set());
       setWrongKey(null);
+      setLastUndoTime(0);
       setFeedback(copy.ready);
 
       previewTimerRef.current = window.setTimeout(() => {
+        if (!isMountedRef.current) return;
         setPhase('preview');
         let step = 0;
 
         const revealStep = () => {
+          if (!isMountedRef.current) return;
           setPreviewIndex(step);
           if (step < nextData.route.length - 1) {
             step += 1;
-            previewTimerRef.current = window.setTimeout(revealStep, nextData.previewMs);
+            previewTimerRef.current = window.setTimeout(revealStep, previewMs);
             return;
           }
 
           previewTimerRef.current = window.setTimeout(() => {
-            setPreviewIndex(-1);
-            setPhase('input');
-            roundStartedAtRef.current = Date.now();
-          }, Math.max(260, nextData.previewMs));
+            if (isMountedRef.current) {
+              setPreviewIndex(-1);
+              setPhase('input');
+              roundStartedAtRef.current = Date.now();
+              processingRef.current = false;
+            }
+          }, Math.max(260, previewMs));
         };
 
         revealStep();
       }, 720);
     },
-    [copy]
+    [copy, config.previewMsFloor]
   );
 
   useEffect(() => {
+    isMountedRef.current = true;
     startRound(1);
-    return () => clearPreviewTimer();
-  }, [startRound]);
+    return () => {
+      isMountedRef.current = false;
+      clearPreviewTimer();
+    };
+  }, []);
 
-  useEffect(() => {
-    if (isPaused || endRef.current) return undefined;
-
-    const interval = window.setInterval(() => {
-      setTimeLeft((previous) => {
-        if (previous <= 0.1) {
-          window.clearInterval(interval);
-          return 0;
-        }
-        return previous - 0.1;
-      });
-    }, 100);
-
-    return () => window.clearInterval(interval);
-  }, [isPaused]);
+  const { timeLeftMs } = useGameTimer({
+    durationMs: config.timeMs,
+    tickMs: 100,
+    isActive: phase === 'input' && !isPaused,
+    isPaused: isPaused,
+    onExpire: () => {
+      if (endRef.current) return;
+      endRef.current = true;
+      clearPreviewTimer();
+      const coins = Math.max(14, Math.round(score / 240) + completedRounds + bestStreak * 2);
+      onFinish(score, coins);
+    },
+  });
 
   useEffect(() => {
     if (endRef.current) return;
-    if (timeLeft > 0 && strikes < MAX_STRIKES) return;
+    if (timeLeftMs > 0 && strikes < MAX_STRIKES) return;
 
     endRef.current = true;
     clearPreviewTimer();
     const coins = Math.max(14, Math.round(score / 240) + completedRounds + bestStreak * 2);
     onFinish(score, coins);
-  }, [bestStreak, completedRounds, onFinish, score, strikes, timeLeft]);
+  }, [bestStreak, completedRounds, onFinish, score, strikes, timeLeftMs]);
 
-  const handleSuccess = () => {
-    hapticFeedback.notification('success');
+  const handleSuccess = useCallback(() => {
+    haptic.notification('success');
     void soundManager.playSuccess();
 
     const reactionMs = Date.now() - roundStartedAtRef.current;
     const fastBonus = Math.max(0, 220 - Math.floor(reactionMs / 10));
     const nextStreak = streak + 1;
-    const multiplier = 1 + Math.min(1.2, Math.floor(nextStreak / 2) * 0.15);
+    const multiplier = 1 + Math.min(1.2, Math.floor(nextStreak / 3) * 0.15);
     const gainedScore = Math.round((130 + currentRound.expectedRoute.length * 26 + fastBonus) * multiplier);
 
     setPhase('resolve');
-    setFeedback(nextStreak >= 4 ? copy.perfect : copy.locked);
+    setFeedback(nextStreak >= 3 ? copy.perfect : copy.locked);
     setStreak(nextStreak);
     setBestStreak((previous) => Math.max(previous, nextStreak));
     setCompletedRounds((previous) => previous + 1);
     setScore((previous) => previous + gainedScore);
-    setTimeLeft((previous) => Math.min(MAX_TIME, previous + 1.6));
 
     window.setTimeout(() => {
       if (!endRef.current) {
+        processingRef.current = false;
         startRound(round + 1);
       }
     }, 520);
-  };
+  }, [streak, currentRound.expectedRoute.length, haptic, copy.perfect, copy.locked, round, startRound]);
 
-  const handleFailure = (cellKey: string) => {
-    hapticFeedback.impact('heavy');
+  const handleFailure = useCallback((cellKey: string) => {
+    haptic.impact('heavy');
     void soundManager.playError();
 
     setPhase('resolve');
@@ -508,24 +545,25 @@ function AgentSequenceBoard({
     setFeedback(copy.breach);
     setStreak(0);
     setStrikes((previous) => previous + 1);
-    setTimeLeft((previous) => Math.max(0, previous - 4.6));
 
     window.setTimeout(() => {
       if (endRef.current) return;
       setWrongKey(null);
       setSelectedKeys([]);
+      setSelectedKeysSet(new Set());
+      setLastUndoTime(0);
       setPhase('input');
       roundStartedAtRef.current = Date.now();
     }, 640);
-  };
+  }, [haptic, copy.breach]);
 
-  const handleCellTap = (cell: Cell) => {
-    if (phase !== 'input' || endRef.current) return;
+  const handleCellTap = useCallback((cell: Cell) => {
+    if (phase !== 'input' || endRef.current || processingRef.current) return;
 
     const nextExpected = currentRound.expectedRoute[selectedKeys.length];
     const cellKey = keyOf(cell);
 
-    if (!nextExpected || selectedKeys.includes(cellKey)) {
+    if (!nextExpected || selectedKeysSet.has(cellKey)) {
       return;
     }
 
@@ -535,12 +573,26 @@ function AgentSequenceBoard({
     }
 
     const nextSelected = [...selectedKeys, cellKey];
+    const nextSet = new Set([...selectedKeysSet, cellKey]);
     setSelectedKeys(nextSelected);
+    setSelectedKeysSet(nextSet);
+    setLastUndoTime(Date.now());
+    haptic.impact('light');
 
     if (nextSelected.length >= currentRound.expectedRoute.length) {
       handleSuccess();
     }
-  };
+  }, [phase, currentRound.expectedRoute, selectedKeys, selectedKeysSet, handleFailure, handleSuccess, haptic]);
+
+  const handleUndo = useCallback(() => {
+    if (selectedKeys.length === 0 || Date.now() - lastUndoTime > 2000) return;
+
+    const nextSelected = selectedKeys.slice(0, -1);
+    const nextSet = new Set(nextSelected);
+    setSelectedKeys(nextSelected);
+    setSelectedKeysSet(nextSet);
+    haptic.impact('medium');
+  }, [selectedKeys, lastUndoTime, haptic]);
 
   const previewVisibleKeys = useMemo(() => {
     if (phase !== 'preview' || previewIndex < 0) return new Set<string>();
@@ -593,7 +645,7 @@ function AgentSequenceBoard({
             <StatCard label={copy.score} value={String(score)} icon={Sparkles} />
             <StatCard label={copy.streak} value={`x${streak}`} icon={Flame} />
             <StatCard label={copy.strikes} value={`${strikes}/${MAX_STRIKES}`} icon={ShieldAlert} danger={strikes >= 2} />
-            <StatCard label={copy.timer} value={timeLeft.toFixed(1)} icon={Hourglass} danger={timeLeft < 10} />
+            <StatCard label={copy.timer} value={(timeLeftMs / 1000).toFixed(1)} icon={Hourglass} danger={timeLeftMs < 10_000} />
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
@@ -635,6 +687,8 @@ function AgentSequenceBoard({
         </div>
 
         <div
+          role="grid"
+          aria-label="Sequence grid"
           className="relative mt-4 grid flex-1 gap-3 rounded-[28px] border border-white/8 bg-black/16 p-3 backdrop-blur-xl"
           style={{ gridTemplateColumns: `repeat(${currentRound.boardSize}, minmax(0, 1fr))` }}
         >
@@ -650,12 +704,22 @@ function AgentSequenceBoard({
             return (
               <motion.button
                 key={cellKey}
+                role="gridcell"
                 type="button"
                 whileTap={{ scale: phase === 'input' ? 0.96 : 1 }}
                 onClick={() => handleCellTap(cell)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleCellTap(cell);
+                  } else if (e.key === 'Backspace' || e.key === 'z' && e.ctrlKey) {
+                    e.preventDefault();
+                    handleUndo();
+                  }
+                }}
                 disabled={phase !== 'input'}
                 className={clsx(
-                  'relative aspect-square overflow-hidden rounded-[22px] border transition-all duration-200',
+                  'relative aspect-square overflow-hidden rounded-[22px] border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-cyan-300',
                   'bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950',
                   isPreview && 'border-cyan-300/70 shadow-[0_0_24px_rgba(34,211,238,0.28)]',
                   selectedIndex >= 0 && 'border-emerald-300/70 shadow-[0_0_24px_rgba(74,222,128,0.28)]',

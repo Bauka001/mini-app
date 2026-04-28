@@ -9,7 +9,6 @@ export const HeroTab = () => {
   const { t } = useTranslation();
   const {
     dailyRewardStreak,
-    lastDailyRewardDate,
     claimDailyLoginReward,
     coins,
     gems,
@@ -35,24 +34,19 @@ export const HeroTab = () => {
   };
 
   const today = new Date().toISOString().split('T')[0];
+  const lastDailyRewardDate = dailyRewardStreak?.lastClaimDate || null;
   const canClaimDaily = lastDailyRewardDate !== today && !claimedReward;
   
-  const streakDays = Array.from({ length: 10 }, (_, i) => i + 1);
+  const streakDays = Array.from({ length: 14 }, (_, i) => i + 1);
   const getStreakDayStatus = (day: number) => {
-    if (day < dailyRewardStreak) return 'completed';
-    if (day === dailyRewardStreak && canClaimDaily) return 'today';
-    if (day === dailyRewardStreak && !canClaimDaily) return 'claimed';
+    const count = dailyRewardStreak?.count || 0;
+    if (day < count) return 'completed';
+    if (day === count && canClaimDaily) return 'today';
+    if (day === count && !canClaimDaily) return 'claimed';
     return 'locked';
   };
   
   const [mysteryBoxTimeLeft, setMysteryBoxTimeLeft] = useState(7200);
-  
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setMysteryBoxTimeLeft(prev => Math.max(0, prev - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
   
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
@@ -63,7 +57,10 @@ export const HeroTab = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      updateEnergyRegen();
+      if (document.visibilityState === 'visible') {
+        setMysteryBoxTimeLeft(prev => Math.max(0, prev - 1));
+        updateEnergyRegen();
+      }
     }, 1000);
 
     return () => clearInterval(interval);
@@ -131,14 +128,14 @@ export const HeroTab = () => {
             </div>
             <div>
               <h3 className="text-lg font-bold text-orange-900 dark:text-orange-100">
-                {t('daily_streak', { count: dailyRewardStreak })}
+                {t('daily_streak', { count: dailyRewardStreak?.count || 0 })}
               </h3>
               <p className="text-sm text-orange-700 dark:text-orange-300">
                 {t('streak_description')}
               </p>
             </div>
           </div>
-          {dailyRewardStreak >= 7 && (
+          {(dailyRewardStreak?.count || 0) >= 7 && (
             <div className="px-3 py-1 rounded-full bg-orange-500 text-white text-xs font-bold">
               🔥 {t('streak_master')}
             </div>
@@ -146,7 +143,7 @@ export const HeroTab = () => {
         </div>
 
         {/* 10-Day Calendar View */}
-        <div className="grid grid-cols-5 gap-2 mb-4">
+        <div className="grid grid-cols-7 gap-2 mb-4">
           {streakDays.map((day) => {
             const status = getStreakDayStatus(day);
             return (

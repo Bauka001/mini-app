@@ -73,10 +73,10 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
 
   return (
     <div className={clsx(
-      "fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-300",
+      "modal-shell fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-300",
       isLight ? "bg-white/90" : "bg-black/90"
     )}>
-      <div className="flex flex-col items-center max-w-sm w-full">
+      <div className="modal-card flex flex-col items-center max-w-sm w-full overflow-y-auto">
         
         <h2 className={clsx(
           "text-3xl font-black mb-2 text-center drop-shadow-lg",
@@ -138,8 +138,8 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
         {chestState === 'opened' && (
           <button 
             onClick={onClose}
-            className={clsx(
-              "mt-12 w-full py-4 font-black text-xl rounded-2xl hover:scale-105 transition-transform",
+          className={clsx(
+            "mt-12 w-full min-h-[44px] py-4 font-black text-xl rounded-2xl hover:scale-105 transition-transform",
               isLight ? "bg-blue-600 text-white shadow-lg" : "bg-primary text-black shadow-[0_0_20px_rgba(255,215,0,0.3)]"
             )}
           >

@@ -65,16 +65,16 @@ export const TermsModal = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+        className="modal-shell fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       >
         <motion.div 
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
-          className="bg-[#1a1a1a] w-full max-w-lg rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative flex flex-col max-h-[80vh]"
+          className="modal-card bg-[#1a1a1a] w-full max-w-lg rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative flex flex-col"
         >
            {/* Header */}
-           <div className="p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
+           <div className="p-4 sm:p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
              <div className="flex items-center gap-3">
                <div className="p-2 bg-blue-500/20 rounded-xl">
                  <FileText className="text-blue-500" size={24} />
@@ -85,7 +85,7 @@ export const TermsModal = ({
              </div>
              <button 
                onClick={onClose}
-               className="p-2 bg-white/5 rounded-full text-gray-400 hover:bg-white/10 transition-colors"
+               className="p-2 min-h-[44px] min-w-[44px] bg-white/5 rounded-full text-gray-400 hover:bg-white/10 transition-colors"
              >
                <X size={20} />
              </button>
@@ -98,7 +98,7 @@ export const TermsModal = ({
                  key={lang}
                  onClick={() => setActiveTab(lang)}
                  className={clsx(
-                   "flex-1 py-2 rounded-lg text-sm font-bold transition-all uppercase flex items-center justify-center gap-2",
+                  "flex-1 min-h-[44px] py-2 rounded-lg text-sm font-bold transition-all uppercase flex items-center justify-center gap-2",
                    activeTab === lang 
                      ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" 
                      : "bg-white/5 text-gray-400 hover:bg-white/10"
@@ -110,7 +110,7 @@ export const TermsModal = ({
            </div>
 
            {/* Content */}
-           <div className="p-6 overflow-y-auto custom-scrollbar">
+           <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar">
              <div className="space-y-4">
                {content[activeTab].rules.map((rule, index) => (
                  <div key={index} className="flex gap-3 items-start p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
@@ -137,13 +137,13 @@ export const TermsModal = ({
 
            {/* Footer */}
            <div className="p-4 border-t border-white/10 bg-white/5 flex flex-col gap-3">
-             <div className="w-full py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl flex items-center justify-center gap-2">
+             <div className="w-full min-h-[44px] py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl flex items-center justify-center gap-2">
                <Trophy size={20} />
                <span>VIP Analytics + Weekend Tournament</span>
              </div>
              <button 
                onClick={onClose}
-               className="w-full py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors"
+               className="w-full min-h-[44px] py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors"
              >
                {activeTab === 'kz' ? 'Түсінікті' : activeTab === 'ru' ? 'Понятно' : 'Understood'}
              </button>

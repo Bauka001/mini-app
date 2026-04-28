@@ -1,6 +1,7 @@
 import { HashRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback, lazy, Suspense } from 'react';
 import WebApp from '@twa-dev/sdk';
+import { useTranslation } from 'react-i18next';
 import { Layout } from './components/Layout';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { AuthGuard } from './components/AuthGuard';
@@ -8,37 +9,38 @@ import { AnimatedRoutes } from './components/AnimatedRoutes';
 import OnboardingScreen1 from './components/onboarding/OnboardingScreen1';
 import OnboardingScreen2 from './components/onboarding/OnboardingScreen2';
 import OnboardingScreen3 from './components/onboarding/OnboardingScreen3';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { AdminUsers } from './pages/admin/AdminUsers';
-import { AdminChat } from './pages/admin/AdminChat';
-import { AdminGames } from './pages/admin/AdminGames';
-import AdminSettings from './pages/admin/AdminSettings';
-import AdminPanel from './pages/AdminPanel';
 import { useStore } from './store/useStoreImpl';
-
-// Static imports to prevent lazy loading errors
 import Home from './pages/Home';
-import ShopPage from './pages/Shop';
-import SettingsPage from './pages/Settings';
-import ProfilePage from './pages/Profile';
-import LeaderboardPage from './pages/Leaderboard';
-import DailyWorkoutPage from './pages/DailyWorkout';
-import AirdropPage from './pages/Airdrop';
-import TournamentsPage from './pages/Tournaments';
-import AnalyticsPage from './pages/Analytics';
+
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers').then(m => ({ default: m.AdminUsers })));
+const AdminChat = lazy(() => import('./pages/admin/AdminChat').then(m => ({ default: m.AdminChat })));
+const AdminGames = lazy(() => import('./pages/admin/AdminGames').then(m => ({ default: m.AdminGames })));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+
+// Lazy loaded pages to reduce initial bundle size
+const ShopPage = lazy(() => import('./pages/Shop'));
+const SettingsPage = lazy(() => import('./pages/Settings'));
+const ProfilePage = lazy(() => import('./pages/Profile'));
+const LeaderboardPage = lazy(() => import('./pages/Leaderboard'));
+const DailyWorkoutPage = lazy(() => import('./pages/DailyWorkout'));
+const AirdropPage = lazy(() => import('./pages/Airdrop'));
+const TournamentsPage = lazy(() => import('./pages/Tournaments'));
+const AnalyticsPage = lazy(() => import('./pages/Analytics'));
 
 // Games
-import SchulteGame from './pages/games/SchulteGame';
-import MathGame from './pages/games/MathGame';
-import StroopGame from './pages/games/StroopGame';
-import MemoryGame from './pages/games/MemoryGame';
-import OddOneOutGame from './pages/games/OddOneOutGame';
-import PairsGame from './pages/games/PairsGame';
-import TetrisGame from './pages/games/TetrisGame';
-import Merge2048Game from './pages/games/Merge2048Game';
-import AgentSpotGame from './pages/games/AgentSpotGame';
-import AgentSequenceGame from './pages/games/AgentSequenceGame';
-import CodeBreakerGame from './pages/games/CodeBreakerGame';
+const SchulteGame = lazy(() => import('./pages/games/SchulteGame'));
+const MathGame = lazy(() => import('./pages/games/MathGame'));
+const StroopGame = lazy(() => import('./pages/games/StroopGame'));
+const MemoryGame = lazy(() => import('./pages/games/MemoryGame'));
+const OddOneOutGame = lazy(() => import('./pages/games/OddOneOutGame'));
+const PairsGame = lazy(() => import('./pages/games/PairsGame'));
+const Merge2048Game = lazy(() => import('./pages/games/Merge2048Game'));
+const AgentSpotGame = lazy(() => import('./pages/games/AgentSpotGame'));
+const AgentSequenceGame = lazy(() => import('./pages/games/AgentSequenceGame'));
+const CodeBreakerGame = lazy(() => import('./pages/games/CodeBreakerGame'));
+const CompassGame = lazy(() => import('./pages/games/CompassGame'));
 
 type HistoryEntry = {
   gameId: string;
@@ -77,7 +79,6 @@ const workoutOnboardingGames: WorkoutOnboardingGame[] = [
   { id: 'pairs', routeId: 'pairs', historyIds: ['pairs'] },
   { id: 'odd-one', routeId: 'odd-one', historyIds: ['odd_one_out'] },
   { id: 'stroop', routeId: 'stroop', historyIds: ['stroop'] },
-  { id: 'tetris', routeId: 'tetris', historyIds: ['tetris'] },
   { id: '2048', routeId: '2048', historyIds: ['2048'] },
   { id: 'agent-spot', routeId: 'agent-spot', historyIds: ['agent_spot'] },
   { id: 'agent-sequence', routeId: 'agent-sequence', historyIds: ['agent_sequence'] },
@@ -131,7 +132,11 @@ const writeWorkoutSession = (session: WorkoutSession) => {
 
 const ensureWorkoutSession = () => {
   const stored = readStoredWorkoutSession();
-  if (stored?.date === getTodayKey() && stored.gameIds.length === 3) {
+  if (
+    stored?.date === getTodayKey() &&
+    stored.gameIds.length === 3 &&
+    stored.gameIds.every((gameId) => Boolean(getWorkoutGameById(gameId)))
+  ) {
     return stored;
   }
 
@@ -152,6 +157,10 @@ const createInitialOnboardingProgress = (): OnboardingProgress => ({
 });
 
 const getOnboardingStorageKey = (userId: number) => `${ONBOARDING_STORAGE_PREFIX}-${userId}`;
+
+let lastSyncTime = 0;
+const SYNC_THROTTLE_MS = 60000; // 1 minute throttle
+
 
 const readOnboardingProgress = (userId: number): OnboardingProgress | null => {
   if (typeof window === 'undefined') return null;
@@ -192,7 +201,20 @@ function AppRoutes() {
   const location = useLocation();
   const userId = useStore((state) => state.user.id);
   const history = useStore((state) => state.history as HistoryEntry[]);
+  const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
   const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress | null>(null);
+
+  const throttledSync = useCallback(() => {
+    const now = Date.now();
+    if (now - lastSyncTime > SYNC_THROTTLE_MS) {
+      lastSyncTime = now;
+      syncUserFromTelegram();
+    }
+  }, [syncUserFromTelegram]);
+
+  useEffect(() => {
+    throttledSync();
+  }, [location.pathname, throttledSync]);
 
   const updateOnboardingProgress = (patch: Partial<OnboardingProgress>) => {
     if (!userId || !onboardingProgress) return;
@@ -338,43 +360,49 @@ function AppRoutes() {
 
   return (
     <>
-      <AnimatedRoutes>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            <Route index element={<Home />} />
-            <Route path="leaderboard" element={<LeaderboardPage />} />
-            <Route path="shop" element={<ShopPage />} />
-            <Route path="airdrop" element={<AirdropPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
+      <Suspense fallback={
+        <div className="flex h-screen w-full items-center justify-center bg-black/5">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
+        </div>
+      }>
+        <AnimatedRoutes>
+          <Routes>
+            <Route path="/" element={<Layout />}>
+              <Route index element={<Home />} />
+              <Route path="leaderboard" element={<LeaderboardPage />} />
+              <Route path="shop" element={<ShopPage />} />
+              <Route path="airdrop" element={<AirdropPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+              <Route path="tournaments" element={<TournamentsPage />} />
+            </Route>
 
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/daily-workout" element={<DailyWorkoutPage />} />
-          <Route path="/tournaments" element={<TournamentsPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/daily-workout" element={<DailyWorkoutPage />} />
 
-          <Route path="/game/schulte" element={<SchulteGame />} />
-          <Route path="/game/math" element={<MathGame />} />
-          <Route path="/game/stroop" element={<StroopGame />} />
-          <Route path="/game/memory" element={<MemoryGame />} />
-          <Route path="/game/odd-one" element={<OddOneOutGame />} />
-          <Route path="/game/pairs" element={<PairsGame />} />
-          <Route path="/game/tetris" element={<TetrisGame />} />
-          <Route path="/game/2048" element={<Merge2048Game />} />
-          <Route path="/game/agent-spot" element={<AgentSpotGame />} />
-          <Route path="/game/agent-sequence" element={<AgentSequenceGame />} />
-          <Route path="/game/code-breaker" element={<CodeBreakerGame />} />
+            <Route path="/game/schulte" element={<SchulteGame />} />
+            <Route path="/game/math" element={<MathGame />} />
+            <Route path="/game/stroop" element={<StroopGame />} />
+            <Route path="/game/memory" element={<MemoryGame />} />
+            <Route path="/game/odd-one" element={<OddOneOutGame />} />
+            <Route path="/game/pairs" element={<PairsGame />} />
+            <Route path="/game/2048" element={<Merge2048Game />} />
+            <Route path="/game/agent-spot" element={<AgentSpotGame />} />
+            <Route path="/game/agent-sequence" element={<AgentSequenceGame />} />
+            <Route path="/game/code-breaker" element={<CodeBreakerGame />} />
+            <Route path="/game/compass" element={<CompassGame />} />
 
-          <Route path="/admin" element={<AuthGuard adminOnly={true}><AdminLayout /></AuthGuard>}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="users" element={<AdminUsers />} />
-            <Route path="chat" element={<AdminChat />} />
-            <Route path="games" element={<AdminGames />} />
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="tickets" element={<AdminPanel />} />
-          </Route>
-        </Routes>
-      </AnimatedRoutes>
+            <Route path="/admin" element={<AuthGuard adminOnly={true}><AdminLayout /></AuthGuard>}>
+              <Route index element={<AdminDashboard />} />
+              <Route path="users" element={<AdminUsers />} />
+              <Route path="chat" element={<AdminChat />} />
+              <Route path="games" element={<AdminGames />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="tickets" element={<AdminPanel />} />
+            </Route>
+          </Routes>
+        </AnimatedRoutes>
+      </Suspense>
 
       {canRenderOverlay && onboardingProgress?.screen === 1 && (
         <OnboardingScreen1
@@ -405,7 +433,15 @@ function App() {
   const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
   const addNotification = useStore((state) => state.addNotification);
   const userId = useStore((state) => state.user.id);
-  const logout = useStore((state) => state.logout);
+  const language = useStore((state) => state.language);
+  const { i18n } = useTranslation();
+
+  // Sync i18n language with store
+  useEffect(() => {
+    if (language && i18n.language !== language) {
+      i18n.changeLanguage(language);
+    }
+  }, [language, i18n]);
 
   // Sync user data immediately and handle account switching
   useEffect(() => {
@@ -418,24 +454,51 @@ function App() {
       }
     }
 
+    // Only wipe app-owned keys that store user state
+    const APP_KEY_PREFIXES = ['focus-app-', 'focus-daily-', 'focus-onboarding-', 'welcome_shown_'];
+    const clearAppStorage = () => {
+      try {
+        const storages: Storage[] = [localStorage, sessionStorage];
+        for (const storage of storages) {
+          const toRemove: string[] = [];
+          for (let i = 0; i < storage.length; i += 1) {
+            const key = storage.key(i);
+            if (key && APP_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+              toRemove.push(key);
+            }
+          }
+          toRemove.forEach((key) => storage.removeItem(key));
+        }
+      } catch (e) {
+        console.warn('Failed to clear app storage:', e);
+      }
+    };
+
     const checkAccount = () => {
       const tgUser = WebApp?.initDataUnsafe?.user || (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
-      
+
       if (tgUser && userId && userId !== 0 && userId !== tgUser.id) {
-        console.warn('Account switch detected! Clearing local data and reloading...');
-        // Force clear everything related to this app
-        localStorage.clear(); 
-        sessionStorage.clear();
-        window.location.reload();
+        console.warn('Account switch detected! Clearing app storage...');
+        clearAppStorage();
         return true;
       }
       return false;
     };
 
-    if (!checkAccount()) {
-      syncUserFromTelegram();
+    const isSwitched = checkAccount();
+    
+    // Sync user data for the new account without reloading the page
+    syncUserFromTelegram();
+
+    if (isSwitched) {
+      // Show native modal/toast to the user
+      if (WebApp.isVersionAtLeast('6.2')) {
+        WebApp.showAlert('Аккаунт ауысты, қайта кіріңіз');
+      } else {
+        alert('Аккаунт ауысты, қайта кіріңіз');
+      }
     }
-  }, [syncUserFromTelegram, userId, logout]);
+  }, [syncUserFromTelegram, userId]);
 
   // Sync HTML data-theme attribute with store
   const theme = useStore((state) => state.theme);
@@ -445,10 +508,35 @@ function App() {
 
   // Periodic sync check
   useEffect(() => {
+    const throttledSync = () => {
+      const now = Date.now();
+      if (now - lastSyncTime > SYNC_THROTTLE_MS) {
+        lastSyncTime = now;
+        syncUserFromTelegram();
+      }
+    };
+
+    // Sync every 3 minutes
     const timer = setInterval(() => {
-      syncUserFromTelegram();
-    }, 2000);
-    return () => clearInterval(timer);
+      throttledSync();
+    }, 3 * 60 * 1000);
+
+    // Sync on app focus
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        throttledSync();
+      }
+    };
+    const handleFocus = () => throttledSync();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [syncUserFromTelegram]);
 
   useEffect(() => {

@@ -8,6 +8,7 @@ type AnalyticsClaimReward = {
   coins: number;
   gems: number;
   xp: number;
+  tournamentTickets: number;
   analyticsDay: number;
   analyticsTitle: string;
   analyticsDescription: string;
@@ -51,7 +52,6 @@ export const DailyRewardModal = ({
   onClose: () => void; 
 }) => {
   const {
-    lastDailyRewardDate,
     dailyRewardStreak,
     claimDailyLoginReward,
     plan,
@@ -76,14 +76,15 @@ export const DailyRewardModal = ({
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
   const twoDaysAgo = new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0];
   const isVipActive = plan === 'premium' && (!planExpiry || planExpiry > Date.now());
+  const lastDailyRewardDate = dailyRewardStreak?.lastClaimDate || null;
   const isClaimedToday = lastDailyRewardDate === today;
   const canUseVipGrace = !isClaimedToday && isVipActive && lastDailyRewardDate === twoDaysAgo;
   const previewStreak = isClaimedToday
-    ? dailyRewardStreak
+    ? dailyRewardStreak.count
     : lastDailyRewardDate === yesterday || canUseVipGrace
-      ? dailyRewardStreak + 1
+      ? dailyRewardStreak.count + 1
       : 1;
-  const unlockedDays = isClaimedToday ? dailyRewardStreak : Math.max(dailyRewardStreak, 0);
+  const unlockedDays = isClaimedToday ? dailyRewardStreak.count : Math.max(dailyRewardStreak.count, 0);
   const nextMilestone = ANALYTICS_REWARD_STEPS.find((step) => step.day > unlockedDays) || null;
   const currentFocusDay =
     !isClaimedToday && ANALYTICS_REWARD_STEPS.some((step) => step.day === previewStreak)
@@ -102,26 +103,26 @@ export const DailyRewardModal = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+        className="modal-shell fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       >
         <motion.div 
           initial={{ scale: 0.8, y: 50 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.8, y: 50 }}
-          className="bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative"
+          className="modal-card bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative flex flex-col"
         >
            <button 
              onClick={onClose}
-             className="absolute top-4 right-4 p-2 bg-white/5 rounded-full text-gray-400 hover:bg-white/10 z-10"
+             className="absolute top-4 right-4 p-2 min-h-[44px] min-w-[44px] bg-white/5 rounded-full text-gray-400 hover:bg-white/10 z-10"
            >
              <X size={20} />
            </button>
 
-           <div className="p-8 text-center relative overflow-hidden">
+           <div className="p-5 sm:p-8 text-center relative overflow-y-auto overflow-x-hidden">
              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 bg-primary/20 blur-[80px] rounded-full pointer-events-none" />
 
-             <h2 className="text-3xl font-black text-white mb-2 relative z-10 uppercase italic">Күнделікті аналитика</h2>
-             <p className="text-gray-400 text-sm mb-4 relative z-10 font-medium">
+             <h2 className="text-2xl sm:text-3xl font-black text-white mb-2 relative z-10 uppercase italic">Күнделікті аналитика</h2>
+             <p className="text-gray-400 text-sm sm:text-base mb-4 relative z-10 font-medium">
                Күнделікті кіру арқылы аналитика бөлімінің жаңа қабаттарын ашыңыз.
              </p>
 
@@ -129,7 +130,7 @@ export const DailyRewardModal = ({
                <div className="flex items-center justify-between gap-3 mb-2">
                  <div>
                    <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Қазіргі серия</p>
-                   <p className="text-2xl font-black text-white">{dailyRewardStreak} күн</p>
+                  <p className="text-2xl font-black text-white">{dailyRewardStreak.count} күн</p>
                  </div>
                  {isVipActive ? (
                    <div className="inline-flex items-center gap-2 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-300">
@@ -220,6 +221,20 @@ export const DailyRewardModal = ({
                  </div>
                  <div className="text-white font-bold">{claimedReward.analyticsTitle}</div>
                  <div className="text-sm text-gray-300 mt-1">{claimedReward.analyticsDescription}</div>
+                {claimedReward.coins > 0 || claimedReward.tournamentTickets > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {claimedReward.coins > 0 ? (
+                      <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white">
+                        +{claimedReward.coins} coins
+                      </div>
+                    ) : null}
+                    {claimedReward.tournamentTickets > 0 ? (
+                      <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white">
+                        +{claimedReward.tournamentTickets} tournament ticket
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                  {claimedReward.streakPreservedByVip ? (
                    <div className="mt-3 text-xs font-semibold text-yellow-300">
                      VIP grace қолданылды: серия бір күн кешіккеніне қарамастан сақталды.
@@ -234,7 +249,7 @@ export const DailyRewardModal = ({
              ) : (
                <button
                  onClick={handleClaim}
-                 className="w-full bg-gradient-to-r from-primary to-orange-500 text-black font-black py-4 rounded-xl text-xl shadow-lg hover:scale-105 transition-transform active:scale-95"
+                 className="w-full min-h-[44px] bg-gradient-to-r from-primary to-orange-500 text-black font-black py-4 rounded-xl text-xl shadow-lg hover:scale-105 transition-transform active:scale-95"
                >
                  Analytics ашу
                </button>

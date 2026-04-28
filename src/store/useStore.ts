@@ -91,6 +91,26 @@ export interface MysteryBox {
   boosterType?: 'freezes' | 'hints' | 'shields';
 }
 
+export interface DailyRewardStreak {
+  count: number;
+  lastClaimDate: string | null;
+  claimedDates: string[];
+}
+
+export interface WeeklyChallenge {
+  weekKey: string | null;
+  dayProgress: Record<string, number>;
+  completedDays: string[];
+  isClaimed: boolean;
+  reward: { coins: number };
+}
+
+export interface WeekendEvent {
+  weekendKey: string | null;
+  isActive: boolean;
+  multiplier: number;
+}
+
 export interface Ticket {
   id: string;
   ticketNumber: number;
@@ -126,7 +146,7 @@ export interface BrainStats {
   dailyWorkoutModifier?: number;
 }
 
-export type TournamentPaymentMethod = 'stars' | 'ton' | 'vip';
+export type TournamentPaymentMethod = 'stars' | 'ton' | 'vip' | 'ticket';
 
 export interface TournamentGame {
   gameId: string;
@@ -175,8 +195,10 @@ export interface UserState {
   feedbacks: Feedback[];
   notifications: Notification[];
 
-  dailyRewardStreak: number;
-  lastDailyRewardDate: string | null;
+  dailyRewardStreak: DailyRewardStreak;
+  weeklyChallenge: WeeklyChallenge;
+  weekendEvent: WeekendEvent;
+  tournamentTickets: number;
 
   plan: 'free' | 'silver' | 'gold' | 'premium';
 
@@ -218,7 +240,7 @@ export interface UserState {
   consumeBooster: (type: 'freezes' | 'hints' | 'shields') => boolean;
 
   claimDailyReward: (amount: number) => void;
-  claimDailyLoginReward: () => { success: boolean; reward: { coins: number; gems: number; xp: number } };
+  claimDailyLoginReward: () => { success: boolean; reward: { coins: number; gems: number; xp: number; tournamentTickets: number } };
   redeemPromocode: (code: string) => { success: boolean; message: string };
 
   refreshChallenges: () => void;
@@ -268,6 +290,7 @@ export interface UserState {
   updateWeeklyQuest: () => void;
   claimWeeklyQuestMilestone: (milestoneIndex: number) => boolean;
   joinTournament: (paymentMethod: TournamentPaymentMethod) => { success: boolean; message: string };
+  claimWeeklyChallengeReward: () => boolean;
 }
 
 const tgUser = getTelegramUser();
@@ -329,8 +352,40 @@ export const initialSocialTasks: SocialTask[] = [
   }
 ];
 
+type TelegramWindow = Window & {
+  Telegram?: {
+    WebApp?: {
+      initDataUnsafe?: {
+        user?: {
+          language_code?: string;
+        };
+      };
+    };
+  };
+};
+
+const getInitialLanguage = (): Language => {
+  if (typeof window === 'undefined') return 'en';
+  
+  const tg = (window as TelegramWindow).Telegram?.WebApp;
+  if (tg?.initDataUnsafe?.user?.language_code) {
+    const tgLang = tg.initDataUnsafe.user.language_code.toLowerCase();
+    if (tgLang === 'ru') return 'ru';
+    if (tgLang === 'kk' || tgLang === 'kz' || tgLang === 'ky') return 'kz';
+    if (tgLang === 'en') return 'en';
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.language) {
+    const browserLang = navigator.language.toLowerCase();
+    if (browserLang.startsWith('ru')) return 'ru';
+    if (browserLang.startsWith('kk') || browserLang.startsWith('kz') || browserLang.startsWith('ky')) return 'kz';
+  }
+  
+  return 'en';
+};
+
 export const initialState = {
-  language: 'ru' as Language,
+  language: getInitialLanguage(),
   soundEnabled: true,
   theme: 'light' as Theme,
   brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
@@ -344,7 +399,16 @@ export const initialState = {
   dailyGoalMinutes: 10,
   streak: 0,
   history: [],
-  lastDailyRewardDate: null,
+  dailyRewardStreak: { count: 0, lastClaimDate: null, claimedDates: [] } as DailyRewardStreak,
+  weeklyChallenge: {
+    weekKey: null,
+    dayProgress: {},
+    completedDays: [],
+    isClaimed: false,
+    reward: { coins: 250 },
+  } as WeeklyChallenge,
+  weekendEvent: { weekendKey: null, isActive: false, multiplier: 1 } as WeekendEvent,
+  tournamentTickets: 0,
   challenges: generateDailyChallenges(),
   lastChallengeDate: new Date().toISOString().split('T')[0],
   socialTasks: initialSocialTasks,
@@ -354,7 +418,7 @@ export const initialState = {
   planExpiry: null,
   hp: 100,
   maxHp: 100,
-  dailyRewardStreak: 0,
+  
   tickets: [],
   eventParticipants: [],
   promotionEndISO: '2026-04-26T08:00:00.000Z',

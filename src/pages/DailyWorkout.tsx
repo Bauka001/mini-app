@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
-  Blocks,
   Brain,
   Calendar,
   CheckCircle2,
@@ -137,15 +136,6 @@ const workoutGamesCatalog: WorkoutGame[] = [
     historyIds: ['stroop']
   },
   {
-    id: 'tetris',
-    routeId: 'tetris',
-    titleKey: 'game_tetris',
-    description: 'Кеңістіктік ойлау мен ырғақты ұстайды.',
-    icon: Blocks,
-    accentClass: 'from-cyan-500/20 to-sky-500/20 border-cyan-400/30',
-    historyIds: ['tetris']
-  },
-  {
     id: '2048',
     routeId: '2048',
     titleKey: 'game_2048',
@@ -200,7 +190,7 @@ const writeWorkoutSession = (session: WorkoutSession) => {
 
 const getDailyWorkoutSession = (forceRefresh = false) => {
   const stored = readStoredWorkoutSession();
-  if (!forceRefresh && stored?.date === getTodayKey() && stored.gameIds.length === 3) {
+  if (!forceRefresh && stored?.date === getTodayKey() && isValidWorkoutSession(stored)) {
     return stored;
   }
 
@@ -211,6 +201,13 @@ const getDailyWorkoutSession = (forceRefresh = false) => {
 
 const getWorkoutGameById = (gameId: string) =>
   workoutGamesCatalog.find((game) => game.id === gameId);
+
+const isValidWorkoutSession = (session: WorkoutSession | null) =>
+  Boolean(
+    session &&
+    session.gameIds.length === 3 &&
+    session.gameIds.every((gameId) => Boolean(getWorkoutGameById(gameId)))
+  );
 
 const getCompletedHistoryEntry = (
   game: WorkoutGame,
@@ -281,10 +278,10 @@ export default function DailyWorkoutPage() {
   };
 
   return (
-    <div className={clsx("min-h-screen pb-8 transition-colors duration-500", bgClass)}>
+    <div className={clsx("mobile-page min-h-screen pb-2 transition-colors duration-500", bgClass)}>
       <header
         className={clsx(
-          "sticky top-0 z-10 px-4 py-4 flex items-center justify-between border-b backdrop-blur-md transition-colors duration-500",
+          "sticky top-0 z-10 px-4 py-3 sm:py-4 flex items-center justify-between border-b backdrop-blur-md transition-colors duration-500",
           headerClass
         )}
       >
@@ -293,19 +290,19 @@ export default function DailyWorkoutPage() {
             hapticFeedback.click();
             navigate('/');
           }}
-          className={clsx("p-2 rounded-full transition-colors", styles.cardClass)}
+          className={clsx("p-2 min-h-[44px] min-w-[44px] rounded-full transition-colors", styles.cardClass)}
         >
           <ArrowLeft size={20} className={textPrimary} />
         </button>
 
         <div className="text-center">
           <h1 className={clsx("text-lg font-black", textPrimary)}>Daily Workout</h1>
-          <p className={clsx("text-xs", textSecondary)}>3 random games. 1 daily result.</p>
+          <p className={clsx("text-sm", textSecondary)}>3 random games. 1 daily result.</p>
         </div>
 
         <button
           onClick={handleRefreshWorkout}
-          className={clsx("p-2 rounded-full transition-colors", styles.cardClass)}
+          className={clsx("p-2 min-h-[44px] min-w-[44px] rounded-full transition-colors", styles.cardClass)}
         >
           <RotateCcw size={18} className={styles.textAccent} />
         </button>
@@ -335,7 +332,7 @@ export default function DailyWorkoutPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mt-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
             <div className={clsx("p-3 rounded-2xl", styles.cardClass)}>
               <div className={clsx("text-xs font-medium", textSecondary)}>Selected</div>
               <div className={clsx("text-xl font-black mt-1", textPrimary)}>{selectedGames.length}</div>
@@ -423,21 +420,21 @@ export default function DailyWorkoutPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.08 + index * 0.06 }}
                 className={clsx(
-                  "p-4 rounded-3xl border bg-gradient-to-br transition-colors duration-500",
+                  "p-4 rounded-3xl border bg-gradient-to-br transition-colors duration-500 overflow-hidden",
                   item.game.accentClass,
                   panelClass
                 )}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
                     <div className={clsx("w-12 h-12 rounded-2xl flex items-center justify-center", styles.cardClass)}>
                       <Icon size={24} className={styles.textAccent} />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <div className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", textSecondary)}>
                         Game {index + 1}
                       </div>
-                      <h3 className={clsx("text-lg font-bold mt-1", textPrimary)}>{t(item.game.titleKey)}</h3>
+                      <h3 className={clsx("text-base sm:text-lg font-bold mt-1 break-words", textPrimary)}>{t(item.game.titleKey)}</h3>
                       <p className={clsx("text-sm mt-1 leading-relaxed", textSecondary)}>
                         {item.game.description}
                       </p>
@@ -453,7 +450,7 @@ export default function DailyWorkoutPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                   <div className={clsx("p-3 rounded-2xl", styles.cardClass)}>
                     <div className={clsx("text-xs font-medium", textSecondary)}>Result</div>
                     <div className={clsx("text-base font-bold mt-2", textPrimary)}>
@@ -471,7 +468,7 @@ export default function DailyWorkoutPage() {
                 <button
                   onClick={() => handleOpenGame(item.game.routeId)}
                   className={clsx(
-                    "w-full mt-4 px-4 py-3 rounded-2xl font-bold flex items-center justify-between",
+                    "w-full mt-4 px-4 py-3 min-h-[44px] rounded-2xl font-bold flex items-center justify-between",
                     isDone ? styles.btnSecondary : styles.btnPrimary
                   )}
                 >

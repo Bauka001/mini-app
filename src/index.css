@@ -43,6 +43,8 @@
   --color-muted: #8E8E93; /* iOS muted gray */
   --color-accent: #5E5CE6; /* Indigo accent */
   color-scheme: dark;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 [data-theme="light"] {
@@ -88,14 +90,60 @@ html, body {
   background-color: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-sans);
+  font-size: 14px;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 #root {
   height: 100%;
+  min-height: 100dvh;
   width: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Mobile-first baseline */
+button,
+[role="button"] {
+  min-height: 44px;
+}
+
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+.mobile-page {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
+  padding-bottom: calc(var(--safe-bottom) + 88px);
+}
+
+.safe-top {
+  padding-top: var(--safe-top);
+}
+
+.safe-bottom {
+  padding-bottom: var(--safe-bottom);
+}
+
+.modal-shell {
+  padding-top: calc(var(--safe-top) + 12px);
+  padding-bottom: calc(var(--safe-bottom) + 12px);
+}
+
+.modal-card {
+  max-height: min(88dvh, calc(100dvh - var(--safe-top) - var(--safe-bottom) - 24px));
 }
 
 .bg-primary { background-color: var(--color-primary); }
