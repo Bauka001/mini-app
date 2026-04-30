@@ -16,6 +16,7 @@ import { GuestBanner } from '../components/GuestBanner';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { hapticFeedback } from '../utils/telegram';
 import type { Variants } from 'framer-motion';
+import { claudeTokens } from '../components/ui/claudeTokens';
 
 const DAILY_WORKOUT_TARGET = 3;
 const TODAY_KEY = () => new Date().toISOString().split('T')[0];
@@ -58,6 +59,9 @@ const STAT_ACCENT_CLASSES: Record<StatAccent, string> = {
   rose: 'text-rose-300',
 };
 
+// In Claude theme the stat strip becomes an editorial spec line:
+//   01 streak  ·  248 coins  ·  …
+// In every other theme it stays as the existing color-coded pills.
 const StatPill = ({
   icon: Icon,
   label,
@@ -68,17 +72,32 @@ const StatPill = ({
   label: string;
   accent: StatAccent;
   styles: ReturnType<typeof useThemeStyles>;
-}) => (
-  <div
-    className={clsx(
-      'flex items-center gap-1.5 px-3 py-1.5 rounded-full border whitespace-nowrap shrink-0 transition-colors duration-300',
-      styles.cardClass
-    )}
-  >
-    <Icon size={13} className={STAT_ACCENT_CLASSES[accent]} />
-    <span className={clsx('text-xs font-bold tabular-nums', styles.textPrimary)}>{label}</span>
-  </div>
-);
+}) => {
+  if (styles.isClaude) {
+    return (
+      <div className="flex items-center gap-1.5 whitespace-nowrap shrink-0">
+        <Icon size={13} style={{ color: claudeTokens.textMuted }} />
+        <span
+          className="text-[13px] font-medium tabular-nums"
+          style={{ color: claudeTokens.textPrimary, fontFeatureSettings: '"lnum","tnum"' }}
+        >
+          {label}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div
+      className={clsx(
+        'flex items-center gap-1.5 px-3 py-1.5 rounded-full border whitespace-nowrap shrink-0 transition-colors duration-300',
+        styles.cardClass
+      )}
+    >
+      <Icon size={13} className={STAT_ACCENT_CLASSES[accent]} />
+      <span className={clsx('text-xs font-bold tabular-nums', styles.textPrimary)}>{label}</span>
+    </div>
+  );
+};
 
 const ListItem = ({
   icon: Icon,
@@ -99,6 +118,7 @@ const ListItem = ({
     onClick={() => { hapticFeedback.click(); onClick(); }}
     className={clsx(
       "w-full p-4 flex items-center justify-between border-b last:border-0 transition-colors duration-300",
+      styles.isClaude ? "bg-transparent border-[#E5E2D8] hover:bg-[#F0EEE6]" :
       styles.isLight ? "bg-white border-slate-100 hover:bg-slate-50" :
       styles.isBlue ? "bg-transparent border-blue-400/20 hover:bg-blue-800/30" :
       styles.isGold ? "bg-transparent border-amber-500/20 hover:bg-amber-900/30" :
@@ -108,19 +128,77 @@ const ListItem = ({
     <div className="flex items-center gap-4">
       <div className={clsx(
         "w-10 h-10 rounded-xl flex items-center justify-center transition-colors duration-300",
+        styles.isClaude ? "" :
         styles.isLight ? "bg-indigo-50" :
         styles.isBlue ? "bg-blue-900/40" :
         styles.isGold ? "bg-amber-900/40" :
         "bg-white/10"
-      )}>
-        <Icon size={20} className={styles.textAccent} />
+      )}
+      style={styles.isClaude ? { backgroundColor: claudeTokens.surfaceMuted, border: `1px solid ${claudeTokens.border}` } : undefined}
+      >
+        <Icon size={20} className={styles.isClaude ? '' : styles.textAccent} style={styles.isClaude ? { color: claudeTokens.textPrimary } : undefined} />
       </div>
       <div className="text-left">
-        <div className={clsx("text-sm font-medium", styles.textPrimary)}>{title}</div>
-        {subtitle && <div className={clsx("text-xs mt-0.5", styles.textSecondary)}>{subtitle}</div>}
+        <div className={clsx("text-sm font-medium", styles.isClaude ? '' : styles.textPrimary)} style={styles.isClaude ? { color: claudeTokens.textPrimary } : undefined}>{title}</div>
+        {subtitle && <div className={clsx("text-xs mt-0.5", styles.isClaude ? '' : styles.textSecondary)} style={styles.isClaude ? { color: claudeTokens.textMuted } : undefined}>{subtitle}</div>}
       </div>
     </div>
-    <ChevronRight size={18} className={styles.textSecondary} />
+    <ChevronRight size={18} className={styles.isClaude ? '' : styles.textSecondary} style={styles.isClaude ? { color: claudeTokens.textMuted } : undefined} />
+  </motion.button>
+);
+
+// Editorial tile for the Claude theme home shortcuts. Cream card, hairline,
+// monochrome icon, small-caps eyebrow, terracotta accent line on the side
+// for the "ready" state.
+const ClaudeShortcut = ({
+  icon: Icon,
+  eyebrow,
+  title,
+  pulse,
+  onClick,
+}: {
+  icon: ElementType;
+  eyebrow: string;
+  title: string;
+  pulse?: boolean;
+  onClick: () => void;
+}) => (
+  <motion.button
+    whileTap={{ scale: 0.98 }}
+    onClick={() => { hapticFeedback.click(); onClick(); }}
+    className="group relative flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-left transition-colors"
+    style={{
+      backgroundColor: claudeTokens.surface,
+      border: `1px solid ${claudeTokens.border}`,
+      color: claudeTokens.textPrimary,
+    }}
+  >
+    {pulse && (
+      <span
+        className="absolute top-3 right-3 w-1.5 h-1.5 rounded-full"
+        style={{ backgroundColor: claudeTokens.accent }}
+      />
+    )}
+    <div
+      className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+      style={{ backgroundColor: claudeTokens.surfaceMuted, border: `1px solid ${claudeTokens.border}` }}
+    >
+      <Icon size={16} style={{ color: claudeTokens.textPrimary }} />
+    </div>
+    <div className="min-w-0">
+      <div
+        className="text-[10px] font-medium uppercase tracking-[0.18em]"
+        style={{ color: claudeTokens.textMuted }}
+      >
+        {eyebrow}
+      </div>
+      <div
+        className="text-[14px] font-medium truncate mt-0.5"
+        style={{ color: claudeTokens.textPrimary }}
+      >
+        {title}
+      </div>
+    </div>
   </motion.button>
 );
 
@@ -136,7 +214,7 @@ const Home = () => {
   const history = useStore(state => state.history);
 
   const styles = useThemeStyles();
-  const { isLight, textPrimary, textSecondary, bgClass, headerClass, panelClass } = styles;
+  const { isClaude, isLight, textPrimary, textSecondary, bgClass, headerClass, panelClass } = styles;
 
   const [showDailyReward, setShowDailyReward] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -147,7 +225,6 @@ const Home = () => {
   const today = TODAY_KEY();
   const dailyBonusUnclaimed = lastDailyRewardDate !== today;
 
-  // Today's progress toward the daily workout: distinct gameIds played today.
   const workoutProgress = useMemo(() => {
     const todaysGames = (history || []).filter((entry) => {
       const entryDate = entry?.date || (entry?.timestamp ? new Date(entry.timestamp).toISOString().split('T')[0] : '');
@@ -159,8 +236,6 @@ const Home = () => {
   const workoutComplete = workoutProgress >= DAILY_WORKOUT_TARGET;
   const workoutRemaining = Math.max(0, DAILY_WORKOUT_TARGET - workoutProgress);
 
-  // Most-played game over the last 30 entries — surfaces a "Popular" tag in the
-  // practice grid so the page feels personalized after a few sessions.
   const mostPlayedGameId = useMemo(() => {
     const recent = (history || []).slice(-30);
     if (recent.length < 4) return null;
@@ -191,6 +266,427 @@ const Home = () => {
     navigate(path);
   };
 
+  // ---------- Claude editorial layout ----------
+  if (isClaude) {
+    return (
+      <div
+        className="min-h-screen pb-24 transition-colors duration-500"
+        style={{
+          backgroundColor: claudeTokens.surface,
+          color: claudeTokens.textPrimary,
+        }}
+      >
+        {/* Header — chapter-style greeting */}
+        <motion.header
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="px-5 pt-5 pb-4 sticky top-0 z-10 backdrop-blur-md"
+          style={{
+            backgroundColor: 'rgba(250, 249, 245, 0.92)',
+            borderBottom: `1px solid ${claudeTokens.border}`,
+          }}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <button
+              onClick={() => { hapticFeedback.click(); navigate('/profile'); }}
+              className="flex items-center gap-3 min-w-0 group"
+            >
+              <div
+                className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center shrink-0"
+                style={{ backgroundColor: claudeTokens.surfaceMuted, border: `1px solid ${claudeTokens.border}` }}
+              >
+                {user.photoUrl ? (
+                  <img src={user.photoUrl} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <User size={18} style={{ color: claudeTokens.textMuted }} />
+                )}
+              </div>
+              <div className="min-w-0 text-left">
+                <div
+                  className="text-[10px] font-medium uppercase tracking-[0.22em]"
+                  style={{ color: claudeTokens.textMuted }}
+                >
+                  Welcome back
+                </div>
+                <div
+                  className="text-[20px] leading-tight truncate font-normal italic"
+                  style={{
+                    color: claudeTokens.textPrimary,
+                    fontFamily: claudeTokens.serifStack,
+                  }}
+                >
+                  {user.firstName || 'Focus Player'}
+                </div>
+              </div>
+            </button>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => { hapticFeedback.click(); setShowNotifications(true); }}
+                className="relative w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[#F0EEE6]"
+                style={{ color: claudeTokens.textBody }}
+                aria-label="Notifications"
+              >
+                <Bell size={17} strokeWidth={1.75} />
+                {unreadCount > 0 && (
+                  <span
+                    className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: claudeTokens.accent }}
+                  />
+                )}
+              </button>
+              <button
+                onClick={() => { hapticFeedback.click(); navigate('/settings'); }}
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[#F0EEE6]"
+                style={{ color: claudeTokens.textBody }}
+                aria-label="Settings"
+              >
+                <Settings size={17} strokeWidth={1.75} />
+              </button>
+            </div>
+          </div>
+
+          {/* Stat spec line — old-style figures separated by hairlines */}
+          <div className="mt-4 flex items-center gap-4 overflow-x-auto scrollbar-none">
+            <StatPill icon={Flame} label={`${streak}d`} accent="amber" styles={styles} />
+            <span aria-hidden style={{ color: claudeTokens.border }}>·</span>
+            <StatPill icon={Coins} label={coins.toLocaleString()} accent="yellow" styles={styles} />
+            <span aria-hidden style={{ color: claudeTokens.border }}>·</span>
+            <StatPill icon={Gem} label={gems.toLocaleString()} accent="cyan" styles={styles} />
+            <span aria-hidden style={{ color: claudeTokens.border }}>·</span>
+            <StatPill icon={Sparkles} label={`Lv ${user.level || 1}`} accent="violet" styles={styles} />
+          </div>
+        </motion.header>
+
+        <GuestBanner />
+
+        {/* Daily Workout — hero "feature article" */}
+        <motion.section
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mx-5 mt-6 p-6 rounded-2xl relative overflow-hidden"
+          style={{
+            backgroundColor: claudeTokens.surface,
+            border: `1px solid ${claudeTokens.border}`,
+          }}
+        >
+          {/* Chapter number — old-school editorial flourish */}
+          <span
+            className="absolute top-5 right-6 text-[12px] tracking-[0.2em] uppercase font-medium"
+            style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
+          >
+            № 01
+          </span>
+
+          <div
+            className="text-[10px] uppercase tracking-[0.24em] font-medium flex items-center gap-2"
+            style={{ color: claudeTokens.textMuted }}
+          >
+            <span
+              className="inline-block w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: workoutComplete ? claudeTokens.success : claudeTokens.accent }}
+            />
+            {workoutComplete ? "Today · Complete" : 'Today'}
+          </div>
+
+          <h2
+            className="mt-3 leading-[1.05] tracking-tight"
+            style={{
+              color: claudeTokens.textPrimary,
+              fontFamily: claudeTokens.serifStack,
+              fontSize: '34px',
+              fontWeight: 500,
+            }}
+          >
+            Daily Workout
+          </h2>
+
+          <p
+            className="text-[14px] mt-2.5 leading-relaxed max-w-md"
+            style={{ color: claudeTokens.textBody }}
+          >
+            {workoutComplete
+              ? 'Сессия аяқталды. Ертең қайта оралыңыз.'
+              : workoutProgress === 0
+                ? 'Three short games. One unbroken session. Begin when you are ready.'
+                : `Тағы ${workoutRemaining} ойын — сессияны аяқтаңыз.`}
+          </p>
+
+          {/* Progress — terracotta segments on a hairline track */}
+          <div className="mt-6 flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              {Array.from({ length: DAILY_WORKOUT_TARGET }).map((_, idx) => (
+                <span
+                  key={idx}
+                  className="h-1.5 rounded-full transition-all duration-500"
+                  style={{
+                    width: idx < workoutProgress ? '32px' : '12px',
+                    backgroundColor: idx < workoutProgress ? claudeTokens.accent : claudeTokens.border,
+                  }}
+                />
+              ))}
+            </div>
+            <span
+              className="text-[11px] font-medium tabular-nums uppercase tracking-[0.18em]"
+              style={{ color: claudeTokens.textMuted }}
+            >
+              {workoutProgress} of {DAILY_WORKOUT_TARGET}
+            </span>
+          </div>
+
+          <motion.button
+            whileTap={{ scale: 0.98 }}
+            onClick={() => { hapticFeedback.click(); navigate('/daily-workout'); }}
+            className="mt-6 inline-flex items-center gap-2 px-5 py-3 rounded-lg text-[14px] font-medium transition-colors"
+            style={{ backgroundColor: claudeTokens.accent, color: '#FFFFFF' }}
+          >
+            <span>{workoutComplete ? 'View results' : workoutProgress === 0 ? 'Start' : 'Continue'}</span>
+            <ArrowRight size={15} strokeWidth={2.25} />
+          </motion.button>
+        </motion.section>
+
+        {/* Quick destinations — 2x2 editorial cards */}
+        <div className="px-5 pt-6">
+          <div
+            className="text-[10px] font-medium uppercase tracking-[0.22em] mb-3 ml-0.5"
+            style={{ color: claudeTokens.textMuted }}
+          >
+            Quick links
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <ClaudeShortcut
+              icon={Gift}
+              eyebrow={dailyBonusUnclaimed ? 'Ready' : 'Claimed'}
+              title={t('daily_bonus')}
+              pulse={dailyBonusUnclaimed}
+              onClick={() => setShowDailyReward(true)}
+            />
+            <ClaudeShortcut
+              icon={Trophy}
+              eyebrow="Global"
+              title={t('top_players')}
+              onClick={() => navigate('/leaderboard')}
+            />
+            <ClaudeShortcut
+              icon={Crown}
+              eyebrow="Weekly"
+              title="Tournament"
+              onClick={() => navigate('/tournaments')}
+            />
+            <ClaudeShortcut
+              icon={BarChart3}
+              eyebrow="VIP"
+              title="Analytics"
+              onClick={() => navigate('/analytics')}
+            />
+          </div>
+        </div>
+
+        {/* Tournament feature — rebuilt as cream editorial card */}
+        <motion.button
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          whileTap={{ scale: 0.99 }}
+          onClick={() => { hapticFeedback.click(); navigate('/tournaments'); }}
+          className="block w-full text-left mx-0 mt-6 px-5 group"
+        >
+          <div
+            className="relative rounded-2xl p-5 transition-colors"
+            style={{
+              backgroundColor: claudeTokens.surfaceMuted,
+              border: `1px solid ${claudeTokens.border}`,
+            }}
+          >
+            {/* terracotta side rule */}
+            <div
+              className="absolute left-0 top-5 bottom-5 w-[3px] rounded-full"
+              style={{ backgroundColor: claudeTokens.accent }}
+            />
+            <div className="flex items-center gap-4 pl-3">
+              <div
+                className="shrink-0 w-11 h-11 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: claudeTokens.surface, border: `1px solid ${claudeTokens.border}` }}
+              >
+                <Crown size={20} strokeWidth={1.75} style={{ color: claudeTokens.accent }} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div
+                  className="text-[10px] font-medium uppercase tracking-[0.22em]"
+                  style={{ color: claudeTokens.textMuted }}
+                >
+                  Weekend tournament
+                </div>
+                <h3
+                  className="text-[18px] leading-snug mt-1"
+                  style={{
+                    color: claudeTokens.textPrimary,
+                    fontFamily: claudeTokens.serifStack,
+                    fontWeight: 500,
+                  }}
+                >
+                  Premium players play free
+                </h3>
+                <p
+                  className="text-[12px] mt-1 leading-snug"
+                  style={{ color: claudeTokens.textBody }}
+                >
+                  Friday → Sunday · 3 games · top 50 win prizes
+                </p>
+              </div>
+              <ArrowRight
+                size={18}
+                strokeWidth={1.75}
+                className="shrink-0 transition-transform group-hover:translate-x-0.5"
+                style={{ color: claudeTokens.textMuted }}
+              />
+            </div>
+          </div>
+        </motion.button>
+
+        {/* Practice library — 4-column editorial grid with chapter numerals */}
+        <section className="px-5 mt-8">
+          <div className="flex items-end justify-between gap-4 mb-4">
+            <div>
+              <div
+                className="text-[10px] font-medium uppercase tracking-[0.22em]"
+                style={{ color: claudeTokens.textMuted }}
+              >
+                Library
+              </div>
+              <h2
+                className="mt-1.5 leading-none tracking-tight"
+                style={{
+                  color: claudeTokens.textPrimary,
+                  fontFamily: claudeTokens.serifStack,
+                  fontSize: '24px',
+                  fontWeight: 500,
+                }}
+              >
+                Practice
+              </h2>
+            </div>
+            <span
+              className="text-[10px] font-medium tabular-nums uppercase tracking-[0.18em]"
+              style={{ color: claudeTokens.textMuted }}
+            >
+              {gameButtons.length} games
+            </span>
+          </div>
+
+          <motion.div
+            className="grid grid-cols-3 gap-3"
+            variants={containerVariants}
+            initial="hidden"
+            animate="visible"
+          >
+            {gameButtons.map((game, idx) => {
+              const Icon = game.icon;
+              const gameId = game.title.replace(/^game_/, '').replace(/-/g, '_');
+              const isPopular = mostPlayedGameId === gameId;
+              const numeral = String(idx + 1).padStart(2, '0');
+              return (
+                <motion.button
+                  key={game.title}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => handleGameClick(game.path)}
+                  variants={itemVariants}
+                  className="relative flex flex-col items-stretch gap-3 p-3 pt-4 rounded-xl transition-colors text-left"
+                  style={{
+                    backgroundColor: claudeTokens.surface,
+                    border: `1px solid ${isPopular ? claudeTokens.accent : claudeTokens.border}`,
+                  }}
+                >
+                  <div className="flex items-start justify-between">
+                    <span
+                      className="text-[10px] tracking-[0.18em] uppercase"
+                      style={{
+                        color: isPopular ? claudeTokens.accent : claudeTokens.textMuted,
+                        fontFamily: claudeTokens.serifStack,
+                      }}
+                    >
+                      № {numeral}
+                    </span>
+                    {isPopular && (
+                      <span
+                        className="text-[9px] uppercase tracking-[0.18em] italic"
+                        style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
+                      >
+                        Most played
+                      </span>
+                    )}
+                  </div>
+                  <Icon
+                    size={28}
+                    strokeWidth={1.5}
+                    style={{ color: isPopular ? claudeTokens.accent : claudeTokens.textPrimary }}
+                  />
+                  <span
+                    className="text-[12px] leading-tight font-medium"
+                    style={{ color: claudeTokens.textPrimary }}
+                  >
+                    {t(game.title)}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </motion.div>
+        </section>
+
+        {/* More — hairline list */}
+        <motion.div
+          className="mt-8 px-5"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          <div
+            className="text-[10px] font-medium uppercase tracking-[0.22em] mb-3 ml-0.5"
+            style={{ color: claudeTokens.textMuted }}
+          >
+            More
+          </div>
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{ border: `1px solid ${claudeTokens.border}`, backgroundColor: claudeTokens.surface }}
+          >
+            <ListItem
+              title={t('airdrop_title')}
+              subtitle={t('airdrop_desc')}
+              icon={Wallet}
+              onClick={() => navigate('/airdrop')}
+              styles={styles}
+            />
+            <ListItem
+              title={t('profile_title')}
+              subtitle={t('profile_desc')}
+              icon={User}
+              onClick={() => navigate('/profile')}
+              styles={styles}
+            />
+          </div>
+        </motion.div>
+
+        <div
+          className="px-6 pt-10 pb-6 text-center"
+          style={{ color: claudeTokens.textMuted }}
+        >
+          <span
+            className="text-[10px] tracking-[0.32em] uppercase"
+            style={{ fontFamily: claudeTokens.serifStack }}
+          >
+            Focus · v1.2.0
+          </span>
+        </div>
+
+        <DailyRewardModal isOpen={showDailyReward} onClose={() => setShowDailyReward(false)} />
+        <NotificationsModal isOpen={showNotifications} onClose={() => setShowNotifications(false)} />
+      </div>
+    );
+  }
+
+  // ---------- Legacy themes (dark / light / blue / gold) — unchanged ----------
   return (
     <div className={clsx("min-h-screen pb-20 font-sans transition-colors duration-500", bgClass)}>
 
@@ -443,7 +939,7 @@ const Home = () => {
         </div>
       </motion.section>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 20 }}
@@ -501,7 +997,6 @@ const Home = () => {
         >
           {gameButtons.map((game) => {
             const Icon = game.icon;
-            // Map game.title (i18n key) → gameId used in history.
             const gameId = game.title.replace(/^game_/, '').replace(/-/g, '_');
             const isPopular = mostPlayedGameId === gameId;
             return (

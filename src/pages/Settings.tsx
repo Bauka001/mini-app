@@ -134,7 +134,7 @@ export const SettingsContent = () => {
     WebApp.HapticFeedback.selectionChanged();
   };
 
-  const handleThemeChange = (newTheme: 'dark' | 'light' | 'gold' | 'blue') => {
+  const handleThemeChange = (newTheme: 'dark' | 'light' | 'gold' | 'blue' | 'claude') => {
     setTheme(newTheme);
     WebApp.HapticFeedback.selectionChanged();
   };
@@ -236,8 +236,17 @@ export const SettingsContent = () => {
           icon={theme === 'dark' ? Moon : Sun} 
           title={t('theme')}
         >
-          <div className="flex gap-2">
-             <button
+          <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => handleThemeChange('claude')}
+                className={clsx(
+                  "px-3 py-1 rounded-lg text-xs font-bold uppercase transition-colors",
+                  theme === 'claude' ? "bg-[#D97757] text-white shadow-[0_0_10px_rgba(217,119,87,0.4)]" : "bg-gray-800/50 text-[#D97757]/70"
+                )}
+              >
+                Claude
+              </button>
+              <button
                 onClick={() => handleThemeChange('dark')}
                 className={clsx(
                   "px-3 py-1 rounded-lg text-xs font-bold uppercase transition-colors",

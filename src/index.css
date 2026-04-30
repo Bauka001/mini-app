@@ -77,6 +77,18 @@
   color-scheme: dark;
 }
 
+/* Anthropic / claude.ai aesthetic — warm cream + terracotta.
+   Pairs with the ClaudeModal token set in src/components/ui/claudeTokens.ts. */
+[data-theme="claude"] {
+  --color-primary: #D97757;     /* terracotta accent */
+  --color-background: #FAF9F5;  /* warm cream surface */
+  --color-secondary: #F0EEE6;   /* sunken / card surface */
+  --color-text: #1F1E1D;        /* warm near-black */
+  --color-muted: #6E6B66;       /* secondary copy */
+  --color-accent: #D97757;
+  color-scheme: light;
+}
+
 html, body {
   height: 100%;
   width: 100%;

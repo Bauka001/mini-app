@@ -1,7 +1,7 @@
 import { getTelegramUser, MOCK_USER } from '../utils/telegram';
 
 export type Language = 'en' | 'ru' | 'kz';
-export type Theme = 'dark' | 'light' | 'gold' | 'blue';
+export type Theme = 'dark' | 'light' | 'gold' | 'blue' | 'claude';
 
 interface GameResult {
   gameId: string;
@@ -332,7 +332,7 @@ export const initialSocialTasks: SocialTask[] = [
 export const initialState = {
   language: 'ru' as Language,
   soundEnabled: true,
-  theme: 'light' as Theme,
+  theme: 'claude' as Theme,
   brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
   coins: 100,
   gems: 0,
