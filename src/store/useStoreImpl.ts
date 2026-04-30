@@ -9,6 +9,7 @@ import {
   getUserMe,
   issueTicketRecord,
   joinTournamentRecord,
+  purchaseSkin,
   submitFeedbackEntry,
   submitGameResult,
   syncUserToServer,
@@ -1132,18 +1133,49 @@ export const useStore = create<UserState>()(
 
       buySkin: (skinId, cost) => {
         const { coins, skinInventory } = get();
-        if (coins >= cost && !skinInventory.includes(skinId)) {
-          const newState = {
-            coins: coins - cost,
-            skinInventory: [...skinInventory, skinId]
-          };
-          set(newState);
-          if (isSupabaseConfigured) {
-            syncUserToSupabase(newState, get().user.id);
-          }
-          return true;
+        // Local pre-check is just for UX (don't even attempt if obviously
+        // underfunded). The server is authoritative on price + balance.
+        if (coins < cost || skinInventory.includes(skinId)) {
+          return false;
         }
-        return false;
+
+        const optimisticCoins = coins - cost;
+        const optimisticInventory = [...skinInventory, skinId];
+        set({ coins: optimisticCoins, skinInventory: optimisticInventory });
+
+        // Server-validated purchase: server looks up the canonical price
+        // (client `cost` is ignored), checks balance against the DB row,
+        // and either commits or rejects. We reconcile the local state
+        // with whatever the server says.
+        if (isSupabaseConfigured) {
+          void purchaseSkin(skinId)
+            .then((response) => {
+              set({
+                coins: response.coins,
+                skinInventory: response.skinInventory,
+              });
+            })
+            .catch((err) => {
+              console.error('[Skins] purchase rejected:', err);
+              // Revert the optimistic update so the user sees the real state.
+              set((current) => ({
+                coins: current.coins + cost,
+                skinInventory: current.skinInventory.filter((s) => s !== skinId),
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Purchase rejected',
+                    message: err instanceof Error ? err.message : 'Skin purchase failed',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
+        }
+        return true;
       },
 
       equipSkin: (skinId) => set({ activeSkin: skinId }),

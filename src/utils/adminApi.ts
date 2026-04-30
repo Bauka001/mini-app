@@ -366,6 +366,17 @@ export const joinTournamentRecord = (paymentMethod: 'vip' | 'stars' | 'ton') =>
 export const syncUserToServer = (user: Record<string, any>) =>
   postJson<UsersSyncResponse>('/users/sync', { user });
 
+export interface SkinPurchaseResponse {
+  ok: true;
+  skinId: string;
+  price: number;
+  coins: number;
+  skinInventory: string[];
+}
+
+export const purchaseSkin = (skinId: string) =>
+  postJson<SkinPurchaseResponse>('/skins/purchase', { skinId });
+
 export const getTournamentLeaderboard = (weekKey?: string) =>
   postJson<TournamentLeaderboardResponse>('/tournaments/leaderboard', weekKey ? { weekKey } : {});
 
