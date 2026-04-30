@@ -7,6 +7,8 @@ import { getUserByTelegramId, createUser, updateUser, subscribeToUserChanges, is
 import {
   CanonicalUser,
   getUserMe,
+  grantAdReward,
+  grantLevelReward,
   issueTicketRecord,
   joinTournamentRecord,
   purchaseSkin,
@@ -678,7 +680,7 @@ export const useStore = create<UserState>()(
     (set, get) => ({
       language: 'ru',
       soundEnabled: true,
-      theme: 'light',
+      theme: 'claude',
 
       brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS),
 
@@ -1407,9 +1409,40 @@ export const useStore = create<UserState>()(
         };
       }),
 
-      watchAd: (reward) => set((state) => ({
-        coins: state.coins + reward
-      })),
+      watchAd: (reward) => {
+        // Optimistic local credit so the UI gives instant feedback. The server
+        // is authoritative on the actual amount and the daily cap (5/day,
+        // 10c each) — we reconcile from the response. The `reward` arg is now
+        // ignored on the wire; it stays in the signature for callers' UI use.
+        set((state) => ({ coins: state.coins + reward }));
+
+        if (isSupabaseConfigured) {
+          void grantAdReward()
+            .then((response) => {
+              if (typeof response.coins === 'number') {
+                set({ coins: response.coins });
+              }
+            })
+            .catch((err) => {
+              // Roll back optimistic credit and surface the reason. Common
+              // case: daily cap (HTTP 429) — we revert the visible amount.
+              set((current) => ({
+                coins: Math.max(0, current.coins - reward),
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Reward declined',
+                    message: err instanceof Error ? err.message : 'Ad reward unavailable',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
+        }
+      },
 
       claimSocialReward: (taskId) => set((state) => {
         const task = state.socialTasks.find(t => t.id === taskId);
@@ -1447,14 +1480,45 @@ export const useStore = create<UserState>()(
         return false;
       },
       claimLevelReward: (level) => {
-        const newState = {
-          unclaimedLevelRewards: get().unclaimedLevelRewards.filter(l => l !== level),
-          coins: get().coins + 100,
-          gems: (get().gems || 0) + 5
-        };
-        set(newState);
+        const previous = get();
+        // Optimistic update: drop from unclaimed list and add the canonical
+        // 100c + 5g locally. Server validates user.level >= claimedLevel and
+        // dedups via coin_transactions metadata; on rejection we revert.
+        set({
+          unclaimedLevelRewards: previous.unclaimedLevelRewards.filter(l => l !== level),
+          coins: previous.coins + 100,
+          gems: (previous.gems || 0) + 5,
+        });
+
         if (isSupabaseConfigured) {
-          syncUserToSupabase(newState, get().user.id);
+          void grantLevelReward(level)
+            .then((response) => {
+              if (typeof response.coins === 'number' && typeof response.gems === 'number') {
+                set({ coins: response.coins, gems: response.gems });
+              }
+            })
+            .catch((err) => {
+              console.error('[Rewards] level reward rejected:', err);
+              // Revert: put the level back in unclaimed and undo the credit.
+              set((current) => ({
+                unclaimedLevelRewards: current.unclaimedLevelRewards.includes(level)
+                  ? current.unclaimedLevelRewards
+                  : [...current.unclaimedLevelRewards, level],
+                coins: Math.max(0, current.coins - 100),
+                gems: Math.max(0, (current.gems || 0) - 5),
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Level reward declined',
+                    message: err instanceof Error ? err.message : 'Reward unavailable',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
         }
       },
       decrementHp: () => {
@@ -1731,7 +1795,7 @@ export const useStore = create<UserState>()(
         return {
           language: 'ru',
           soundEnabled: true,
-          theme: 'light',
+          theme: 'claude',
           brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS, []),
           user: {
             id: 0,
@@ -1929,6 +1993,16 @@ export const useStore = create<UserState>()(
     }),
     {
       name: `focus-app-v31-prod`,
+      version: 1,
+      // One-shot bump so existing users land on the new Claude theme on first
+      // load post-deploy. Preserve every other field — only `theme` is
+      // overridden, and only when the persisted state pre-dates v1.
+      migrate: (persistedState: unknown, version: number) => {
+        if (version < 1 && persistedState && typeof persistedState === 'object') {
+          return { ...(persistedState as object), theme: 'claude' };
+        }
+        return persistedState as object;
+      },
       storage: createJSONStorage(() => telegramStorage),
       merge: (persistedState, currentState) => {
         const mergedState = {

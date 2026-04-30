@@ -377,6 +377,22 @@ export interface SkinPurchaseResponse {
 export const purchaseSkin = (skinId: string) =>
   postJson<SkinPurchaseResponse>('/skins/purchase', { skinId });
 
+export interface RewardGrantResponse {
+  ok: true;
+  reason: 'ad' | 'level';
+  level?: number;
+  granted: { coins: number; gems: number };
+  coins?: number;
+  gems?: number;
+  remainingToday?: number;
+}
+
+export const grantAdReward = () =>
+  postJson<RewardGrantResponse>('/rewards/grant', { reason: 'ad' });
+
+export const grantLevelReward = (level: number) =>
+  postJson<RewardGrantResponse>('/rewards/grant', { reason: 'level', level });
+
 export const getTournamentLeaderboard = (weekKey?: string) =>
   postJson<TournamentLeaderboardResponse>('/tournaments/leaderboard', weekKey ? { weekKey } : {});
 

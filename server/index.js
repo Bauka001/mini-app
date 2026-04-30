@@ -1027,6 +1027,204 @@ app.post('/users/sync', writeLimiter, async (req, res) => {
   }
 });
 
+// Per-day cap on ad rewards (server is the only source of truth).
+// Closes the "watchAd(99999999)" exploit — the client used to pass the
+// reward amount, the server now hard-codes it and limits the count.
+const AD_REWARD_COINS = 10;
+const AD_REWARDS_PER_DAY = 5;
+
+// Server-canonical level-up reward formula. Matches what the client used
+// to grant locally, but now the server is the only path that mutates these
+// fields and dedups against coin_transactions metadata.
+const LEVEL_REWARD_COINS = 100;
+const LEVEL_REWARD_GEMS = 5;
+const MAX_CLAIMABLE_LEVEL = 1_000;
+
+app.post('/rewards/grant', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const reason = `${req.body?.reason || ''}`;
+
+    if (reason === 'ad') {
+      // Daily-cap check against the audit ledger.
+      const dayStart = new Date();
+      dayStart.setUTCHours(0, 0, 0, 0);
+      const { count, error: countError } = await supabase
+        .from('coin_transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_telegram_id', userTelegramId)
+        .eq('reason', 'ad_reward')
+        .gte('created_at', dayStart.toISOString());
+
+      if (countError && !isMissingTableError(countError)) {
+        throw countError;
+      }
+      if ((count ?? 0) >= AD_REWARDS_PER_DAY) {
+        return res.status(429).json({
+          error: 'Daily ad-reward limit reached',
+          reason: 'daily_cap',
+          limit: AD_REWARDS_PER_DAY,
+        });
+      }
+
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('coins, is_blocked')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
+      if (!userRow) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (userRow.is_blocked) {
+        return res.status(403).json({ error: 'User is blocked' });
+      }
+
+      const newCoins = (Number(userRow.coins) || 0) + AD_REWARD_COINS;
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ coins: newCoins, updated_at: new Date().toISOString() })
+        .eq('telegram_id', userTelegramId);
+      if (updateError) {
+        throw updateError;
+      }
+
+      const { error: txError } = await supabase.from('coin_transactions').insert({
+        user_telegram_id: userTelegramId,
+        currency: 'coins',
+        amount: AD_REWARD_COINS,
+        direction: 'credit',
+        reason: 'ad_reward',
+      });
+      if (txError && !isMissingTableError(txError)) {
+        console.error('[Rewards] ad transaction log failed:', txError);
+      }
+
+      return res.json({
+        ok: true,
+        reason: 'ad',
+        granted: { coins: AD_REWARD_COINS, gems: 0 },
+        coins: newCoins,
+        remainingToday: Math.max(0, AD_REWARDS_PER_DAY - ((count ?? 0) + 1)),
+      });
+    }
+
+    if (reason === 'level') {
+      const claimedLevel = Number(req.body?.level);
+      if (!Number.isInteger(claimedLevel) || claimedLevel < 1 || claimedLevel > MAX_CLAIMABLE_LEVEL) {
+        return res.status(400).json({ error: 'Invalid level' });
+      }
+
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('coins, gems, level, is_blocked')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
+      if (!userRow) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (userRow.is_blocked) {
+        return res.status(403).json({ error: 'User is blocked' });
+      }
+      if ((Number(userRow.level) || 1) < claimedLevel) {
+        return res.status(403).json({
+          error: 'Level not yet reached',
+          reason: 'insufficient_level',
+          actualLevel: Number(userRow.level) || 1,
+          claimedLevel,
+        });
+      }
+
+      // Dedup via coin_transactions metadata. The .contains query matches
+      // any row whose metadata jsonb has both keys we set on insert.
+      const { data: existing, error: existingError } = await supabase
+        .from('coin_transactions')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('reason', 'level_reward')
+        .contains('metadata', { level: claimedLevel })
+        .maybeSingle();
+
+      if (existingError && !isMissingTableError(existingError)) {
+        throw existingError;
+      }
+      if (existing) {
+        return res.status(409).json({
+          error: 'Level reward already claimed',
+          reason: 'already_claimed',
+          level: claimedLevel,
+        });
+      }
+
+      const newCoins = (Number(userRow.coins) || 0) + LEVEL_REWARD_COINS;
+      const newGems = (Number(userRow.gems) || 0) + LEVEL_REWARD_GEMS;
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          coins: newCoins,
+          gems: newGems,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('telegram_id', userTelegramId);
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Two ledger rows so per-currency reporting is straightforward.
+      await supabase.from('coin_transactions').insert([
+        {
+          user_telegram_id: userTelegramId,
+          currency: 'coins',
+          amount: LEVEL_REWARD_COINS,
+          direction: 'credit',
+          reason: 'level_reward',
+          metadata: { level: claimedLevel },
+        },
+        {
+          user_telegram_id: userTelegramId,
+          currency: 'gems',
+          amount: LEVEL_REWARD_GEMS,
+          direction: 'credit',
+          reason: 'level_reward',
+          metadata: { level: claimedLevel },
+        },
+      ]);
+
+      return res.json({
+        ok: true,
+        reason: 'level',
+        level: claimedLevel,
+        granted: { coins: LEVEL_REWARD_COINS, gems: LEVEL_REWARD_GEMS },
+        coins: newCoins,
+        gems: newGems,
+      });
+    }
+
+    return res.status(400).json({ error: 'Unknown reward reason' });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'rewards_grant_error',
+    });
+  }
+});
+
 // Server-canonical skin catalog. The client sends only the skinId; the
 // server looks up the price. Closes the "pass cost: 0" attack and the
 // "buy a skin via tampered local coins" attack — balance is checked
