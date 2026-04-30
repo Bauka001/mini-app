@@ -483,7 +483,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
         className="w-full py-3 rounded-xl bg-blue-600/10 border border-blue-500/40 text-blue-700 dark:text-blue-300 font-bold text-sm hover:bg-blue-600/20 transition-all flex items-center justify-center gap-2"
       >
         <FileText size={16} />
-        Қатысу шарттары / Условия участия
+        {t('premium_terms_link')}
       </button>
 
       <button

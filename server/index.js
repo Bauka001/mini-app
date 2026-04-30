@@ -655,10 +655,36 @@ app.post('/telegram/webhook', async (req, res) => {
       });
 
       if (result.applied) {
+        const planTitle = PLAN_CATALOGUE[parsed.sku]?.title || 'Premium';
         await sendMessage(
           parsed.userId,
-          `Құттықтаймыз! ${PLAN_CATALOGUE[parsed.sku]?.title || 'Premium'} белсендірілді.`
+          `Thanks for your purchase! ${planTitle} is now active. Open the Mini App to use your benefits.`
         ).catch((err) => console.warn('[telegram webhook] sendMessage failed:', err.message));
+      }
+      return;
+    }
+
+    // /start (and any plain text message) — friendly English welcome with a
+    // link to launch the Mini App. Telegram recommends responding to /start.
+    const text = update.message?.text;
+    const chatId = update.message?.chat?.id;
+    if (typeof text === 'string' && chatId) {
+      const isStart = text.trim().split(/\s+/)[0] === '/start';
+      if (isStart) {
+        const miniAppUrl = process.env.MINI_APP_URL || 'https://focus-game-nine.vercel.app';
+        await sendMessage(
+          chatId,
+          [
+            'Welcome to Focus — a daily brain-training Mini App.',
+            '',
+            `Tap below to launch: ${miniAppUrl}`,
+          ].join('\n'),
+          {
+            reply_markup: {
+              inline_keyboard: [[{ text: 'Open Focus', web_app: { url: miniAppUrl } }]],
+            },
+          }
+        ).catch((err) => console.warn('[telegram webhook] /start sendMessage failed:', err.message));
       }
     }
   } catch (err) {

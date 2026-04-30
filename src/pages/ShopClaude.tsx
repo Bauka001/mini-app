@@ -698,7 +698,7 @@ const VIPTabClaude = ({
         }}
       >
         <FileText size={14} strokeWidth={1.75} />
-        Қатысу шарттары · Условия участия
+        {t('premium_terms_link')}
       </button>
 
       {/* Analytics CTA */}

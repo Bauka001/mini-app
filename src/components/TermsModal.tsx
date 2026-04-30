@@ -1,4 +1,4 @@
-import { FileText, CheckCircle, Trophy } from 'lucide-react';
+import { FileText, CheckCircle, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { ClaudeModal, ClaudeButton, ClaudePill, claudeTokens } from './ui/ClaudeModal';
 
@@ -9,52 +9,49 @@ export const TermsModal = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const [activeTab, setActiveTab] = useState<'kz' | 'ru' | 'en'>('kz');
+  const [activeTab, setActiveTab] = useState<'kz' | 'ru' | 'en'>('en');
 
   const content = {
     kz: {
-      title: 'Қатысу шарттары',
-      grandPrizeLabel: 'Бас жүлде',
+      title: 'Premium шарттары',
+      bundleLabel: 'Premium артықшылықтары',
+      bundleTitle: 'VIP analytics + кеңейтілген тренинг',
       cta: 'Түсінікті',
       rules: [
-        "Ұтыс ойынына тек 'Premium' жоспарын сатып алған қолданушылар қатыса алады.",
-        'Әрбір Premium қолданушыға бірегей билет нөмірі беріледі.',
-        'Ұтыс нәтижесі mini app ішіндегі турнир және VIP analytics бөліктерінде жарияланады.',
-        'Жеңімпаз кездейсоқ сандар генераторы арқылы анықталады.',
-        'Бас жүлде: Ford Mustang GT.',
-        'Қосымша жүлделер: iPhone 17 Pro, PlayStation 5, AirPods Pro.',
-        'Қатысушы кәмелетке толған (18+) болуы тиіс.',
-        'Ұйымдастырушылар ережелерді өзгертуге құқылы.',
+        "'Premium' жоспары VIP analytics, кеңейтілген күнделікті жаттығулар және эксклюзив скиндерді қамтиды.",
+        'Әрбір Premium қолданушыға бірегей мүшелік нөмірі беріледі — бұл сатып алу растаушысы, ақшалай немесе заттай ұтыс билеті емес.',
+        'Premium тек ойын ішіндегі контент пен функцияларды ашады. Нақты ақшалық, заттай немесе криптовалюталық жүлделер берілмейді.',
+        'Премиум-төлемдер Telegram Stars немесе TON әмияны арқылы өңделеді. Ішкі ойын активтері сатылмайды және нақты валютаға айырбасталмайды.',
+        'Қолжетімділік жалғасуы үшін минималды жас — 13. Кейбір ауқымды ойын қорытындылары 18+ деп таңбалануы мүмкін.',
+        'Біз шарттарды кез келген уақытта жаңарта аламыз; өзгертулер mini app ішінде жарияланады.',
       ],
     },
     ru: {
-      title: 'Условия участия',
-      grandPrizeLabel: 'Главный приз',
+      title: 'Условия Premium',
+      bundleLabel: 'Premium-бенефиты',
+      bundleTitle: 'VIP analytics + расширенные тренировки',
       cta: 'Понятно',
       rules: [
-        "В розыгрыше могут участвовать только пользователи, купившие план 'Premium'.",
-        'Каждому Premium пользователю присваивается уникальный номер билета.',
-        'Результаты розыгрыша будут официально объявлены в мини-приложении через турнирный и VIP analytics разделы.',
-        'Победитель будет определен с помощью генератора случайных чисел.',
-        'Главный приз: Ford Mustang GT.',
-        'Дополнительные призы: iPhone 17 Pro, PlayStation 5, AirPods Pro.',
-        'Участник должен быть совершеннолетним (18+).',
-        'Организаторы оставляют за собой право изменять правила.',
+        "План 'Premium' включает VIP analytics, расширенные ежедневные тренировки и эксклюзивные скины.",
+        'Каждому Premium-пользователю присваивается уникальный номер мембершипа — это подтверждение покупки, а не лотерейный билет.',
+        'Premium открывает только внутриигровой контент и функции. Денежные, материальные или криптовалютные призы не выдаются.',
+        'Платежи Premium обрабатываются Telegram Stars или TON-кошельком. Игровые активы не продаются и не обмениваются на реальные валюты.',
+        'Минимальный возраст использования — 13 лет. Некоторые соревновательные итоги внутри приложения могут иметь возрастную метку 18+.',
+        'Мы можем обновлять условия в любое время; изменения публикуются внутри mini app.',
       ],
     },
     en: {
-      title: 'Terms & Conditions',
-      grandPrizeLabel: 'Grand Prize',
+      title: 'Premium Terms',
+      bundleLabel: 'Premium benefits',
+      bundleTitle: 'VIP analytics + extended training',
       cta: 'Understood',
       rules: [
-        "Only users who purchased the 'Premium' plan can participate in the raffle.",
-        'Each Premium user is assigned a unique ticket number.',
-        'The raffle results will be officially announced inside the mini app through the tournament and VIP analytics sections.',
-        'The winner will be determined using a random number generator.',
-        'Grand Prize: Ford Mustang GT.',
-        'Additional Prizes: iPhone 17 Pro, PlayStation 5, AirPods Pro.',
-        'Participants must be of legal age (18+).',
-        'Organizers reserve the right to modify the rules.',
+        "The 'Premium' plan includes VIP analytics, extended daily workouts, and exclusive in-game skins.",
+        'Each Premium user is assigned a unique membership number. This is a purchase receipt — not a lottery ticket.',
+        'Premium unlocks in-app content and features only. No monetary, physical, or cryptocurrency prizes are awarded.',
+        'Premium payments are processed through Telegram Stars or your TON wallet. In-game assets are not sold for and cannot be exchanged into real-world currency.',
+        'Minimum age to use the app is 13. Some in-app competitive standings may carry an 18+ label.',
+        'We may update these terms at any time; changes are published inside the mini app.',
       ],
     },
   } as const;
@@ -78,8 +75,8 @@ export const TermsModal = ({
               color: claudeTokens.textPrimary,
             }}
           >
-            <Trophy size={16} style={{ color: claudeTokens.accent }} />
-            VIP Analytics + Weekend Tournament
+            <Sparkles size={16} style={{ color: claudeTokens.accent }} />
+            {c.bundleTitle}
           </div>
           <ClaudeButton onClick={onClose}>{c.cta}</ClaudeButton>
         </>
@@ -90,7 +87,7 @@ export const TermsModal = ({
         className="flex gap-1 p-1 rounded-lg mb-4"
         style={{ backgroundColor: claudeTokens.surfaceSunken }}
       >
-        {(['kz', 'ru', 'en'] as const).map((lang) => (
+        {(['en', 'ru', 'kz'] as const).map((lang) => (
           <ClaudePill
             key={lang}
             active={activeTab === lang}
@@ -124,7 +121,7 @@ export const TermsModal = ({
         ))}
       </ul>
 
-      {/* Grand prize callout — keeps the celebratory feel but on the warm palette */}
+      {/* Premium bundle callout — replaces the old physical-prize banner */}
       <div
         className="mt-6 rounded-2xl px-5 py-5 text-center"
         style={{
@@ -136,17 +133,17 @@ export const TermsModal = ({
           className="text-[10px] font-semibold uppercase tracking-[0.3em] mb-1"
           style={{ color: claudeTokens.accent }}
         >
-          {c.grandPrizeLabel}
+          {c.bundleLabel}
         </p>
         <p
-          className="text-2xl font-bold"
+          className="text-xl font-bold"
           style={{
             color: claudeTokens.textPrimary,
             fontFamily:
               '"Tiempos Headline", "Iowan Old Style", "Georgia", ui-serif, serif',
           }}
         >
-          Ford Mustang GT
+          {c.bundleTitle}
         </p>
       </div>
     </ClaudeModal>

@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { getTelegramUser, hapticFeedback } from '../utils/telegram';
+import { detectInitialLanguage } from '../utils/detectLanguage';
 import { telegramStorage } from './storage';
 import { UserState, initialUserRaw, generateGameId, initialState, generateDailyChallenges, initialSocialTasks, Ticket, EventParticipant, Notification, TournamentState } from './useStore';
 import { getUserByTelegramId, createUser, updateUser, subscribeToUserChanges, isSupabaseConfigured, DatabaseUser } from '../utils/supabase';
@@ -681,7 +682,7 @@ const persistTicket = async (
 export const useStore = create<UserState>()(
   persist(
     (set, get) => ({
-      language: 'ru',
+      language: detectInitialLanguage(),
       soundEnabled: true,
       theme: 'claude',
 
@@ -1873,7 +1874,7 @@ export const useStore = create<UserState>()(
         }
 
         return {
-          language: 'ru',
+          language: detectInitialLanguage(),
           soundEnabled: true,
           theme: 'claude',
           brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS, []),

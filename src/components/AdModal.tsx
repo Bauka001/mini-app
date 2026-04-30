@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Video, X, Coins } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 
 interface AdModalProps {
   isOpen: boolean;
@@ -10,6 +11,7 @@ interface AdModalProps {
 }
 
 const AdModal = ({ isOpen, onClose, onComplete, reward }: AdModalProps) => {
+  const { t } = useTranslation();
   const [progress, setProgress] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
   const [canClose, setCanClose] = useState(false);
@@ -64,7 +66,7 @@ const AdModal = ({ isOpen, onClose, onComplete, reward }: AdModalProps) => {
         <div className="p-4 flex items-center justify-between border-b border-white/10">
           <div className="flex items-center gap-2">
             <Video size={20} className="text-yellow-400" />
-            <span className="text-white font-medium">Реклама көру</span>
+            <span className="text-white font-medium">{t('ad_watch_label')}</span>
           </div>
           <button 
             onClick={handleClose}

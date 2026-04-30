@@ -1,14 +1,17 @@
 import { HashRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import WebApp from '@twa-dev/sdk';
 import { useBackButton } from './telegram/buttons';
 import { Layout } from './components/Layout';
 import { AuthGuard } from './components/AuthGuard';
 import { AnimatedRoutes } from './components/AnimatedRoutes';
+import { ConsentGate } from './components/ConsentGate';
 import OnboardingScreen1 from './components/onboarding/OnboardingScreen1';
 import OnboardingScreen2 from './components/onboarding/OnboardingScreen2';
 import OnboardingScreen3 from './components/onboarding/OnboardingScreen3';
 import { useStore } from './store/useStoreImpl';
+import i18n from './i18n/i18n';
 
 // Admin bundle is split out — only loads when an admin actually navigates to /admin/*.
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
@@ -461,10 +464,21 @@ function AppRoutes() {
 }
 
 function App() {
+  const { t } = useTranslation();
   const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
   const addNotification = useStore((state) => state.addNotification);
   const userId = useStore((state) => state.user.id);
+  const language = useStore((state) => state.language);
   const logout = useStore((state) => state.logout);
+
+  // Sync the persisted store language into i18next on mount and on every change
+  // so a user's previously chosen language survives a refresh and overrides the
+  // first-launch Telegram detection.
+  useEffect(() => {
+    if (language && i18n.language !== language) {
+      i18n.changeLanguage(language);
+    }
+  }, [language]);
 
   // Sync user data immediately and handle account switching.
   // Telegram lifecycle (ready/expand/theme) is owned by src/telegram/bootstrap.ts.
@@ -514,21 +528,23 @@ function App() {
       const key = `welcome_shown_${userId}`;
       if (!localStorage.getItem(key)) {
         addNotification({
-          title: 'Қош келдіңіз!',
-          message: 'Профиль құру үшін Profile бөліміне өтіңіз',
+          title: t('welcome_notification_title'),
+          message: t('welcome_notification_message'),
           type: 'success'
         });
         localStorage.setItem(key, '1');
       }
     }
-  }, [userId, addNotification]);
+  }, [userId, addNotification, t]);
 
   return (
-    <AuthGuard>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AuthGuard>
+    <ConsentGate>
+      <AuthGuard>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </AuthGuard>
+    </ConsentGate>
   );
 }
 

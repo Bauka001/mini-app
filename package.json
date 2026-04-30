@@ -16,6 +16,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.101.0",
     "@tailwindcss/vite": "^4.1.18",
+    "@telegram-apps/analytics": "^1.6.4",
     "@tonconnect/ui-react": "^2.3.1",
     "@twa-dev/sdk": "^8.0.2",
     "clsx": "^2.1.1",

@@ -1,4 +1,5 @@
 import { getTelegramUser, MOCK_USER } from '../utils/telegram';
+import { detectInitialLanguage } from '../utils/detectLanguage';
 
 export type Language = 'en' | 'ru' | 'kz';
 export type Theme = 'dark' | 'light' | 'gold' | 'blue' | 'claude';
@@ -330,7 +331,7 @@ export const initialSocialTasks: SocialTask[] = [
 ];
 
 export const initialState = {
-  language: 'ru' as Language,
+  language: detectInitialLanguage(),
   soundEnabled: true,
   theme: 'claude' as Theme,
   brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },

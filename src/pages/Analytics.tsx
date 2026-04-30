@@ -7,22 +7,242 @@ import { useThemeStyles } from '../hooks/useThemeStyles';
 import { usePlanGate } from '../hooks/usePlanGate';
 import { buildVipAnalyticsSnapshot, useStore } from '../store/useStoreImpl';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
+import { claudeTokens } from '../components/ui/claudeTokens';
 
 export default function AnalyticsPage() {
   const navigate = useNavigate();
   const styles = useThemeStyles();
+  const { isClaude } = styles;
   const history = useStore((state) => state.history);
   const brainStats = useStore((state) => state.brainStats);
 
-  // Server-canonical plan check. Until /users/me responds we deny VIP — fail
-  // closed rather than briefly showing premium content to a tampered local
-  // state. The hook also caches across navigations so this rarely blocks.
   const { isPremiumActive, plan, planExpiry } = usePlanGate();
   const isVipAnalyticsUnlocked = isPremiumActive === true;
-  const isPlanExpired =
-    plan === 'premium' && planExpiry ? Date.now() > planExpiry : false;
+  const isPlanExpired = plan === 'premium' && planExpiry ? Date.now() > planExpiry : false;
   const analytics = useMemo(() => buildVipAnalyticsSnapshot(history || [], brainStats), [brainStats, history]);
 
+  if (isClaude) {
+    return (
+      <div
+        className="min-h-screen px-5 pb-24 pt-5"
+        style={{ backgroundColor: claudeTokens.surface, color: claudeTokens.textPrimary }}
+      >
+        <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+          {/* Header */}
+          <header
+            className="rounded-2xl p-6 relative"
+            style={{
+              backgroundColor: claudeTokens.surface,
+              border: `1px solid ${claudeTokens.border}`,
+            }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0">
+                <button
+                  type="button"
+                  onClick={() => navigate(-1)}
+                  aria-label="Back"
+                  className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[#F0EEE6]"
+                  style={{ color: claudeTokens.textBody }}
+                >
+                  <ArrowLeft size={18} strokeWidth={1.75} />
+                </button>
+                <div className="min-w-0">
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] uppercase tracking-[0.22em] italic"
+                    style={{
+                      color: claudeTokens.accent,
+                      border: `1px solid ${claudeTokens.accent}`,
+                      fontFamily: claudeTokens.serifStack,
+                    }}
+                  >
+                    <Crown size={11} strokeWidth={1.75} />
+                    VIP Analytics
+                  </span>
+                  <h1
+                    className="mt-3 leading-tight tracking-tight"
+                    style={{
+                      color: claudeTokens.textPrimary,
+                      fontFamily: claudeTokens.serifStack,
+                      fontSize: '28px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    Brain Score аналитикасы
+                  </h1>
+                  <p
+                    className="mt-2 max-w-2xl text-[14px] leading-relaxed"
+                    style={{ color: claudeTokens.textBody }}
+                  >
+                    Бұл бет VIP сатылымының негізгі нүктесі: ойыншы өз динамикасын, gold мәртебесін
+                    және турнирге дайындық деңгейін осы жерден көреді.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Stat strip — three hairline-divided columns */}
+            <div
+              className="mt-5 grid grid-cols-3 rounded-xl overflow-hidden"
+              style={{ border: `1px solid ${claudeTokens.border}` }}
+            >
+              {[
+                { label: 'Status', value: isVipAnalyticsUnlocked ? 'Active' : 'Locked' },
+                { label: 'Combined', value: brainStats.combinedScore ?? 100 },
+                { label: 'Weekend', value: 'Ready' },
+              ].map((stat, i) => (
+                <div
+                  key={stat.label}
+                  className="p-3.5"
+                  style={{
+                    borderRight: i < 2 ? `1px solid ${claudeTokens.border}` : 'none',
+                    backgroundColor: claudeTokens.surface,
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-medium uppercase tracking-[0.22em]"
+                    style={{ color: claudeTokens.textMuted }}
+                  >
+                    {stat.label}
+                  </div>
+                  <div
+                    className="mt-1 tabular-nums italic"
+                    style={{
+                      color: claudeTokens.textPrimary,
+                      fontFamily: claudeTokens.serifStack,
+                      fontSize: '18px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {stat.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </header>
+
+          {/* Three feature columns */}
+          <section className="grid gap-3 md:grid-cols-3">
+            {[
+              {
+                icon: Brain,
+                title: 'Premium analytics',
+                text: '30 күндік график, Brain Score өзгерісі және ойындар breakdown бір бетке жиналады.',
+              },
+              {
+                icon: Crown,
+                title: 'Gold шекара',
+                text: 'VIP ойыншы leaderboard пен профильде ерекше gold мәртебемен көрінеді.',
+              },
+              {
+                icon: Trophy,
+                title: 'Tournament utility',
+                text: 'Аптасына 1 тегін турнир кіруі турнир монетизациясымен тікелей байланысады.',
+              },
+            ].map((item, i) => (
+              <div
+                key={item.title}
+                className="rounded-2xl p-5"
+                style={{
+                  backgroundColor: claudeTokens.surface,
+                  border: `1px solid ${claudeTokens.border}`,
+                }}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className="text-[10px] tracking-[0.18em] uppercase"
+                    style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
+                  >
+                    № {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <item.icon size={16} strokeWidth={1.75} style={{ color: claudeTokens.textPrimary }} />
+                </div>
+                <h3
+                  className="mt-3 italic leading-tight"
+                  style={{
+                    color: claudeTokens.textPrimary,
+                    fontFamily: claudeTokens.serifStack,
+                    fontSize: '18px',
+                    fontWeight: 500,
+                  }}
+                >
+                  {item.title}
+                </h3>
+                <p
+                  className="mt-2 text-[13px] leading-relaxed"
+                  style={{ color: claudeTokens.textBody }}
+                >
+                  {item.text}
+                </p>
+              </div>
+            ))}
+          </section>
+
+          {isVipAnalyticsUnlocked ? (
+            <VipAnalyticsPanel analytics={analytics} styles={styles} />
+          ) : (
+            <VipAnalyticsLockedCard
+              styles={styles}
+              isPlanExpired={isPlanExpired}
+              onUnlock={() => {
+                WebApp.HapticFeedback?.impactOccurred?.('medium');
+                navigate('/shop');
+              }}
+            />
+          )}
+
+          {/* Sales-pitch callout — pull-quote style with terracotta side rule */}
+          <section
+            className="relative rounded-2xl p-5"
+            style={{
+              backgroundColor: claudeTokens.surfaceMuted,
+              border: `1px solid ${claudeTokens.border}`,
+            }}
+          >
+            <span
+              className="absolute left-0 top-5 bottom-5 w-[3px] rounded-full"
+              style={{ backgroundColor: claudeTokens.accent }}
+            />
+            <div className="flex items-start gap-3 pl-3">
+              <div
+                className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                style={{
+                  backgroundColor: claudeTokens.surface,
+                  border: `1px solid ${claudeTokens.border}`,
+                }}
+              >
+                <Sparkles size={18} strokeWidth={1.75} style={{ color: claudeTokens.accent }} />
+              </div>
+              <div className="min-w-0">
+                <span
+                  className="text-[10px] uppercase tracking-[0.22em]"
+                  style={{ color: claudeTokens.textMuted }}
+                >
+                  How VIP sells
+                </span>
+                <h2
+                  className="mt-1 italic leading-tight"
+                  style={{
+                    color: claudeTokens.textPrimary,
+                    fontFamily: claudeTokens.serifStack,
+                    fontSize: '18px',
+                    fontWeight: 500,
+                  }}
+                >
+                  Analytics + gold status + weekend tournament — bundled.
+                </h2>
+                <p className="mt-2 text-[13px]" style={{ color: claudeTokens.textBody }}>
+                  Бір bundle ретінде көрсетіледі.
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
+  // Legacy themes — original markup
   return (
     <div className={clsx('min-h-screen px-4 pb-24 pt-5', styles.bgClass)}>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
