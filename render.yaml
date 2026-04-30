@@ -1,0 +1,42 @@
+# Render Blueprint — backend deploy for focus_game.
+# Apply via https://dashboard.render.com/blueprints (one-click after GitHub
+# OAuth is connected to xponend's account). Render reads this on each push
+# to main and reconciles infra to match.
+#
+# Notes:
+# - Free plan sleeps after 15 min idle (~30–60 s cold start). Phase 5 adds
+#   an external pinger to mitigate.
+# - Secret env vars are marked `sync: false`: Render asks once, then keeps
+#   them outside the repo. Never commit real values here.
+# - Region: frankfurt is the closest Render free-tier region to Kazakhstan
+#   / Eastern Europe / Central Asia. Change if your audience is elsewhere.
+
+services:
+  - type: web
+    name: focus-game-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: server
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        value: https://focus-game-omega.vercel.app
+      - key: INIT_DATA_MAX_AGE_SEC
+        value: "300"
+      - key: ALLOW_DEV_AUTH_BYPASS
+        value: "false"
+      # --- Secrets — paste in Render dashboard, never in this file ---
+      - key: BOT_TOKEN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ADMIN_BOOTSTRAP_TELEGRAM_IDS
+        sync: false
