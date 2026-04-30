@@ -1,6 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Brain, Target, Zap, Lightbulb } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useThemeStyles } from '../hooks/useThemeStyles';
+import { claudeTokens } from './ui/claudeTokens';
 
 export type GameType = 'schulte' | 'stroop' | 'memory' | 'math' | 'tetris' | '2048' | 'odd_one' | 'pairs';
 
@@ -22,6 +24,7 @@ export const InfoGuideModal = ({
 }) => {
   const { i18n } = useTranslation();
   const lang = i18n.language as 'kz' | 'ru' | 'en';
+  const { isClaude } = useThemeStyles();
 
   if (!isOpen) return null;
 
@@ -190,9 +193,169 @@ export const InfoGuideModal = ({
 
   const currentData = gameData[gameType][lang] || gameData[gameType]['en'];
 
+  if (isClaude) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(31,30,29,0.55)', backdropFilter: 'blur(6px)' }}
+        >
+          <motion.div
+            initial={{ scale: 0.96, y: 12, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.96, y: 12, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
+            style={{
+              backgroundColor: claudeTokens.surface,
+              border: `1px solid ${claudeTokens.border}`,
+              maxHeight: '85vh',
+            }}
+          >
+            <header
+              className="flex items-center justify-between px-6 py-5"
+              style={{ borderBottom: `1px solid ${claudeTokens.border}` }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: claudeTokens.accentSoft, color: claudeTokens.accent }}
+                >
+                  <Brain size={18} strokeWidth={1.75} />
+                </div>
+                <div className="min-w-0">
+                  <span
+                    className="block text-[10px] font-medium uppercase tracking-[0.22em]"
+                    style={{ color: claudeTokens.textMuted }}
+                  >
+                    Game guide
+                  </span>
+                  <h2
+                    className="leading-tight italic truncate"
+                    style={{
+                      color: claudeTokens.textPrimary,
+                      fontFamily: claudeTokens.serifStack,
+                      fontSize: '20px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    {currentData.title}
+                  </h2>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[#F0EEE6]"
+                style={{ color: claudeTokens.textMuted }}
+              >
+                <X size={18} strokeWidth={1.75} />
+              </button>
+            </header>
+
+            <div className="overflow-y-auto px-6 py-5 space-y-5">
+              {/* Skill chips */}
+              <div className="flex flex-wrap gap-1.5">
+                {currentData.skills.map((skill, i) => (
+                  <span
+                    key={i}
+                    className="text-[10px] uppercase tracking-[0.22em] italic px-2.5 py-1 rounded-md"
+                    style={{
+                      color: claudeTokens.accent,
+                      border: `1px solid ${claudeTokens.accent}`,
+                      fontFamily: claudeTokens.serifStack,
+                    }}
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+
+              {/* Benefits — hairline list */}
+              <section>
+                <h3
+                  className="text-[10px] font-medium uppercase tracking-[0.22em] mb-3 flex items-center gap-2"
+                  style={{ color: claudeTokens.textMuted }}
+                >
+                  <Target size={12} strokeWidth={1.75} style={{ color: claudeTokens.accent }} />
+                  {lang === 'kz' ? 'Пайдасы' : lang === 'ru' ? 'Польза' : 'Benefits'}
+                </h3>
+                <ul
+                  className="rounded-xl overflow-hidden"
+                  style={{
+                    backgroundColor: claudeTokens.surface,
+                    border: `1px solid ${claudeTokens.border}`,
+                  }}
+                >
+                  {currentData.benefits.map((benefit, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-3 px-4 py-3 text-[13px]"
+                      style={{
+                        color: claudeTokens.textBody,
+                        borderBottom:
+                          i < currentData.benefits.length - 1
+                            ? `1px solid ${claudeTokens.border}`
+                            : 'none',
+                      }}
+                    >
+                      <span style={{ color: claudeTokens.accent, marginTop: 2 }}>·</span>
+                      {benefit}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              {/* Scientific fact — sunken cream pull-quote with terracotta side rule */}
+              <section
+                className="relative rounded-xl px-5 py-4"
+                style={{
+                  backgroundColor: claudeTokens.surfaceMuted,
+                  border: `1px solid ${claudeTokens.border}`,
+                }}
+              >
+                <span
+                  className="absolute left-0 top-4 bottom-4 w-[3px] rounded-full"
+                  style={{ backgroundColor: claudeTokens.accent }}
+                />
+                <h3
+                  className="text-[10px] font-medium uppercase tracking-[0.22em] mb-2 flex items-center gap-2 pl-3"
+                  style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
+                >
+                  <Lightbulb size={12} strokeWidth={1.75} />
+                  {lang === 'kz' ? 'Ғылыми факт' : lang === 'ru' ? 'Научный факт' : 'Scientific fact'}
+                </h3>
+                <p
+                  className="text-[13px] italic leading-relaxed pl-3"
+                  style={{ color: claudeTokens.textBody, fontFamily: claudeTokens.serifStack }}
+                >
+                  “{currentData.science}”
+                </p>
+              </section>
+
+              <button
+                onClick={onClose}
+                className="w-full rounded-lg py-3 text-[14px] font-medium transition-colors flex items-center justify-center gap-2"
+                style={{ backgroundColor: claudeTokens.accent, color: '#FFFFFF' }}
+              >
+                <Zap size={15} strokeWidth={2} />
+                {lang === 'kz' ? 'Бастау' : lang === 'ru' ? 'Начать' : 'Start'}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
   return (
     <AnimatePresence>
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
