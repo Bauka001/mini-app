@@ -407,17 +407,9 @@ function App() {
   const userId = useStore((state) => state.user.id);
   const logout = useStore((state) => state.logout);
 
-  // Sync user data immediately and handle account switching
+  // Sync user data immediately and handle account switching.
+  // Telegram lifecycle (ready/expand/theme) is owned by src/telegram/bootstrap.ts.
   useEffect(() => {
-    if (WebApp) {
-      try {
-        WebApp.ready();
-        WebApp.expand();
-      } catch (e) {
-        console.error('WebApp initialization error:', e);
-      }
-    }
-
     const checkAccount = () => {
       const tgUser = WebApp?.initDataUnsafe?.user || (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
       
