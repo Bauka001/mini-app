@@ -305,7 +305,9 @@ const resources = {
       "ugc_rule_third_party": "Other people's personal data, copyrighted work, or trademarks without permission",
       "ugc_rule_spam": "Spam, scams, or third-party advertising",
       "ugc_accept": "I have read and accept these rules",
-      "feedback_terms_link": "Read the full Terms of Use"
+      "feedback_terms_link": "Read the full Terms of Use",
+      "offline_banner_title": "You're offline",
+      "offline_banner_body": "Some features need an internet connection. We'll reconnect automatically."
     }
   },
   ru: {
@@ -608,7 +610,9 @@ const resources = {
       "ugc_rule_third_party": "Чужие личные данные, защищённые авторским правом или товарные знаки без разрешения",
       "ugc_rule_spam": "Спам, мошенничество или стороннюю рекламу",
       "ugc_accept": "Я прочитал(а) и принимаю эти правила",
-      "feedback_terms_link": "Открыть полные Условия использования"
+      "feedback_terms_link": "Открыть полные Условия использования",
+      "offline_banner_title": "Нет соединения",
+      "offline_banner_body": "Некоторые функции требуют интернета. Мы переподключимся автоматически."
     }
   },
   kz: {
@@ -903,7 +907,9 @@ const resources = {
       "ugc_rule_third_party": "Басқа адамдардың жеке деректері, авторлық құқықпен қорғалған туындылары немесе тауарлық белгілері рұқсатсыз",
       "ugc_rule_spam": "Спам, алаяқтық немесе үшінші тарап жарнамасы",
       "ugc_accept": "Ережелерді оқыдым және қабылдаймын",
-      "feedback_terms_link": "Толық Пайдалану шарттарын ашу"
+      "feedback_terms_link": "Толық Пайдалану шарттарын ашу",
+      "offline_banner_title": "Желі жоқ",
+      "offline_banner_body": "Кейбір функциялар интернетті қажет етеді. Қайта қосылу автоматты түрде өтеді."
     }
   }
 };

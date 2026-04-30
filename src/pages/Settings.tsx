@@ -341,12 +341,12 @@ export const SettingsContent = () => {
           </button>
         </SettingItem>
 
-        <SettingItem icon={MessageSquare} title="Feedback / Support" onClick={() => setShowFeedback(true)}>
+        <SettingItem icon={MessageSquare} title={t('support')} onClick={() => setShowFeedback(true)}>
           <button
             className="text-[11px] uppercase tracking-[0.22em] font-medium"
             style={isClaude ? { color: claudeTokens.accent, fontFamily: claudeTokens.serifStack } : undefined}
           >
-            {!isClaude ? <span className="text-xs font-bold text-primary">Write</span> : 'Write'}
+            {!isClaude ? <span className="text-xs font-bold text-primary">{t('open')}</span> : t('open')}
           </button>
         </SettingItem>
 

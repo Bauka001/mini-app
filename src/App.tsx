@@ -7,6 +7,7 @@ import { Layout } from './components/Layout';
 import { AuthGuard } from './components/AuthGuard';
 import { AnimatedRoutes } from './components/AnimatedRoutes';
 import { ConsentGate } from './components/ConsentGate';
+import { OfflineBanner } from './components/OfflineBanner';
 import OnboardingScreen1 from './components/onboarding/OnboardingScreen1';
 import OnboardingScreen2 from './components/onboarding/OnboardingScreen2';
 import OnboardingScreen3 from './components/onboarding/OnboardingScreen3';
@@ -547,6 +548,7 @@ function App() {
     <ConsentGate>
       <AuthGuard>
         <Router>
+          <OfflineBanner />
           <AppRoutes />
         </Router>
       </AuthGuard>

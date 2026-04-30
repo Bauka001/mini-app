@@ -282,7 +282,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
           <div className="p-4 border-b border-gray-200 dark:border-gray-800 flex justify-between items-center">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <AlertCircle size={20} className="text-blue-500" />
-              Шағым немесе Ұсыныс
+              Feedback
             </h3>
             <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
               <X size={20} />
@@ -292,19 +292,19 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
           <div className="p-4 space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Хабарламаңыз
+                Your message
               </label>
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                placeholder="Не туралы айтқыңыз келеді?"
+                placeholder="What's on your mind?"
                 className="w-full h-32 p-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Сурет сілтемесі (міндетті емес)
+                Image link (optional)
               </label>
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -325,12 +325,51 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
               )}
             </div>
 
+            {!hasUgcConsent && (
+              <div className="rounded-xl p-3 space-y-2 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">
+                  {t('ugc_heading')}
+                </div>
+                <p className="text-xs leading-relaxed text-gray-700 dark:text-gray-200">
+                  {t('ugc_intro')}
+                </p>
+                <ul className="text-xs leading-relaxed pl-4 space-y-1 list-disc text-gray-700 dark:text-gray-200">
+                  <li>{t('ugc_rule_hate')}</li>
+                  <li>{t('ugc_rule_explicit')}</li>
+                  <li>{t('ugc_rule_illegal')}</li>
+                  <li>{t('ugc_rule_third_party')}</li>
+                  <li>{t('ugc_rule_spam')}</li>
+                </ul>
+                <a
+                  href="#/terms"
+                  className="text-[11px] underline inline-block text-blue-700 dark:text-blue-300"
+                >
+                  {t('feedback_terms_link')}
+                </a>
+              </div>
+            )}
+
+            {!hasUgcConsent && (
+              <label className="flex items-start gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={ugcChecked}
+                  onChange={() => setUgcChecked((v) => !v)}
+                  className="mt-1 h-4 w-4"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-200">
+                  {t('ugc_accept')}
+                </span>
+              </label>
+            )}
+
             <button
               onClick={handleSubmit}
-              className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors"
+              disabled={!ugcChecked}
+              className="w-full py-3 bg-blue-600 disabled:bg-gray-300 disabled:dark:bg-gray-700 disabled:cursor-not-allowed text-white font-bold rounded-xl flex items-center justify-center gap-2 hover:bg-blue-700 transition-colors"
             >
               <Send size={18} />
-              Жіберу
+              Send
             </button>
           </div>
         </motion.div>
