@@ -1,0 +1,4 @@
+{
+  "comment": "Pin api/ to CommonJS so Vercel can auto-detect [...path].js as a function. Root package.json declares \"type\": \"module\", which would otherwise force ESM here and break the require()-style wrapper that imports the CJS Express app from ../server/.",
+  "type": "commonjs"
+}
