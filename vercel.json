@@ -1,7 +1,7 @@
 {
   "version": 2,
   "name": "focus-mini-app",
-  "buildCommand": "npm run build",
+  "buildCommand": "yarn build",
   "outputDirectory": "dist",
   "framework": "vite",
   "headers": [

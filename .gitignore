@@ -1,5 +1,6 @@
 # ===============================
 # Dependencies
+# (yarn is the only supported package manager — block other lockfiles)
 # ===============================
 node_modules/
 .pnp
@@ -10,6 +11,9 @@ node_modules/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+package-lock.json
+pnpm-lock.yaml
+bun.lockb
 
 # ===============================
 # Build output

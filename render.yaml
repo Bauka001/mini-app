@@ -18,8 +18,8 @@ services:
     plan: free
     region: frankfurt
     rootDir: server
-    buildCommand: npm ci --omit=dev
-    startCommand: npm start
+    buildCommand: yarn install --production --frozen-lockfile
+    startCommand: yarn start
     healthCheckPath: /health
     autoDeploy: true
     envVars:

@@ -1,7 +1,5 @@
 import WebApp from '@twa-dev/sdk';
-import { useEffect, useRef } from 'react';
-
-const noop = () => {};
+import { useEffect } from 'react';
 
 const safe = <T,>(fn: () => T): T | undefined => {
   try {
@@ -11,10 +9,8 @@ const safe = <T,>(fn: () => T): T | undefined => {
   }
 };
 
+// Caller must memoize `handler` (e.g. with useCallback) to avoid re-binding every render.
 export function useBackButton(handler: (() => void) | null): void {
-  const handlerRef = useRef<() => void>(noop);
-  handlerRef.current = handler ?? noop;
-
   useEffect(() => {
     const back = safe(() => WebApp.BackButton);
     if (!back) return;
@@ -24,15 +20,14 @@ export function useBackButton(handler: (() => void) | null): void {
       return;
     }
 
-    const onClick = () => handlerRef.current();
-    safe(() => back.onClick(onClick));
+    safe(() => back.onClick(handler));
     safe(() => back.show());
 
     return () => {
-      safe(() => back.offClick(onClick));
+      safe(() => back.offClick(handler));
       safe(() => back.hide());
     };
-  }, [handler === null]);
+  }, [handler]);
 }
 
 interface MainButtonOptions {
@@ -43,10 +38,8 @@ interface MainButtonOptions {
   showProgress?: boolean;
 }
 
+// Caller must memoize `options.onClick` (useCallback) and the options object (useMemo).
 export function useMainButton(options: MainButtonOptions | null): void {
-  const optsRef = useRef<MainButtonOptions | null>(null);
-  optsRef.current = options;
-
   useEffect(() => {
     const main = safe(() => WebApp.MainButton);
     if (!main) return;
@@ -56,8 +49,7 @@ export function useMainButton(options: MainButtonOptions | null): void {
       return;
     }
 
-    const onClick = () => optsRef.current?.onClick();
-
+    const onClick = options.onClick;
     safe(() => main.setText(options.text));
     safe(() => (options.active === false ? main.disable() : main.enable()));
     if (options.showProgress) safe(() => main.showProgress(false));
@@ -71,5 +63,5 @@ export function useMainButton(options: MainButtonOptions | null): void {
       safe(() => main.hide());
       safe(() => main.hideProgress());
     };
-  }, [options?.text, options?.visible, options?.active, options?.showProgress]);
+  }, [options]);
 }
