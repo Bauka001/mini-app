@@ -24,6 +24,12 @@ const {
   optionalHttpUrl,
   handleValidationError,
 } = require('./lib/validate');
+const { sendMessage, answerPreCheckoutQuery } = require('./lib/telegramApi');
+const {
+  PLAN_CATALOGUE,
+  parseInvoicePayload,
+  applyPaidPlanUpgrade,
+} = require('./lib/payments');
 
 const app = express();
 
@@ -52,6 +58,18 @@ const corsOptions = allowedOrigins.length
       },
     }
   : undefined;
+
+// Request-id correlation: prefer an inbound x-request-id, fall back to
+// Vercel's per-invocation x-vercel-id, otherwise generate one. Echo it
+// back as a header so clients can quote it when reporting bugs, and
+// stash it on res.locals so the error handler can tag log lines.
+app.use((req, res, next) => {
+  const incoming = req.headers['x-request-id'] || req.headers['x-vercel-id'];
+  const requestId = typeof incoming === 'string' && incoming ? incoming : crypto.randomUUID();
+  res.locals.requestId = requestId;
+  res.setHeader('X-Request-Id', requestId);
+  next();
+});
 
 // JSON-only API: disable CSP (no HTML served) and let CORS handle origins.
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
@@ -572,6 +590,82 @@ async function getFeedbackById(feedbackId) {
   return feedbacks.find((item) => item.id === feedbackId) || null;
 }
 
+// Telegram bot webhook. Telegram POSTs every update here when the webhook is
+// registered with `setWebhook`. Auth is by `secret_token` — Telegram sends it
+// in the X-Telegram-Bot-Api-Secret-Token header on every call. No initData,
+// no rate limiter (Telegram retries naturally and we don't want to drop
+// updates because of bursts). The handler is intentionally small: only the
+// payment flow lives here. Conversational bot logic belongs in a separate
+// process.
+app.post('/telegram/webhook', async (req, res) => {
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+  const provided = req.headers['x-telegram-bot-api-secret-token'] || '';
+  if (!expectedSecret || provided !== expectedSecret) {
+    return res.status(401).json({ ok: false });
+  }
+
+  const update = req.body || {};
+
+  // Always 200 to Telegram so it doesn't queue retries while we work. Errors
+  // are logged here, not propagated, otherwise a transient failure can lock
+  // the webhook into a retry storm.
+  res.status(200).json({ ok: true });
+
+  try {
+    if (update.pre_checkout_query) {
+      const q = update.pre_checkout_query;
+      const parsed = parseInvoicePayload(q.invoice_payload);
+      if (!parsed) {
+        await answerPreCheckoutQuery(q.id, false, 'Invalid invoice');
+        return;
+      }
+      // Light sanity: paying user must match the user the invoice was issued for.
+      if (q.from?.id && q.from.id !== parsed.userId) {
+        await answerPreCheckoutQuery(q.id, false, 'Invoice user mismatch');
+        return;
+      }
+      await answerPreCheckoutQuery(q.id, true);
+      return;
+    }
+
+    const successful = update.message?.successful_payment;
+    if (successful) {
+      const fromId = update.message.from?.id;
+      const parsed = parseInvoicePayload(successful.invoice_payload);
+      if (!parsed || !fromId) {
+        console.warn('[telegram webhook] dropping successful_payment without valid payload');
+        return;
+      }
+
+      if (!supabase) {
+        console.error('[telegram webhook] supabase not configured — payment received but cannot apply');
+        return;
+      }
+
+      const result = await applyPaidPlanUpgrade({
+        supabase,
+        telegramId: parsed.userId,
+        plan: parsed.plan,
+        durationDays: parsed.durationDays,
+        totalAmount: successful.total_amount,
+        currency: successful.currency,
+        telegramPaymentChargeId: successful.telegram_payment_charge_id,
+        providerPaymentChargeId: successful.provider_payment_charge_id,
+        invoicePayload: successful.invoice_payload,
+      });
+
+      if (result.applied) {
+        await sendMessage(
+          parsed.userId,
+          `Құттықтаймыз! ${PLAN_CATALOGUE[parsed.sku]?.title || 'Premium'} белсендірілді.`
+        ).catch((err) => console.warn('[telegram webhook] sendMessage failed:', err.message));
+      }
+    }
+  } catch (err) {
+    console.error('[telegram webhook] handler error:', err);
+  }
+});
+
 app.post('/auth/verify', authLimiter, async (req, res) => {
   try {
     const identity = await resolveIdentity(req.body?.initData || '');
@@ -929,6 +1023,109 @@ app.post('/users/sync', writeLimiter, async (req, res) => {
   } catch (error) {
     return res.status(500).json({
       error: error instanceof Error ? error.message : 'users_sync_error',
+    });
+  }
+});
+
+// Server-canonical skin catalog. The client sends only the skinId; the
+// server looks up the price. Closes the "pass cost: 0" attack and the
+// "buy a skin via tampered local coins" attack — balance is checked
+// against the DB row, not against client state.
+const SKIN_CATALOG = {
+  neon_blue: { coins: 100 },
+  royal_purple: { coins: 250 },
+  matrix: { coins: 500 },
+};
+
+app.post('/skins/purchase', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const skinId = `${req.body?.skinId || ''}`.trim().slice(0, 64);
+
+    if (!Object.prototype.hasOwnProperty.call(SKIN_CATALOG, skinId)) {
+      return res.status(400).json({ error: 'Unknown skin' });
+    }
+
+    const price = SKIN_CATALOG[skinId].coins;
+
+    const { data: userRow, error: userError } = await supabase
+      .from('users')
+      .select('coins, skin_inventory, is_blocked')
+      .eq('telegram_id', userTelegramId)
+      .maybeSingle();
+
+    if (userError && !isMissingTableError(userError)) {
+      throw userError;
+    }
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (userRow.is_blocked) {
+      return res.status(403).json({ error: 'User is blocked' });
+    }
+
+    const currentCoins = Number(userRow.coins) || 0;
+    const inventory = Array.isArray(userRow.skin_inventory) ? userRow.skin_inventory : [];
+
+    if (inventory.includes(skinId)) {
+      return res.status(409).json({ error: 'Skin already owned', reason: 'already_owned' });
+    }
+    if (currentCoins < price) {
+      return res.status(402).json({
+        error: 'Insufficient coins',
+        reason: 'insufficient_coins',
+        required: price,
+        balance: currentCoins,
+      });
+    }
+
+    const newCoins = currentCoins - price;
+    const newInventory = [...inventory, skinId];
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        coins: newCoins,
+        skin_inventory: newInventory,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('telegram_id', userTelegramId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    const { error: txError } = await supabase.from('coin_transactions').insert({
+      user_telegram_id: userTelegramId,
+      currency: 'coins',
+      amount: price,
+      direction: 'debit',
+      reason: 'skin_purchase',
+      metadata: { skinId },
+    });
+    if (txError && !isMissingTableError(txError)) {
+      console.error('[Skins] transaction log failed:', txError);
+    }
+
+    return res.json({
+      ok: true,
+      skinId,
+      price,
+      coins: newCoins,
+      skinInventory: newInventory,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'skin_purchase_error',
     });
   }
 });
@@ -2103,9 +2300,10 @@ app.get('/health', (_req, res) => {
 // stack traces to clients; logs server-side instead.
  
 app.use((err, _req, res, _next) => {
-  console.error('Unhandled error:', err && err.stack ? err.stack : err);
+  const requestId = (res.locals && res.locals.requestId) || '?';
+  console.error(`[err] requestId=${requestId}:`, err && err.stack ? err.stack : err);
   if (res.headersSent) return;
-  res.status(500).json({ error: 'Internal error' });
+  res.status(500).json({ error: 'Internal error', requestId });
 });
 
 const checkEnv = () => {
