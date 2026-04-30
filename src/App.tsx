@@ -231,7 +231,7 @@ function AppRoutes() {
       return;
     }
 
-    const nextProgress =
+    const nextProgress: OnboardingProgress =
       history.length === 0
         ? createInitialOnboardingProgress()
         : {

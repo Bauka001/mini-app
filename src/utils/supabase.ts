@@ -51,6 +51,13 @@ export interface DatabaseUser {
     is_claimed: boolean;
     last_reset_date: string | null;
   };
+  weekly_quest?: unknown;
+  energy?: number;
+  max_energy?: number;
+  last_energy_regen_time?: string | number | null;
+  streak_protection?: boolean;
+  mystery_box_available?: boolean;
+  mystery_box_price?: number;
   created_at: string;
   updated_at: string;
 }

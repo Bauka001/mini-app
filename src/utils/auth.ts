@@ -9,7 +9,7 @@ export async function verifyTelegramInitData(initData: string) {
     });
     const data = await resp.json();
     return data as { ok: boolean; userId?: number; reason?: string; mode?: string };
-  } catch (e) {
+  } catch {
     return { ok: false, reason: 'network_error' };
   }
 }

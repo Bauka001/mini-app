@@ -5,7 +5,6 @@ import WebApp from '@twa-dev/sdk';
  * Tries window.Telegram.WebApp and the imported WebApp SDK.
  */
 const getTelegramUserId = (): string | null => {
-  // @ts-ignore
   const user = window.Telegram?.WebApp?.initDataUnsafe?.user || WebApp?.initDataUnsafe?.user;
   if (user?.id) return String(user.id);
   

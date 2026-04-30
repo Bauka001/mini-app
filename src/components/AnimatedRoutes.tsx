@@ -1,7 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 
-export const pageFlipVariants = {
+export const pageFlipVariants: Variants = {
   initial: {
     rotateY: 90,
     opacity: 0,

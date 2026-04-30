@@ -24,11 +24,9 @@ jobs:
 
       - run: npm ci
 
-      # Lint and typecheck are advisory until Phase 4.0 cleanup lands.
-      # Flip continue-on-error to false once they're clean to make the gate hard.
       - run: npm run lint
-        continue-on-error: true
 
+      # Typecheck is advisory until the remaining 44 ts errors are resolved.
       - run: npx tsc --noEmit -p tsconfig.app.json
         continue-on-error: true
 

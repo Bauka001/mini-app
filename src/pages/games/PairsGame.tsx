@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { useStore } from '../../store/useStoreImpl';
 import { Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const ICONS = [Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun];
 
@@ -34,7 +34,7 @@ interface Card {
   isMatched: boolean;
 }
 
-const PairsBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: number) => void, isPaused: boolean, theme: string }) => {
+const PairsBoard = ({ onEnd, isPaused: _isPaused, theme }: { onEnd: (score: string, coins: number) => void, isPaused: boolean, theme: string }) => {
   const [cards, setCards] = useState<Card[]>([]);
   const [flippedIndices, setFlippedIndices] = useState<number[]>([]);
   const [moves, setMoves] = useState(0);

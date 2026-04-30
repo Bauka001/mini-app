@@ -200,8 +200,9 @@ export const SettingsContent = () => {
               
               const shareUrl = 'https://t.me/Focus_game_bot?start=app';
               
-              if (WebApp.shareText) {
-                WebApp.shareText(shareText, shareUrl);
+              const wa = WebApp as unknown as { shareText?: (text: string, url: string) => void };
+              if (wa.shareText) {
+                wa.shareText(shareText, shareUrl);
               } else {
                 WebApp.openTelegramLink(shareUrl);
               }
@@ -302,7 +303,7 @@ export const SettingsContent = () => {
          ))}
       </section>
       
-      <InfoGuideModal isOpen={showInfo} onClose={() => setShowInfo(false)} />
+      <InfoGuideModal isOpen={showInfo} onClose={() => setShowInfo(false)} gameType="schulte" />
       <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
     </div>
   );

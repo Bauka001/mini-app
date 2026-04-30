@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { useStore } from '../../store/useStoreImpl';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
+// ParticleSystem available in '../../components/effects/ParticleSystem' if needed.
 
 const EMOJI_SETS = [
   { common: '😀', odd: '😃' },
@@ -39,7 +39,7 @@ export const OddOneOutBoard = ({ onEnd, addGameResult, isPaused, theme }: { onEn
   const [timeLeft, setTimeLeft] = useState(60);
   const [score, setScore] = useState(0);
   const [isWrong, setIsWrong] = useState(false);
-  const [showLevelUp, setShowLevelUp] = useState(false);
+  const [showLevelUp, _setShowLevelUp] = useState(false);
   const [showLevelComplete, setShowLevelComplete] = useState(false);
   
   // New state for level progress

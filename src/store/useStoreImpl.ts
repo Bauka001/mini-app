@@ -5,6 +5,8 @@ import { telegramStorage } from './storage';
 import { UserState, initialUserRaw, generateGameId, initialState, generateDailyChallenges, initialSocialTasks, Ticket, EventParticipant, Notification, TournamentState } from './useStore';
 import { getUserByTelegramId, createUser, updateUser, subscribeToUserChanges, isSupabaseConfigured, DatabaseUser } from '../utils/supabase';
 import {
+  CanonicalUser,
+  getUserMe,
   issueTicketRecord,
   joinTournamentRecord,
   submitFeedbackEntry,
@@ -550,8 +552,51 @@ const subscribeToSupabaseChanges = (telegramId: number, setState: (partial: any)
   });
 };
 
+const mapCanonicalUserToState = (user: CanonicalUser) => ({
+  coins: user.coins,
+  gems: user.gems,
+  xp: user.xp,
+  level: user.level,
+  brainStats: normalizeBrainStats(user.brainStats),
+  skinInventory: user.skinInventory,
+  activeSkin: user.activeSkin,
+  plan: user.plan,
+  planExpiry: user.planExpiry,
+  hp: user.hp,
+  maxHp: user.maxHp,
+  fecBalance: user.fecBalance,
+  inventory: user.inventory,
+  dailyGoalMinutes: user.dailyGoalMinutes,
+  streak: user.streak,
+  dailyRewardStreak: user.dailyRewardStreak,
+  lastDailyRewardDate: user.lastDailyRewardDate,
+  promotionEndISO: user.promotionEndISO,
+  dailyQuest: normalizeDailyQuest(user.dailyQuest),
+});
+
 const loadUserFromSupabase = async (telegramId: number, setState: (partial: any) => void) => {
   if (!isSupabaseConfigured) return;
+
+  // Prefer the server-routed /users/me endpoint. The Node backend uses the
+  // service-role key, so it bypasses the JWT-claim RLS on the users table that
+  // silently blocks anon-key reads. Fall back to the direct anon-key path only
+  // if the server endpoint isn't reachable (older deployment, network blip).
+  try {
+    const response = await getUserMe();
+    if (response?.user) {
+      const mapped = mapCanonicalUserToState(response.user);
+      setState((state: any) => ({
+        ...mapped,
+        brainStats: normalizeBrainStats(mapped.brainStats, state.history),
+      }));
+      return;
+    }
+    // No row yet — let downstream code call createUser via syncUserToSupabase.
+    return;
+  } catch (serverErr) {
+    console.warn('[Users] /users/me unavailable, falling back to anon-key read:', serverErr);
+  }
+
   try {
     const dbUser = await getUserByTelegramId(telegramId);
     if (dbUser) {
@@ -718,6 +763,17 @@ export const useStore = create<UserState>()(
 
       dailyQuest: { ...DEFAULT_DAILY_QUEST },
       weeklyQuest: { ...DEFAULT_WEEKLY_QUEST },
+      energy: 100,
+      maxEnergy: 100,
+      lastEnergyRegenTime: Date.now(),
+      streakProtection: 0,
+      mysteryBoxAvailable: true,
+      mysteryBoxPrice: 500,
+      setLanguage: (lang) => set({ language: lang }),
+      toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
+      setTheme: (nextTheme) => set({ theme: nextTheme }),
+      claimDailyReward: (amount) =>
+        set((state) => ({ coins: state.coins + (Number(amount) || 0) })),
       updateUserProfile: (data) => set((state) => ({
         user: { ...state.user, ...data }
       })),

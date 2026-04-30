@@ -321,47 +321,47 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
     }
   }, (gameOver || isGamePaused) ? null : speed);
 
-  const move = (dir: number) => {
+  function move(dir: number) {
     if (!activePiece || gameOver || isGamePaused) return;
     if (!checkCollision(activePiece.x + dir, activePiece.y, activePiece.shape)) {
       setActivePiece(p => ({ ...p!, x: p!.x + dir }));
     }
-  };
+  }
 
-  const rotate = () => {
+  function rotate() {
     if (!activePiece || gameOver || isGamePaused) return;
     const newShape = activePiece.shape[0].map((_, index) => activePiece.shape.map(row => row[index]).reverse());
-    
+
     let newX = activePiece.x;
     if (newX + newShape[0].length > BOARD_WIDTH) {
       newX = BOARD_WIDTH - newShape[0].length;
     }
-    
+
     if (!checkCollision(newX, activePiece.y, newShape)) {
       setActivePiece(p => ({ ...p!, shape: newShape, x: newX }));
     }
-  };
-  
-  const softDrop = () => {
-     if (!activePiece || gameOver || isGamePaused) return;
-     if (!checkCollision(activePiece.x, activePiece.y + 1, activePiece.shape)) {
-       setActivePiece(p => ({ ...p!, y: p!.y + 1 }));
-       setScore(s => s + 1);
-     }
-  };
+  }
 
-  const hardDrop = () => {
-     if (!activePiece || gameOver || isGamePaused) return;
-     let dropY = activePiece.y;
-     while (!checkCollision(activePiece.x, dropY + 1, activePiece.shape)) {
-       dropY++;
-     }
-     setActivePiece(p => ({ ...p!, y: dropY }));
-     setShake(true);
-     setTimeout(() => {
-       mergePiece();
-     }, 0);
-  };
+  function softDrop() {
+    if (!activePiece || gameOver || isGamePaused) return;
+    if (!checkCollision(activePiece.x, activePiece.y + 1, activePiece.shape)) {
+      setActivePiece(p => ({ ...p!, y: p!.y + 1 }));
+      setScore(s => s + 1);
+    }
+  }
+
+  function hardDrop() {
+    if (!activePiece || gameOver || isGamePaused) return;
+    let dropY = activePiece.y;
+    while (!checkCollision(activePiece.x, dropY + 1, activePiece.shape)) {
+      dropY++;
+    }
+    setActivePiece(p => ({ ...p!, y: dropY }));
+    setShake(true);
+    setTimeout(() => {
+      mergePiece();
+    }, 0);
+  }
 
   const handleRevive = () => {
     const newBoard = board.map((row, y) => {

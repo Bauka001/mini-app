@@ -3,7 +3,7 @@ import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { useStore } from '../../store/useStoreImpl';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 const GRID_SIZE = 5;
 const TOTAL_NUMBERS = GRID_SIZE * GRID_SIZE;
