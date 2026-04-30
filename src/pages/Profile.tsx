@@ -17,6 +17,7 @@ import { Achievements } from '../components/Achievements';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { usePlanGate } from '../hooks/usePlanGate';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
+import ProfileClaude from './ProfileClaude';
 
 const PLAN_CONFIG = {
   free: { icon: Star, name: 'Free', color: 'from-gray-500 to-gray-600', borderColor: 'border-gray-500' },
@@ -32,7 +33,14 @@ const ACHIEVEMENTS = [
   { id: 'xp_master', name: 'XP Master', description: 'Earned 5000 XP', icon: '⚡', color: 'bg-yellow-500' },
 ];
 
+// Theme switcher — keeps the dark / light / blue / gold markup unchanged
+// in LegacyProfilePage and routes the Claude theme to the editorial layout.
 const ProfilePage = () => {
+  const styles = useThemeStyles();
+  return styles.isClaude ? <ProfileClaude /> : <LegacyProfilePage />;
+};
+
+const LegacyProfilePage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { 
