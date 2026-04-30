@@ -77,10 +77,10 @@ export const HeroTab = () => {
     }
   };
 
-  const handleOpenMysteryBox = () => {
+  const handleOpenMysteryBox = async () => {
     if (!mysteryBoxAvailable || coins < mysteryBoxPrice) return;
 
-    const result = openMysteryBox();
+    const result = await openMysteryBox();
     if (result) {
       setMysteryBoxResult(result);
       setShowMysteryBox(true);

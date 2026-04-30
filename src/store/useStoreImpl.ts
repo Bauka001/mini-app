@@ -13,6 +13,7 @@ import {
   grantSocialReward,
   issueTicketRecord,
   joinTournamentRecord,
+  openMysteryBoxOnServer,
   purchaseSkin,
   submitFeedbackEntry,
   submitGameResult,
@@ -1989,39 +1990,60 @@ export const useStore = create<UserState>()(
         return true;
       },
 
-      openMysteryBox: () => {
+      openMysteryBox: async () => {
         const state = get();
-        if (!state.mysteryBoxAvailable || state.coins < state.mysteryBoxPrice) return null;
-
-        const rand = Math.random();
-        const mysteryBox: any = { id: Date.now().toString() };
-        const price = state.mysteryBoxPrice;
-
-        if (rand > 0.9) {
-          mysteryBox.type = 'skin';
-          mysteryBox.amount = 1;
-          mysteryBox.skinId = 'neon_blue';
-          set((s) => ({ coins: s.coins - price }));
-        } else if (rand > 0.75) {
-          mysteryBox.type = 'crystals';
-          mysteryBox.amount = Math.floor(Math.random() * 10) + 5;
-          set((s) => ({ coins: s.coins - price, gems: s.gems + mysteryBox.amount }));
-        } else if (rand > 0.6) {
-          mysteryBox.type = 'booster';
-          mysteryBox.amount = 3;
-          mysteryBox.boosterType = 'hints';
-          set((s) => ({ coins: s.coins - price, inventory: { ...s.inventory, hints: s.inventory.hints + 3 } }));
-        } else if (rand > 0.4) {
-          mysteryBox.type = 'fec';
-          mysteryBox.amount = Number((Math.random() * 1.5 + 0.5).toFixed(2));
-          set((s) => ({ coins: s.coins - price, fecBalance: s.fecBalance + mysteryBox.amount }));
-        } else {
-          mysteryBox.type = 'coins';
-          mysteryBox.amount = Math.floor(Math.random() * 200) + 100;
-          set((s) => ({ coins: s.coins - price + mysteryBox.amount }));
+        if (!state.mysteryBoxAvailable || state.coins < state.mysteryBoxPrice) {
+          return null;
         }
 
-        return mysteryBox;
+        // Server is the only roller of the dice. The client never touches
+        // Math.random for this — closes the "re-roll until you like the
+        // result" exploit. Local state is updated from the server response,
+        // not predicted ahead of time.
+        if (!isSupabaseConfigured) {
+          // No backend in dev — keep something working but don't pretend.
+          console.warn('[MysteryBox] Supabase not configured; skipping open');
+          return null;
+        }
+
+        try {
+          const response = await openMysteryBoxOnServer();
+          set({
+            coins: response.coins,
+            gems: response.gems,
+            fecBalance: response.fecBalance,
+            inventory: response.inventory,
+            skinInventory: response.skinInventory,
+            mysteryBoxAvailable: false,
+          });
+
+          // Map server reward back to the existing client-facing MysteryBox
+          // type so the modal renders unchanged.
+          const reward = response.reward;
+          return {
+            id: Date.now().toString(),
+            type: reward.type,
+            amount: reward.amount,
+            ...(reward.type === 'skin' ? { skinId: reward.skinId } : {}),
+            ...(reward.type === 'booster' ? { boosterType: reward.boosterType } : {}),
+          } as any;
+        } catch (err) {
+          console.error('[MysteryBox] open rejected:', err);
+          set((current) => ({
+            notifications: [
+              {
+                id: Math.random().toString(36).slice(2, 11),
+                title: 'Mystery box unavailable',
+                message: err instanceof Error ? err.message : 'Try again later',
+                date: new Date().toISOString(),
+                isRead: false,
+                type: 'error',
+              },
+              ...current.notifications,
+            ],
+          }));
+          return null;
+        }
       },
 
       setMysteryBoxAvailable: (available) => set({ mysteryBoxAvailable: available }),

@@ -406,6 +406,31 @@ export const grantChallengeReward = (challengeId: string, amount: number) =>
     amount,
   });
 
+export type MysteryBoxReward =
+  | { type: 'skin'; skinId: string; amount: number }
+  | { type: 'crystals'; amount: number }
+  | { type: 'booster'; boosterType: 'hints'; amount: number }
+  | { type: 'fec'; amount: number }
+  | { type: 'coins'; amount: number };
+
+export interface MysteryBoxOpenResponse {
+  ok: true;
+  reward: MysteryBoxReward;
+  price: number;
+  coins: number;
+  gems: number;
+  fecBalance: number;
+  inventory: { freezes: number; hints: number; shields: number };
+  skinInventory: string[];
+}
+
+export const openMysteryBoxOnServer = () =>
+  postJson<MysteryBoxOpenResponse>('/mystery-box/open', {});
+
+// Re-export for store action consumers; the store action returns this same
+// shape (mapped to the existing MysteryBox UI type) on success.
+
+
 export const getTournamentLeaderboard = (weekKey?: string) =>
   postJson<TournamentLeaderboardResponse>('/tournaments/leaderboard', weekKey ? { weekKey } : {});
 

@@ -262,7 +262,7 @@ export interface UserState {
   useStreakProtection: () => boolean;
   buyStreakProtection: () => boolean;
 
-  openMysteryBox: () => MysteryBox | null;
+  openMysteryBox: () => Promise<MysteryBox | null>;
   setMysteryBoxAvailable: (available: boolean) => void;
 
   updateWeeklyQuest: () => void;

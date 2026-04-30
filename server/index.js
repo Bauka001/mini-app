@@ -1406,6 +1406,174 @@ const SKIN_CATALOG = {
   matrix: { coins: 500 },
 };
 
+// Mystery-box reward distribution. Mirrors the previous client-side odds
+// but is now rolled server-side so the user can't re-roll until they like
+// the result. Cumulative thresholds are checked top-down.
+const MYSTERY_BOX_MIN_PRICE = 100;
+const MYSTERY_BOX_MAX_PRICE = 5000;
+
+function rollMysteryBox() {
+  const r = Math.random();
+  if (r > 0.9) {
+    return { type: 'skin', skinId: 'neon_blue', amount: 1 };
+  }
+  if (r > 0.75) {
+    return { type: 'crystals', amount: Math.floor(Math.random() * 10) + 5 }; // 5..14 gems
+  }
+  if (r > 0.6) {
+    return { type: 'booster', boosterType: 'hints', amount: 3 };
+  }
+  if (r > 0.4) {
+    return { type: 'fec', amount: Number((Math.random() * 1.5 + 0.5).toFixed(2)) }; // 0.5..2.0
+  }
+  return { type: 'coins', amount: Math.floor(Math.random() * 200) + 100 }; // 100..299
+}
+
+app.post('/mystery-box/open', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+
+    const { data: userRow, error: userError } = await supabase
+      .from('users')
+      .select('coins, gems, fec_balance, inventory, skin_inventory, mystery_box_available, mystery_box_price, is_blocked')
+      .eq('telegram_id', userTelegramId)
+      .maybeSingle();
+
+    if (userError && !isMissingTableError(userError)) {
+      throw userError;
+    }
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (userRow.is_blocked) {
+      return res.status(403).json({ error: 'User is blocked' });
+    }
+    if (!userRow.mystery_box_available) {
+      return res.status(409).json({ error: 'Mystery box not available', reason: 'not_available' });
+    }
+
+    const price = Math.max(
+      MYSTERY_BOX_MIN_PRICE,
+      Math.min(MYSTERY_BOX_MAX_PRICE, Number(userRow.mystery_box_price) || 500)
+    );
+    const currentCoins = Number(userRow.coins) || 0;
+    if (currentCoins < price) {
+      return res.status(402).json({
+        error: 'Insufficient coins',
+        reason: 'insufficient_coins',
+        required: price,
+        balance: currentCoins,
+      });
+    }
+
+    const reward = rollMysteryBox();
+
+    // Build the update payload based on reward type. Coins always decrement
+    // by the price; the reward is applied on top.
+    const updates = {
+      coins: currentCoins - price,
+      mystery_box_available: false,
+      updated_at: new Date().toISOString(),
+    };
+    if (reward.type === 'crystals') {
+      updates.gems = (Number(userRow.gems) || 0) + reward.amount;
+    } else if (reward.type === 'fec') {
+      updates.fec_balance = Number(((Number(userRow.fec_balance) || 0) + reward.amount).toFixed(2));
+    } else if (reward.type === 'coins') {
+      updates.coins = currentCoins - price + reward.amount;
+    } else if (reward.type === 'booster') {
+      const inventory = (userRow.inventory && typeof userRow.inventory === 'object') ? userRow.inventory : {};
+      updates.inventory = {
+        ...inventory,
+        hints: (Number(inventory.hints) || 0) + reward.amount,
+      };
+    } else if (reward.type === 'skin') {
+      const skins = Array.isArray(userRow.skin_inventory) ? userRow.skin_inventory : [];
+      if (!skins.includes(reward.skinId)) {
+        updates.skin_inventory = [...skins, reward.skinId];
+      }
+    }
+
+    // Race-protected commit: only proceed if mystery_box_available is still
+    // true. If a parallel request already consumed the box, we get 0 rows
+    // and report 409 instead of double-applying.
+    const { data: updatedRow, error: updateError } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('telegram_id', userTelegramId)
+      .eq('mystery_box_available', true)
+      .select('coins, gems, fec_balance, inventory, skin_inventory, mystery_box_available')
+      .maybeSingle();
+
+    if (updateError && !isMissingTableError(updateError)) {
+      throw updateError;
+    }
+    if (!updatedRow) {
+      return res.status(409).json({ error: 'Mystery box already opened', reason: 'already_opened' });
+    }
+
+    // Audit. Keep the price separate from the reward so the ledger is
+    // straightforward to reconcile.
+    const txRows = [
+      {
+        user_telegram_id: userTelegramId,
+        currency: 'coins',
+        amount: price,
+        direction: 'debit',
+        reason: 'mystery_box_open',
+        metadata: { rewardType: reward.type },
+      },
+    ];
+    if (reward.type === 'coins') {
+      txRows.push({
+        user_telegram_id: userTelegramId,
+        currency: 'coins',
+        amount: reward.amount,
+        direction: 'credit',
+        reason: 'mystery_box_reward',
+        metadata: { rewardType: reward.type },
+      });
+    } else if (reward.type === 'crystals') {
+      txRows.push({
+        user_telegram_id: userTelegramId,
+        currency: 'gems',
+        amount: reward.amount,
+        direction: 'credit',
+        reason: 'mystery_box_reward',
+        metadata: { rewardType: reward.type },
+      });
+    }
+    const { error: txError } = await supabase.from('coin_transactions').insert(txRows);
+    if (txError && !isMissingTableError(txError)) {
+      console.error('[MysteryBox] audit log failed:', txError);
+    }
+
+    return res.json({
+      ok: true,
+      reward,
+      price,
+      coins: updatedRow.coins,
+      gems: updatedRow.gems,
+      fecBalance: updatedRow.fec_balance,
+      inventory: updatedRow.inventory,
+      skinInventory: updatedRow.skin_inventory,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'mystery_box_error',
+    });
+  }
+});
+
 app.post('/skins/purchase', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
