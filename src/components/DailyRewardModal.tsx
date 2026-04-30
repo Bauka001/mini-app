@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart3, BrainCircuit, CalendarDays, Check, Crown, Lock, Users, X } from 'lucide-react';
 import { useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
+import { useThemeStyles } from '../hooks/useThemeStyles';
+import { claudeTokens } from './ui/claudeTokens';
 
 type AnalyticsClaimReward = {
   coins: number;
@@ -17,46 +19,21 @@ type AnalyticsClaimReward = {
 };
 
 const ANALYTICS_REWARD_STEPS = [
-  {
-    day: 1,
-    title: 'Ертеңгі нәтиже',
-    description: 'Ертеңгі нәтижені көре аласыз',
-    icon: CalendarDays,
-  },
-  {
-    day: 7,
-    title: 'Апталық график',
-    description: 'Апталық график ашылады',
-    icon: BarChart3,
-  },
-  {
-    day: 14,
-    title: 'Орташа білім баласы',
-    description: 'Орташа білім баласын көре аласыз',
-    icon: BrainCircuit,
-  },
-  {
-    day: 30,
-    title: 'Қоғамдық салыстырма',
-    description: 'Айдан көпшілік салыстырма ашылады',
-    icon: Users,
-  },
+  { day: 1, title: 'Ертеңгі нәтиже', description: 'Ертеңгі нәтижені көре аласыз', icon: CalendarDays },
+  { day: 7, title: 'Апталық график', description: 'Апталық график ашылады', icon: BarChart3 },
+  { day: 14, title: 'Орташа білім баласы', description: 'Орташа білім баласын көре аласыз', icon: BrainCircuit },
+  { day: 30, title: 'Қоғамдық салыстырма', description: 'Айдан көпшілік салыстырма ашылады', icon: Users },
 ] as const;
 
-export const DailyRewardModal = ({ 
-  isOpen, 
-  onClose 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
+export const DailyRewardModal = ({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
 }) => {
-  const {
-    lastDailyRewardDate,
-    dailyRewardStreak,
-    claimDailyLoginReward,
-    plan,
-    planExpiry
-  } = useStore();
+  const { lastDailyRewardDate, dailyRewardStreak, claimDailyLoginReward, plan, planExpiry } = useStore();
+  const { isClaude } = useThemeStyles();
   const [claimedReward, setClaimedReward] = useState<AnalyticsClaimReward | null>(null);
 
   const handleClaim = async () => {
@@ -96,21 +73,308 @@ export const DailyRewardModal = ({
       ? 'Бүгінгі аналитика прогресі тіркелді'
       : 'Серия үзілсе, free қолданушы үшін прогресс 1-күннен қайта басталады';
 
+  if (isClaude) {
+    return (
+      <AnimatePresence>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(31,30,29,0.55)', backdropFilter: 'blur(6px)' }}
+        >
+          <motion.div
+            initial={{ scale: 0.96, y: 12, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.96, y: 12, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl overflow-hidden flex flex-col"
+            style={{
+              backgroundColor: claudeTokens.surface,
+              border: `1px solid ${claudeTokens.border}`,
+              maxHeight: '85vh',
+            }}
+          >
+            {/* Header */}
+            <header
+              className="flex items-center justify-between px-6 py-5"
+              style={{ borderBottom: `1px solid ${claudeTokens.border}` }}
+            >
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ backgroundColor: claudeTokens.accentSoft, color: claudeTokens.accent }}
+                >
+                  <CalendarDays size={18} strokeWidth={1.75} />
+                </div>
+                <h2
+                  className="leading-tight"
+                  style={{
+                    color: claudeTokens.textPrimary,
+                    fontFamily: claudeTokens.serifStack,
+                    fontSize: '20px',
+                    fontWeight: 500,
+                  }}
+                >
+                  Daily analytics
+                </h2>
+              </div>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[#F0EEE6]"
+                style={{ color: claudeTokens.textMuted }}
+              >
+                <X size={18} strokeWidth={1.75} />
+              </button>
+            </header>
+
+            <div className="overflow-y-auto px-6 py-5">
+              <p className="text-[14px] leading-relaxed" style={{ color: claudeTokens.textBody }}>
+                Күнделікті кіру арқылы аналитика бөлімінің жаңа қабаттарын ашыңыз.
+              </p>
+
+              {/* Streak panel */}
+              <div
+                className="mt-5 rounded-xl p-4"
+                style={{
+                  backgroundColor: claudeTokens.surfaceMuted,
+                  border: `1px solid ${claudeTokens.border}`,
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <span
+                      className="text-[10px] font-medium uppercase tracking-[0.22em]"
+                      style={{ color: claudeTokens.textMuted }}
+                    >
+                      Current streak
+                    </span>
+                    <div
+                      className="mt-1 tabular-nums"
+                      style={{
+                        color: claudeTokens.textPrimary,
+                        fontFamily: claudeTokens.serifStack,
+                        fontSize: '28px',
+                        fontWeight: 500,
+                        fontFeatureSettings: '"lnum","tnum"',
+                        lineHeight: 1,
+                      }}
+                    >
+                      {dailyRewardStreak}
+                      <span className="text-[14px] ml-1" style={{ color: claudeTokens.textMuted }}>
+                        days
+                      </span>
+                    </div>
+                  </div>
+                  {isVipActive && (
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] uppercase tracking-[0.18em]"
+                      style={{
+                        color: claudeTokens.accent,
+                        border: `1px solid ${claudeTokens.accent}`,
+                        fontFamily: claudeTokens.serifStack,
+                      }}
+                    >
+                      <Crown size={11} strokeWidth={1.75} />
+                      VIP grace
+                    </span>
+                  )}
+                </div>
+                <p className="mt-2 text-[13px]" style={{ color: claudeTokens.textBody }}>
+                  {streakMessage}
+                </p>
+                {!isClaimedToday && nextMilestone && (
+                  <p
+                    className="mt-2 text-[11px] italic"
+                    style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
+                  >
+                    Next unlock: day {nextMilestone.day} · {nextMilestone.title.toLowerCase()}
+                  </p>
+                )}
+              </div>
+
+              {/* Milestone list */}
+              <div className="mt-4 space-y-2">
+                {ANALYTICS_REWARD_STEPS.map((step) => {
+                  const Icon = step.icon;
+                  const isUnlocked = unlockedDays >= step.day;
+                  const isActive = !isUnlocked && currentFocusDay === step.day;
+
+                  return (
+                    <div
+                      key={step.day}
+                      className="rounded-xl p-3.5 flex items-start gap-3"
+                      style={{
+                        backgroundColor: claudeTokens.surface,
+                        border: `1px solid ${
+                          isActive ? claudeTokens.accent : isUnlocked ? claudeTokens.success : claudeTokens.border
+                        }`,
+                      }}
+                    >
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        style={{
+                          backgroundColor: claudeTokens.surfaceMuted,
+                          border: `1px solid ${claudeTokens.border}`,
+                          color: isActive
+                            ? claudeTokens.accent
+                            : isUnlocked
+                              ? claudeTokens.success
+                              : claudeTokens.textMuted,
+                        }}
+                      >
+                        {isUnlocked ? <Check size={18} strokeWidth={2} /> : <Icon size={18} strokeWidth={1.75} />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span
+                            className="text-[10px] uppercase tracking-[0.22em]"
+                            style={{
+                              color: isActive
+                                ? claudeTokens.accent
+                                : isUnlocked
+                                  ? claudeTokens.success
+                                  : claudeTokens.textMuted,
+                              fontFamily: claudeTokens.serifStack,
+                            }}
+                          >
+                            Day {step.day}
+                          </span>
+                          {isUnlocked ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] italic"
+                              style={{ color: claudeTokens.success, fontFamily: claudeTokens.serifStack }}
+                            >
+                              <Check size={10} strokeWidth={2} />
+                              Open
+                            </span>
+                          ) : isActive ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em] italic"
+                              style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
+                            >
+                              <Lock size={10} strokeWidth={1.75} />
+                              Next
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 text-[10px] uppercase tracking-[0.18em]"
+                              style={{ color: claudeTokens.textMuted }}
+                            >
+                              <Lock size={10} strokeWidth={1.75} />
+                              Locked
+                            </span>
+                          )}
+                        </div>
+                        <div
+                          className="text-[14px] italic"
+                          style={{
+                            color: claudeTokens.textPrimary,
+                            fontFamily: claudeTokens.serifStack,
+                            fontWeight: 500,
+                          }}
+                        >
+                          {step.title}
+                        </div>
+                        <div className="text-[12px] mt-0.5" style={{ color: claudeTokens.textBody }}>
+                          {step.description}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Footer state — claimed callout / waiting / claim CTA */}
+              <div className="mt-5">
+                {claimedReward ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="rounded-xl p-4"
+                    style={{
+                      backgroundColor: claudeTokens.surfaceMuted,
+                      border: `1px solid ${claudeTokens.success}`,
+                    }}
+                  >
+                    <div
+                      className="flex items-center gap-2 italic"
+                      style={{
+                        color: claudeTokens.success,
+                        fontFamily: claudeTokens.serifStack,
+                        fontSize: '16px',
+                        fontWeight: 500,
+                      }}
+                    >
+                      <Check size={18} strokeWidth={2} />
+                      {claimedReward.isNewUnlock ? 'Analytics unlocked' : 'Streak extended'}
+                    </div>
+                    <div
+                      className="mt-1 text-[14px]"
+                      style={{ color: claudeTokens.textPrimary, fontWeight: 500 }}
+                    >
+                      {claimedReward.analyticsTitle}
+                    </div>
+                    <div className="mt-1 text-[12px]" style={{ color: claudeTokens.textBody }}>
+                      {claimedReward.analyticsDescription}
+                    </div>
+                    {claimedReward.streakPreservedByVip && (
+                      <div
+                        className="mt-2 text-[11px] italic"
+                        style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
+                      >
+                        VIP grace applied — streak preserved despite a one-day gap.
+                      </div>
+                    )}
+                  </motion.div>
+                ) : isClaimedToday ? (
+                  <div
+                    className="rounded-xl py-3.5 px-4 flex items-center justify-center gap-2 text-[13px]"
+                    style={{
+                      backgroundColor: claudeTokens.surfaceMuted,
+                      border: `1px solid ${claudeTokens.border}`,
+                      color: claudeTokens.textBody,
+                    }}
+                  >
+                    <Check size={14} strokeWidth={1.75} />
+                    Come back tomorrow to extend the streak
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleClaim}
+                    className="w-full rounded-lg py-3.5 text-[14px] font-medium transition-colors"
+                    style={{ backgroundColor: claudeTokens.accent, color: '#FFFFFF' }}
+                  >
+                    Unlock today's analytics
+                  </button>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      </AnimatePresence>
+    );
+  }
+
+  // Legacy themes — original markup
   return (
     <AnimatePresence>
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       >
-        <motion.div 
+        <motion.div
           initial={{ scale: 0.8, y: 50 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.8, y: 50 }}
           className="bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/15 shadow-2xl relative"
         >
-           <button 
+           <button
              onClick={onClose}
              className="absolute top-4 right-4 p-2 bg-white/5 rounded-full text-gray-400 hover:bg-white/10 z-10"
            >
