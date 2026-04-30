@@ -14,7 +14,11 @@ export default defineConfig({
       // WebView (where service workers are unreliable and add no value).
       injectRegister: false,
       registerType: 'autoUpdate',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png', 'tonconnect-manifest.json'],
+      // tonconnect-manifest.json is intentionally NOT precached: vercel.json
+      // sends it with no-cache/no-store so wallets always pick up the latest
+      // copy. Including it in the SW precache would defeat that and serve
+      // stale manifests until the next SW update activates.
+      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Focus — Brain Training',
         short_name: 'Focus',
