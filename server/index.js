@@ -778,16 +778,32 @@ app.post('/users/me', authLimiter, async (req, res) => {
   }
 });
 
-// Allow-listed columns the client may write to its own users row through this
-// endpoint. plan / plan_expiry / coins / xp / level / is_blocked are
-// intentionally excluded — those are server-controlled by other endpoints
-// (/tickets/issue, /games/submit, /admin/users/block).
+// Always-server-controlled columns. The client cannot write these even if it
+// sends them — they're set elsewhere (/tickets/issue for plan, /admin/* for
+// blocking). Coins/xp/level are also server-controlled by /games/submit but
+// other client paths (skin purchases, daily rewards, ad rewards) legitimately
+// adjust them, so we let those through with a per-sync delta cap below.
+const USER_SYNC_FORBIDDEN_COLUMNS = new Set([
+  'plan',
+  'plan_expiry',
+  'is_blocked',
+  'blocked_at',
+  'blocked_by',
+  'block_reason',
+  'created_at',
+  'telegram_id',
+  'id',
+]);
+
 const USER_SYNC_ALLOWED_COLUMNS = new Set([
   'first_name',
   'last_name',
   'username',
   'photo_url',
+  'coins',
   'gems',
+  'xp',
+  'level',
   'brain_stats',
   'skin_inventory',
   'active_skin',
@@ -810,6 +826,19 @@ const USER_SYNC_ALLOWED_COLUMNS = new Set([
   'mystery_box_price',
 ]);
 
+// Per-sync delta caps for monetary fields. The client legitimately adjusts
+// these for skin purchases, daily rewards, ad views, etc., but a single sync
+// shouldn't grow them by orders of magnitude. We compare against the current
+// DB value and clamp to the existing value if the delta is implausible —
+// keeping legitimate gameplay flowing while neutering the obvious "set
+// coins=999999" attack.
+const SYNC_DELTA_CAPS = {
+  coins: 5_000,
+  gems: 500,
+  xp: 5_000,
+  level: 5,
+};
+
 app.post('/users/sync', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
@@ -824,11 +853,10 @@ app.post('/users/sync', writeLimiter, async (req, res) => {
     const userTelegramId = access.identity.userId;
     const incoming = req.body?.user || {};
 
-    // Filter to allow-listed columns. The server is authoritative on identity
-    // and on monetary / role-bearing fields; the client cannot bypass that
-    // even by sending those columns in the body.
+    // Filter to allow-listed columns and explicitly drop forbidden ones.
     const writableUpdate = {};
     for (const [key, value] of Object.entries(incoming)) {
+      if (USER_SYNC_FORBIDDEN_COLUMNS.has(key)) continue;
       if (USER_SYNC_ALLOWED_COLUMNS.has(key)) {
         writableUpdate[key] = value;
       }
@@ -838,12 +866,49 @@ app.post('/users/sync', writeLimiter, async (req, res) => {
       return res.json({ ok: true, written: 0 });
     }
 
+    // Sanity-check monetary deltas against the current DB row.
+    const monetaryFields = Object.keys(SYNC_DELTA_CAPS).filter((f) => f in writableUpdate);
+    const clampedFields = [];
+    if (monetaryFields.length > 0) {
+      const { data: currentRow, error: currentError } = await supabase
+        .from('users')
+        .select('coins, gems, xp, level')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (currentError && !isMissingTableError(currentError)) {
+        throw currentError;
+      }
+
+      if (currentRow) {
+        for (const field of monetaryFields) {
+          const proposed = Number(writableUpdate[field]);
+          const current = Number(currentRow[field]) || 0;
+          if (!Number.isFinite(proposed)) {
+            delete writableUpdate[field];
+            clampedFields.push(field);
+            continue;
+          }
+          const delta = proposed - current;
+          if (delta > SYNC_DELTA_CAPS[field]) {
+            console.warn(
+              `[Users Sync] Implausible ${field} delta from user ${userTelegramId}:`,
+              { current, proposed, delta }
+            );
+            // Clamp: keep DB value, ignore client's claim.
+            delete writableUpdate[field];
+            clampedFields.push(field);
+          }
+        }
+      }
+    }
+
     writableUpdate.updated_at = new Date().toISOString();
 
     // Upsert keyed on telegram_id so the first sync after sign-in creates the
     // row. The created row only has the allow-listed columns and DB defaults
-    // (plan='free', coins=100, etc.) — the user can never bootstrap into
-    // premium via this endpoint.
+    // (plan='free', coins=100) — the user can never bootstrap into premium
+    // via this endpoint.
     const upsertPayload = { ...writableUpdate, telegram_id: userTelegramId };
     const { error: upsertError } = await supabase
       .from('users')
@@ -856,7 +921,10 @@ app.post('/users/sync', writeLimiter, async (req, res) => {
     return res.json({
       ok: true,
       written: Object.keys(writableUpdate).length,
-      ignoredKeys: Object.keys(incoming).filter((k) => !USER_SYNC_ALLOWED_COLUMNS.has(k)),
+      ignoredKeys: Object.keys(incoming).filter(
+        (k) => !USER_SYNC_ALLOWED_COLUMNS.has(k) || USER_SYNC_FORBIDDEN_COLUMNS.has(k)
+      ),
+      clampedFields,
     });
   } catch (error) {
     return res.status(500).json({
@@ -1262,6 +1330,16 @@ app.post('/tickets/issue', writeLimiter, async (req, res) => {
     const source = req.body?.source === 'ticket_purchase' ? 'ticket_purchase' : 'plan_upgrade';
     const ALLOWED_PLANS = ['silver', 'gold', 'premium'];
     const targetPlan = ALLOWED_PLANS.includes(req.body?.targetPlan) ? req.body.targetPlan : 'premium';
+
+    // Plan upgrades grant a paid entitlement. This endpoint has no payment proof —
+    // the only legitimate writers are admins (moderation) and the bot/payment-webhook
+    // (writing directly via the service-role key after verifying a Telegram Stars or
+    // TON payment). Reject user-direct plan_upgrade calls.
+    if (source === 'plan_upgrade' && !access.membership.isAdmin) {
+      return res.status(403).json({
+        error: 'plan_upgrade tickets must be issued by the bot or an admin',
+      });
+    }
 
     // Server is authoritative for id and ticket_number. Retry on the unique constraint
     // race (DB enforces uniqueness on ticket_number).

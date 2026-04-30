@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Brain, CalendarDays, CheckCircle2, Crown, Lock, Medal, Sparkles, Star, Trophy, Wallet } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
 import { useStore } from '../store/useStoreImpl';
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import { getTournamentLeaderboard, TournamentLeaderboardEntry } from '../utils/adminApi';
 
 const ENTRY_STARS = 50;
 const MAX_TOURNAMENT_GAMES = 3;
@@ -82,9 +83,55 @@ export default function Tournaments() {
   const gamesRemaining = Math.max(0, MAX_TOURNAMENT_GAMES - gamesPlayed);
   const isCompleted = joinedCurrentWeek && gamesPlayed >= MAX_TOURNAMENT_GAMES;
 
-  const leaderboard = useMemo(() => {
-    const base = [...SEEDED_PLAYERS];
+  const [serverLeaderboard, setServerLeaderboard] = useState<TournamentLeaderboardEntry[] | null>(null);
 
+  useEffect(() => {
+    let active = true;
+    void getTournamentLeaderboard()
+      .then((response) => {
+        if (active && response?.leaderboard) {
+          setServerLeaderboard(response.leaderboard);
+        }
+      })
+      .catch((err) => {
+        // Server may be unreachable — fall back to seeded local view below.
+        console.warn('[Tournaments] leaderboard fetch failed:', err);
+      });
+    return () => {
+      active = false;
+    };
+  }, [schedule.weekKey]);
+
+  const leaderboard = useMemo(() => {
+    // Prefer server-canonical leaderboard when available. Pad with seeded
+    // players when the real entry list is sparse so a fresh week doesn't
+    // show an empty board.
+    if (serverLeaderboard && serverLeaderboard.length > 0) {
+      const realEntries = serverLeaderboard.map((entry) => ({
+        id: entry.userTelegramId,
+        name: entry.firstName || entry.username || `Player ${entry.userTelegramId}`,
+        score: entry.score,
+        avatar:
+          entry.photoUrl ||
+          `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.firstName || entry.userTelegramId}`,
+      }));
+      const realIds = new Set(realEntries.map((p) => p.id));
+      const filler = SEEDED_PLAYERS.filter((p) => !realIds.has(p.id)).slice(
+        0,
+        Math.max(0, 8 - realEntries.length)
+      );
+      return [...realEntries, ...filler]
+        .sort((a, b) => b.score - a.score)
+        .map((player, index) => ({
+          ...player,
+          rank: index + 1,
+          isCurrentUser: player.id === user.id,
+        }));
+    }
+
+    // Server unreachable / no data yet — fall back to seeded board with the
+    // local user's optimistic score appended.
+    const base = [...SEEDED_PLAYERS];
     if (joinedCurrentWeek) {
       base.push({
         id: user.id || 999999,
@@ -93,11 +140,10 @@ export default function Tournaments() {
         avatar: user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.firstName || 'player'}`,
       });
     }
-
     return base
       .sort((a, b) => b.score - a.score)
       .map((player, index) => ({ ...player, rank: index + 1, isCurrentUser: player.id === user.id }));
-  }, [joinedCurrentWeek, tournament.score, user.firstName, user.id, user.photoUrl]);
+  }, [serverLeaderboard, joinedCurrentWeek, tournament.score, user.firstName, user.id, user.photoUrl]);
 
   const currentUserRank = leaderboard.find((player) => player.isCurrentUser);
 

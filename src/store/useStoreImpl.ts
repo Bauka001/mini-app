@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { getTelegramUser } from '../utils/telegram';
+import { getTelegramUser, hapticFeedback } from '../utils/telegram';
 import { telegramStorage } from './storage';
 import { UserState, initialUserRaw, generateGameId, initialState, generateDailyChallenges, initialSocialTasks, Ticket, EventParticipant, Notification, TournamentState } from './useStore';
 import { getUserByTelegramId, createUser, updateUser, subscribeToUserChanges, isSupabaseConfigured, DatabaseUser } from '../utils/supabase';
@@ -1509,17 +1509,25 @@ export const useStore = create<UserState>()(
         return { brainStats: normalizeBrainStats(newStats, state.history) };
       }),
 
-      addNotification: (notification) => set((state) => ({
-        notifications: [
-          {
-            ...notification,
-            id: Math.random().toString(36).substr(2, 9),
-            date: new Date().toISOString(),
-            isRead: false
-          },
-          ...state.notifications
-        ]
-      })),
+      addNotification: (notification) => {
+        const t = notification.type;
+        if (t === 'success' || t === 'warning' || t === 'error') {
+          hapticFeedback.notification(t);
+        } else {
+          hapticFeedback.impact('light');
+        }
+        set((state) => ({
+          notifications: [
+            {
+              ...notification,
+              id: Math.random().toString(36).substr(2, 9),
+              date: new Date().toISOString(),
+              isRead: false,
+            },
+            ...state.notifications,
+          ],
+        }));
+      },
 
       markAllNotificationsRead: () => set((state) => ({
         notifications: state.notifications.map(n => ({ ...n, isRead: true }))

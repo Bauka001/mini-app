@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { clsx } from 'clsx';
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import { usePlanGate } from '../hooks/usePlanGate';
 import { buildVipAnalyticsSnapshot, useStore } from '../store/useStoreImpl';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
 
@@ -12,11 +13,14 @@ export default function AnalyticsPage() {
   const styles = useThemeStyles();
   const history = useStore((state) => state.history);
   const brainStats = useStore((state) => state.brainStats);
-  const plan = useStore((state) => state.plan);
-  const planExpiry = useStore((state) => state.planExpiry);
 
-  const isPlanExpired = planExpiry ? Date.now() > planExpiry : false;
-  const isVipAnalyticsUnlocked = plan === 'premium' && !isPlanExpired;
+  // Server-canonical plan check. Until /users/me responds we deny VIP — fail
+  // closed rather than briefly showing premium content to a tampered local
+  // state. The hook also caches across navigations so this rarely blocks.
+  const { isPremiumActive, plan, planExpiry } = usePlanGate();
+  const isVipAnalyticsUnlocked = isPremiumActive === true;
+  const isPlanExpired =
+    plan === 'premium' && planExpiry ? Date.now() > planExpiry : false;
   const analytics = useMemo(() => buildVipAnalyticsSnapshot(history || [], brainStats), [brainStats, history]);
 
   return (

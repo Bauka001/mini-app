@@ -151,8 +151,6 @@ const MONTHLY_VIP_PRICE = '$4.99';
 const MONTHLY_VIP_STARS = '150 Stars';
 const YEARLY_PASS_PRICE = '$39.99';
 const YEARLY_PASS_STARS = '1200 Stars';
-const MONTHLY_VIP_DURATION_DAYS = 30;
-const YEARLY_PASS_DURATION_DAYS = 365;
 
 const SkinsTab = ({ styles, handleBuySkin, handleEquipSkin, skinInventory, activeSkin }: any) => {
   const { t } = useTranslation();
@@ -500,7 +498,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
 
 const ShopPage = () => {
   const { t } = useTranslation();
-  const { coins, skinInventory, activeSkin, buySkin, equipSkin, upgradePlan, plan } = useStore();
+  const { coins, skinInventory, activeSkin, buySkin, equipSkin, plan } = useStore();
   const [activeTab, setActiveTab] = useState<'vip' | 'skins'>('vip');
   const [showTerms, setShowTerms] = useState(false);
   const [paymentModal, setPaymentModal] = useState<{ title: string; price: string } | null>(null);
@@ -601,14 +599,10 @@ const ShopPage = () => {
       <PaymentModal
         isOpen={!!paymentModal}
         onClose={() => {
-          if (paymentModal) {
-            // VIP енді бір ғана premium жоспарымен сақталады.
-            if (paymentModal.title === 'VIP MONTHLY') {
-              upgradePlan('premium', MONTHLY_VIP_DURATION_DAYS);
-            } else if (paymentModal.title === 'VIP YEARLY') {
-              upgradePlan('premium', YEARLY_PASS_DURATION_DAYS);
-            }
-          }
+          // Do NOT grant premium here. The modal closes for any reason
+          // (user dismissal, payment cancel, browser back). The actual upgrade
+          // must be applied by the bot/payment-webhook after Stars/TON payment
+          // verification — never optimistically based on the modal closing.
           setPaymentModal(null);
         }}
         planTitle={paymentModal?.title || ''}

@@ -15,6 +15,7 @@ import WebApp from '@twa-dev/sdk';
 import { BrainProfile } from '../components/BrainProfile';
 import { Achievements } from '../components/Achievements';
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import { usePlanGate } from '../hooks/usePlanGate';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
 
 const PLAN_CONFIG = {
@@ -106,7 +107,11 @@ const ProfilePage = () => {
     return buildVipAnalyticsSnapshot(history || [], brainStats);
   }, [brainStats, history]);
 
-  const isVipAnalyticsUnlocked = plan === 'premium' && !isPlanExpired;
+  // Server-canonical VIP check. The local `plan` from the store is still
+  // used for badges / tier display (cosmetic), but unlocking actual VIP
+  // content is gated on what /users/me says.
+  const { isPremiumActive } = usePlanGate();
+  const isVipAnalyticsUnlocked = isPremiumActive === true;
 
   const handleUnlockVipAnalytics = () => {
     WebApp.HapticFeedback.impactOccurred('medium');
@@ -160,7 +165,7 @@ const ProfilePage = () => {
         <div className={clsx(
           "rounded-[32px] p-6 border shadow-2xl relative overflow-hidden transition-colors duration-500",
           panelClass,
-          plan === 'premium' && !isPlanExpired ? "ring-2 ring-yellow-400/40 border-yellow-400/40" : ""
+          isVipAnalyticsUnlocked ? "ring-2 ring-yellow-400/40 border-yellow-400/40" : ""
         )}>
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20" />
           
@@ -272,16 +277,16 @@ const ProfilePage = () => {
                  </div>
                </div>
                <div className="flex items-center gap-2">
-                 {plan === 'premium' && !isPlanExpired ? (
+                 {isVipAnalyticsUnlocked ? (
                    <div className="text-[10px] font-mono px-2 py-1 rounded-md bg-amber-500/15 text-amber-400">
                      GOLD BORDER
                    </div>
                  ) : null}
                  <button
-                   onClick={() => navigate(plan === 'premium' && !isPlanExpired ? '/analytics' : '/shop')}
+                   onClick={() => navigate(isVipAnalyticsUnlocked ? '/analytics' : '/shop')}
                    className={clsx("px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors", styles.btnSecondary)}
                  >
-                   {plan === 'premium' && !isPlanExpired ? 'ANALYTICS' : 'UPGRADE'}
+                   {isVipAnalyticsUnlocked ? 'ANALYTICS' : 'UPGRADE'}
                  </button>
                </div>
              </div>
