@@ -1377,36 +1377,76 @@ app.post('/games/submit', writeLimiter, async (req, res) => {
       throw insertError;
     }
 
-    const { data: userRow, error: userError } = await supabase
-      .from('users')
-      .select('coins, xp, level')
-      .eq('telegram_id', userTelegramId)
-      .maybeSingle();
+    // Atomic credit via the award_user RPC (migration 008). Falls back to
+    // the legacy read-modify-write path only if the function is missing
+    // (e.g. migration not yet run) so the deploy doesn't block users —
+    // logs loudly so the operator sees the migration is pending.
+    let credited = false;
+    {
+      const { data: awardRows, error: awardErr } = await supabase.rpc('award_user', {
+        p_telegram_id: userTelegramId,
+        p_coins: safeCoins,
+        p_xp: safeCoins,
+      });
 
-    if (userError && !isMissingTableError(userError)) {
-      throw userError;
+      const isMissingFunction =
+        awardErr &&
+        (awardErr.code === '42883' ||
+          awardErr.code === 'PGRST202' ||
+          `${awardErr.message || ''}`.toLowerCase().includes('does not exist') ||
+          `${awardErr.message || ''}`.toLowerCase().includes('could not find the function'));
+
+      if (awardErr && !isMissingFunction) {
+        throw awardErr;
+      }
+
+      if (!awardErr) {
+        credited = true;
+        // award_user returns 0 rows when the user row doesn't exist yet;
+        // mirror the legacy "no users row → no-op" behaviour.
+        if (!Array.isArray(awardRows) || awardRows.length === 0) {
+          return res.json({ ok: true, awarded: safeCoins });
+        }
+      } else {
+        console.warn('[games/submit] award_user RPC missing — falling back to non-atomic path. Run migration 008_award_user_rpc.sql.');
+      }
     }
 
-    if (!userRow) {
-      return res.json({ ok: true, awarded: safeCoins });
-    }
+    if (!credited) {
+      // Legacy path. Race-prone — see migration 008. Kept only as a graceful
+      // fallback while the RPC migration propagates to a fresh Supabase
+      // instance. Remove once you've confirmed the RPC is live in prod.
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('coins, xp, level')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
 
-    const newCoins = (Number(userRow.coins) || 0) + safeCoins;
-    const newXp = (Number(userRow.xp) || 0) + safeCoins;
-    const newLevel = Math.floor(newXp / 1000) + 1;
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
 
-    const { error: updateError } = await supabase
-      .from('users')
-      .update({
-        coins: newCoins,
-        xp: newXp,
-        level: newLevel,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('telegram_id', userTelegramId);
+      if (!userRow) {
+        return res.json({ ok: true, awarded: safeCoins });
+      }
 
-    if (updateError) {
-      throw updateError;
+      const newCoins = (Number(userRow.coins) || 0) + safeCoins;
+      const newXp = (Number(userRow.xp) || 0) + safeCoins;
+      const newLevel = Math.floor(newXp / 1000) + 1;
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          coins: newCoins,
+          xp: newXp,
+          level: newLevel,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('telegram_id', userTelegramId);
+
+      if (updateError) {
+        throw updateError;
+      }
     }
 
     // Tournament scoring: if the user has an active entry for the current
