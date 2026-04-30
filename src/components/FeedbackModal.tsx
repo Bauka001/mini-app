@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Send, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { X, Send, Image as ImageIcon, AlertCircle, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStoreImpl';
 import WebApp from '@twa-dev/sdk';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { claudeTokens } from './ui/claudeTokens';
+import { readUgcConsent, setUgcConsent } from '../utils/ugcConsent';
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -12,10 +14,20 @@ interface FeedbackModalProps {
 }
 
 export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
+  const { t } = useTranslation();
   const [text, setText] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [hasUgcConsent, setHasUgcConsent] = useState(false);
+  const [ugcChecked, setUgcChecked] = useState(false);
   const { user, addFeedback } = useStore();
   const { isClaude } = useThemeStyles();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const accepted = readUgcConsent();
+    setHasUgcConsent(accepted);
+    setUgcChecked(accepted);
+  }, [isOpen]);
 
   const showAlert = (message: string) => {
     if (WebApp.isVersionAtLeast('6.2')) {
@@ -29,6 +41,15 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
     if (!text.trim()) {
       showAlert('Please enter some text');
       return;
+    }
+    if (!ugcChecked) {
+      showAlert(t('ugc_accept'));
+      return;
+    }
+
+    if (!hasUgcConsent) {
+      setUgcConsent();
+      setHasUgcConsent(true);
     }
 
     addFeedback({
@@ -162,10 +183,82 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
                 )}
               </div>
 
+              {!hasUgcConsent && (
+                <div
+                  className="rounded-xl p-3.5 space-y-2"
+                  style={{
+                    backgroundColor: claudeTokens.surfaceMuted,
+                    border: `1px solid ${claudeTokens.border}`,
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-semibold uppercase tracking-[0.22em]"
+                    style={{ color: claudeTokens.accent }}
+                  >
+                    {t('ugc_heading')}
+                  </div>
+                  <p
+                    className="text-[12px] leading-relaxed"
+                    style={{ color: claudeTokens.textBody }}
+                  >
+                    {t('ugc_intro')}
+                  </p>
+                  <ul
+                    className="text-[12px] leading-relaxed pl-4 space-y-1 list-disc"
+                    style={{ color: claudeTokens.textBody }}
+                  >
+                    <li>{t('ugc_rule_hate')}</li>
+                    <li>{t('ugc_rule_explicit')}</li>
+                    <li>{t('ugc_rule_illegal')}</li>
+                    <li>{t('ugc_rule_third_party')}</li>
+                    <li>{t('ugc_rule_spam')}</li>
+                  </ul>
+                  <a
+                    href="#/terms"
+                    className="text-[11px] underline inline-block"
+                    style={{ color: claudeTokens.accent }}
+                  >
+                    {t('feedback_terms_link')}
+                  </a>
+                </div>
+              )}
+
+              {!hasUgcConsent && (
+                <label
+                  className="flex items-start gap-2.5 cursor-pointer select-none"
+                >
+                  <button
+                    type="button"
+                    aria-pressed={ugcChecked}
+                    aria-label={t('ugc_accept')}
+                    onClick={() => setUgcChecked((v) => !v)}
+                    className="mt-0.5 h-5 w-5 shrink-0 rounded-md flex items-center justify-center"
+                    style={{
+                      backgroundColor: ugcChecked ? claudeTokens.accent : '#FFFFFF',
+                      border: `1.5px solid ${ugcChecked ? claudeTokens.accent : claudeTokens.borderStrong}`,
+                    }}
+                  >
+                    {ugcChecked && <Check size={14} strokeWidth={3} color="#FFFFFF" />}
+                  </button>
+                  <span
+                    className="text-[13px] leading-relaxed"
+                    style={{ color: claudeTokens.textBody }}
+                    onClick={() => setUgcChecked((v) => !v)}
+                  >
+                    {t('ugc_accept')}
+                  </span>
+                </label>
+              )}
+
               <button
                 onClick={handleSubmit}
+                disabled={!ugcChecked}
                 className="w-full rounded-lg py-3 text-[14px] font-medium transition-colors flex items-center justify-center gap-2"
-                style={{ backgroundColor: claudeTokens.accent, color: '#FFFFFF' }}
+                style={{
+                  backgroundColor: ugcChecked ? claudeTokens.accent : claudeTokens.surfaceSunken,
+                  color: ugcChecked ? '#FFFFFF' : claudeTokens.textMuted,
+                  cursor: ugcChecked ? 'pointer' : 'not-allowed',
+                }}
               >
                 <Send size={15} strokeWidth={2} />
                 Send
