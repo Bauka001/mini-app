@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Coins, Gem, Gift, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store/useStoreImpl';
 import WebApp from '@twa-dev/sdk';
@@ -18,7 +17,6 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
   const [reward, setReward] = useState<{ type: 'coins' | 'fec' | 'gem', amount: number } | null>(null);
 
   const isLight = theme === 'light';
-  const isBlue = theme === 'blue';
 
   useEffect(() => {
     if (isOpen) {

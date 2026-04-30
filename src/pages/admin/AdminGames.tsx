@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
-import { BarChart2, Gamepad2, PlayCircle, TrendingUp, Coins, Clock } from 'lucide-react';
+import { BarChart2, Gamepad2, PlayCircle, TrendingUp, Coins } from 'lucide-react';
 import { useStore } from '../../store/useStoreImpl';
-import { clsx } from 'clsx';
 
 const GAME_LABELS: Record<string, string> = {
   schulte: 'Schulte Table',
@@ -27,7 +26,7 @@ interface GameAggregatedStats {
 }
 
 export const AdminGames = () => {
-  const { history, plan, coins, fecBalance } = useStore();
+  const { history, plan, coins } = useStore();
 
   const gameStats: GameAggregatedStats[] = useMemo(() => {
     const map = new Map<string, GameAggregatedStats>();

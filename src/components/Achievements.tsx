@@ -17,7 +17,7 @@ interface Achievement {
 }
 
 export const Achievements = () => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language;
   const { user } = useStore();
   const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null);

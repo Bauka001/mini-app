@@ -1,5 +1,4 @@
 import { useStore } from '../store/useStoreImpl';
-import { clsx } from 'clsx';
 
 export const useThemeStyles = () => {
   const { theme } = useStore();

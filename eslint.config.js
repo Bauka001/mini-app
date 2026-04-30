@@ -13,6 +13,8 @@ export default tseslint.config(
       'server/node_modules',
       '.trae',
       'tower-war',
+      'secret-code-game',
+      'secret-code-master',
     ],
   },
   {
@@ -29,6 +31,13 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // Downgraded to warn — existing usage is concentrated in store internals.
+      // Tightening to error means typing the entire user-state shape, tracked separately.
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
     },
   }
 );

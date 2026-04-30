@@ -1,8 +1,8 @@
 import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, Camera, Edit2, Trophy, Gift, 
-  Coins, Diamond, Zap, History, Star, 
+import {
+  ArrowLeft, Camera, Edit2, Gift,
+  Coins, Diamond, Zap, History, Star,
   Award, TrendingUp, Calendar, LayoutGrid,
   Flame, Shield, Crown, Zap as ZapIcon, Calculator, Target, Lock,
   Ticket as TicketIcon, Car, CheckCircle, BarChart3
@@ -555,7 +555,7 @@ const ProfilePage = () => {
         ) : isVipAnalyticsUnlocked ? (
           <VipAnalyticsPanel analytics={vipAnalytics} styles={styles} />
         ) : (
-          <AnalyticsLockedCard
+          <VipAnalyticsLockedCard
             styles={styles}
             onUnlock={handleUnlockVipAnalytics}
             isPlanExpired={isPlanExpired}

@@ -128,8 +128,6 @@ export const SettingsContent = () => {
     logout
   } = useStore();
 
-  const isLight = theme === 'light';
-
   const handleLanguageChange = (lang: Language) => {
     setLanguage(lang);
     i18n.changeLanguage(lang);

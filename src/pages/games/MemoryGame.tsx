@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { Theme } from '../../store/useStore';
 import { useStore } from '../../store/useStoreImpl';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ParticleSystem, Particle } from '../../components/effects/ParticleSystem';
 import { ReviveModal } from '../../components/modals/ReviveModal';
 
@@ -27,7 +27,7 @@ export const MemoryGame = () => {
   );
 };
 
-const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coins: number) => void; isGamePaused: boolean; theme: Theme }) => {
+const MemoryBoard = ({ onEnd: _onEnd, isGamePaused, theme }: { onEnd: (score: string, coins: number) => void; isGamePaused: boolean; theme: Theme }) => {
   const [level, setLevel] = useState(1);
   const [gridSize, setGridSize] = useState(3);
   const [pattern, setPattern] = useState<number[]>([]);
@@ -158,7 +158,7 @@ const MemoryBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, co
     setGameState('showing');
     setTimeLeft(10);
     
-    const timer = setTimeout(() => {
+    setTimeout(() => {
       setGameState('playing');
     }, 1500);
   };

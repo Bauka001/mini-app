@@ -6,7 +6,7 @@ import { clsx } from 'clsx';
 
 export const BrainProfile = () => {
   const { brainStats } = useStore();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language;
 
   const labels = {

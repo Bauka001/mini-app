@@ -55,7 +55,7 @@ const PaymentModal = ({
         ]
       });
       onClose();
-    } catch (e) {
+    } catch {
       WebApp.HapticFeedback.notificationOccurred('error');
     }
   };
@@ -145,7 +145,7 @@ const PaymentModal = ({
   );
 };
 
-const PlanCard = ({ 
+const _PlanCard = ({
   title, 
   price,
   originalPrice,
@@ -221,7 +221,7 @@ const PlanCard = ({
 );
 };
 
-const SkinCard = ({ 
+const _SkinCard = ({ 
   name, 
   cost, 
   previewClass,

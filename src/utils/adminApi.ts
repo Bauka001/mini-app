@@ -158,6 +158,53 @@ export interface FeedbackSubmissionPayload {
   imageUrl?: string;
 }
 
+export interface CanonicalUser {
+  telegramId: number;
+  firstName: string;
+  lastName: string | null;
+  username: string | null;
+  photoUrl: string | null;
+  coins: number;
+  gems: number;
+  xp: number;
+  level: number;
+  plan: 'free' | 'silver' | 'gold' | 'premium';
+  planExpiry: number | null;
+  planActive: boolean;
+  hp: number;
+  maxHp: number;
+  fecBalance: number;
+  brainStats: { focus: number; memory: number; logic: number; speed: number; flexibility: number };
+  skinInventory: string[];
+  activeSkin: string;
+  inventory: { freezes: number; hints: number; shields: number };
+  dailyGoalMinutes: number;
+  streak: number;
+  dailyRewardStreak: number;
+  lastDailyRewardDate: string | null;
+  promotionEndISO: string | null;
+  dailyQuest: {
+    id: string;
+    games_played: string[];
+    is_completed: boolean;
+    is_claimed: boolean;
+    last_reset_date: string | null;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UsersMeResponse {
+  ok: true;
+  user: CanonicalUser | null;
+}
+
+export interface TournamentJoinResponse {
+  ok: true;
+  weekKey: string;
+  paymentMethod: 'vip' | 'stars' | 'ton';
+}
+
 export interface GameSubmitPayload {
   gameId: string;
   score: number | string;
@@ -181,6 +228,7 @@ export interface TicketIssuePayload {
   price: number;
   purchaseDate: string;
   source: 'plan_upgrade' | 'ticket_purchase';
+  targetPlan?: 'silver' | 'gold' | 'premium';
 }
 
 export interface TicketIssueResponse {
@@ -188,9 +236,12 @@ export interface TicketIssueResponse {
   ticketId: string;
   ticketNumber: number;
   ticket: AdminTicketRecord;
+  plan: { plan: string; planExpiry: number | null } | null;
 }
 
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { apiUrl as resolveApiUrl } from './env';
+
+const apiUrl = resolveApiUrl();
 
 const getTelegramInitData = () => {
   return window.Telegram?.WebApp?.initData || WebApp?.initData || '';
@@ -284,6 +335,11 @@ export const submitFeedbackEntry = (payload: FeedbackSubmissionPayload) =>
 
 export const submitGameResult = (payload: GameSubmitPayload) =>
   postJson<GameSubmitResponse>('/games/submit', payload);
+
+export const getUserMe = () => postJson<UsersMeResponse>('/users/me');
+
+export const joinTournamentRecord = (paymentMethod: 'vip' | 'stars' | 'ton') =>
+  postJson<TournamentJoinResponse>('/tournaments/join', { paymentMethod });
 
 export const issueTicketRecord = (payload: TicketIssuePayload) =>
   postJson<TicketIssueResponse>('/tickets/issue', payload);

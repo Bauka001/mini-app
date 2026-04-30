@@ -90,7 +90,6 @@ const Home = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
 
-  const watchAd = useStore(state => state.watchAd);
   const lastDailyRewardDate = useStore(state => state.lastDailyRewardDate);
   const user = useStore(state => state.user);
 

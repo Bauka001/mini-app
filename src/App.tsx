@@ -1,20 +1,27 @@
 import { HashRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import WebApp from '@twa-dev/sdk';
+import { useBackButton } from './telegram/buttons';
 import { Layout } from './components/Layout';
-import { AdminLayout } from './components/admin/AdminLayout';
 import { AuthGuard } from './components/AuthGuard';
 import { AnimatedRoutes } from './components/AnimatedRoutes';
 import OnboardingScreen1 from './components/onboarding/OnboardingScreen1';
 import OnboardingScreen2 from './components/onboarding/OnboardingScreen2';
 import OnboardingScreen3 from './components/onboarding/OnboardingScreen3';
-import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { AdminUsers } from './pages/admin/AdminUsers';
-import { AdminChat } from './pages/admin/AdminChat';
-import { AdminGames } from './pages/admin/AdminGames';
-import AdminSettings from './pages/admin/AdminSettings';
-import AdminPanel from './pages/AdminPanel';
 import { useStore } from './store/useStoreImpl';
+
+// Admin bundle is split out — only loads when an admin actually navigates to /admin/*.
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const AdminUsers = lazy(() => import('./pages/admin/AdminUsers').then((m) => ({ default: m.AdminUsers })));
+const AdminChat = lazy(() => import('./pages/admin/AdminChat').then((m) => ({ default: m.AdminChat })));
+const AdminGames = lazy(() => import('./pages/admin/AdminGames').then((m) => ({ default: m.AdminGames })));
+const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
+const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+
+const AdminFallback = () => (
+  <div className="flex h-screen items-center justify-center text-sm text-gray-400">Loading admin…</div>
+);
 
 // Static imports to prevent lazy loading errors
 import Home from './pages/Home';
@@ -187,12 +194,18 @@ const writeOnboardingProgress = (userId: number, progress: OnboardingProgress) =
   localStorage.setItem(getOnboardingStorageKey(userId), JSON.stringify(progress));
 };
 
+const ROOT_ROUTES = new Set(['/', '/shop', '/tournaments']);
+
 function AppRoutes() {
   const navigate = useNavigate();
   const location = useLocation();
   const userId = useStore((state) => state.user.id);
   const history = useStore((state) => state.history as HistoryEntry[]);
   const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress | null>(null);
+
+  const isRoot = ROOT_ROUTES.has(location.pathname);
+  const goBack = useCallback(() => navigate(-1), [navigate]);
+  useBackButton(isRoot ? null : goBack);
 
   const updateOnboardingProgress = (patch: Partial<OnboardingProgress>) => {
     if (!userId || !onboardingProgress) return;
@@ -365,13 +378,22 @@ function AppRoutes() {
           <Route path="/game/agent-sequence" element={<AgentSequenceGame />} />
           <Route path="/game/code-breaker" element={<CodeBreakerGame />} />
 
-          <Route path="/admin" element={<AuthGuard adminOnly={true}><AdminLayout /></AuthGuard>}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="users" element={<AdminUsers />} />
-            <Route path="chat" element={<AdminChat />} />
-            <Route path="games" element={<AdminGames />} />
-            <Route path="settings" element={<AdminSettings />} />
-            <Route path="tickets" element={<AdminPanel />} />
+          <Route
+            path="/admin"
+            element={
+              <AuthGuard adminOnly={true}>
+                <Suspense fallback={<AdminFallback />}>
+                  <AdminLayout />
+                </Suspense>
+              </AuthGuard>
+            }
+          >
+            <Route index element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
+            <Route path="users" element={<Suspense fallback={<AdminFallback />}><AdminUsers /></Suspense>} />
+            <Route path="chat" element={<Suspense fallback={<AdminFallback />}><AdminChat /></Suspense>} />
+            <Route path="games" element={<Suspense fallback={<AdminFallback />}><AdminGames /></Suspense>} />
+            <Route path="settings" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
+            <Route path="tickets" element={<Suspense fallback={<AdminFallback />}><AdminPanel /></Suspense>} />
           </Route>
         </Routes>
       </AnimatedRoutes>

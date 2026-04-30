@@ -193,7 +193,7 @@ const Merge2048Game = () => {
         };
       
         const processMerge = (currentGrid: (number | null)[][], r: number, c: number, currentCombo: number, endCallback: any) => {
-          let newGrid = [...currentGrid.map(row => [...row])];
+          const newGrid = [...currentGrid.map(row => [...row])];
           const val = newGrid[r][c];
       
           if (!val) {

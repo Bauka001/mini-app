@@ -20,7 +20,7 @@ export const InfoGuideModal = ({
   onClose: () => void;
   gameType: GameType;
 }) => {
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const lang = i18n.language as 'kz' | 'ru' | 'en';
 
   if (!isOpen) return null;

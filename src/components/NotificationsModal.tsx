@@ -1,8 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bell, Check, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { X, Bell, Info, CheckCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { Notification } from '../store/useStore';
 import { useStore } from '../store/useStoreImpl';
-import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
 interface NotificationsModalProps {
@@ -12,7 +11,6 @@ interface NotificationsModalProps {
 
 export const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
   const { notifications, markNotificationRead } = useStore();
-  const { t } = useTranslation();
 
   if (!isOpen) return null;
 

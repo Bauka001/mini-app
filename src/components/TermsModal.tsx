@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Globe, FileText, CheckCircle, Trophy } from 'lucide-react';
+import { X, FileText, CheckCircle, Trophy } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useState } from 'react';
 

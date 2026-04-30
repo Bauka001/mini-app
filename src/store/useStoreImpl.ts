@@ -4,7 +4,12 @@ import { getTelegramUser } from '../utils/telegram';
 import { telegramStorage } from './storage';
 import { UserState, initialUserRaw, generateGameId, initialState, generateDailyChallenges, initialSocialTasks, Ticket, EventParticipant, Notification, TournamentState } from './useStore';
 import { getUserByTelegramId, createUser, updateUser, subscribeToUserChanges, isSupabaseConfigured, DatabaseUser } from '../utils/supabase';
-import { issueTicketRecord, submitFeedbackEntry, submitGameResult } from '../utils/adminApi';
+import {
+  issueTicketRecord,
+  joinTournamentRecord,
+  submitFeedbackEntry,
+  submitGameResult,
+} from '../utils/adminApi';
 import { calculateBrainScoreMetrics } from '../utils/brainScore';
 
 let supabaseChannel: ReturnType<typeof subscribeToUserChanges> | null = null;
@@ -443,6 +448,10 @@ const mapDbUserToState = (dbUser: DatabaseUser) => ({
   mysteryBoxPrice: dbUser.mystery_box_price,
 });
 
+// NOTE: `plan` and `plan_expiry` are intentionally omitted. The frontend uses
+// the Supabase anon key, so any column we include here is something the client
+// can write. Plan changes must flow through the Node backend (POST /tickets/issue),
+// which uses the service-role key and bases the update on the issued ticket row.
 const mapStateToDbUser = (state: any, telegramId: number) => ({
   telegram_id: telegramId,
   first_name: state.user.firstName,
@@ -456,8 +465,6 @@ const mapStateToDbUser = (state: any, telegramId: number) => ({
   brain_stats: state.brainStats,
   skin_inventory: state.skinInventory,
   active_skin: state.activeSkin,
-  plan: state.plan,
-  plan_expiry: state.planExpiry,
   hp: state.hp,
   max_hp: state.maxHp,
   fec_balance: state.fecBalance,
@@ -479,16 +486,34 @@ const mapStateToDbUser = (state: any, telegramId: number) => ({
 
 const syncUserToSupabase = async (state: any, telegramId: number) => {
   if (!isSupabaseConfigured) return;
-  try {
+
+  const attempt = async () => {
     const dbData = mapStateToDbUser(state, telegramId);
     const existing = await getUserByTelegramId(telegramId);
     if (existing) {
-      await updateUser(telegramId, dbData);
+      const ok = await updateUser(telegramId, dbData);
+      if (!ok) throw new Error('updateUser returned false');
     } else {
-      await createUser({ ...dbData, id: 0 } as any);
+      const created = await createUser({ ...dbData, id: 0 } as any);
+      if (!created) throw new Error('createUser returned null');
     }
-  } catch (err) {
-    console.error('[Supabase] Sync error:', err);
+  };
+
+  try {
+    await attempt();
+  } catch (firstError) {
+    // Single retry after a short backoff. Helps with transient network blips
+    // during normal play; if the second attempt fails we surface a real error
+    // instead of swallowing both silently.
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    try {
+      await attempt();
+    } catch (secondError) {
+      console.error('[Supabase] Sync failed after retry:', {
+        first: firstError,
+        second: secondError,
+      });
+    }
   }
 };
 
@@ -558,8 +583,13 @@ const persistFeedbackEntry = async (
 
 const persistTicket = async (
   ticket: Ticket,
-  source: 'plan_upgrade' | 'ticket_purchase'
-): Promise<{ ticketId: string; ticketNumber: number } | null> => {
+  source: 'plan_upgrade' | 'ticket_purchase',
+  targetPlan?: 'silver' | 'gold' | 'premium'
+): Promise<{
+  ticketId: string;
+  ticketNumber: number;
+  plan: { plan: string; planExpiry: number | null } | null;
+} | null> => {
   try {
     const response = await issueTicketRecord({
       userTelegramId: ticket.userId,
@@ -569,8 +599,13 @@ const persistTicket = async (
       price: ticket.price,
       purchaseDate: ticket.purchaseDate,
       source,
+      targetPlan,
     });
-    return { ticketId: response.ticketId, ticketNumber: response.ticketNumber };
+    return {
+      ticketId: response.ticketId,
+      ticketNumber: response.ticketNumber,
+      plan: response.plan ?? null,
+    };
   } catch (error) {
     console.error('[Admin API] Ticket sync error:', error);
     return null;
@@ -996,17 +1031,21 @@ export const useStore = create<UserState>()(
           syncUserToSupabase(newState, state.user.id);
         }
 
-        // Reconcile with server-issued ticket id + number
-        void persistTicket(optimisticTicket, 'plan_upgrade').then((issued) => {
+        // Reconcile with server-issued ticket id + number, and adopt the
+        // server-canonical plan/plan_expiry. The server is now the only writer
+        // for those fields — local optimistic values get overwritten here.
+        void persistTicket(optimisticTicket, 'plan_upgrade', plan).then((issued) => {
           set((current) => {
             if (!issued) {
-              // Server failed: drop the optimistic ticket so the user isn't shown a broken one.
+              // Server failed: drop the optimistic ticket and revert plan to what it was.
               return {
+                plan: currentPlan,
+                planExpiry: state.planExpiry,
                 tickets: current.tickets.filter((t) => t.id !== localId),
                 eventParticipants: current.eventParticipants.filter((p) => p.ticketId !== localId),
               };
             }
-            return {
+            const patch: any = {
               tickets: current.tickets.map((t) =>
                 t.id === localId ? { ...t, id: issued.ticketId, ticketNumber: issued.ticketNumber } : t
               ),
@@ -1016,6 +1055,11 @@ export const useStore = create<UserState>()(
                   : p
               ),
             };
+            if (issued.plan?.plan) {
+              patch.plan = issued.plan.plan;
+              patch.planExpiry = issued.plan.planExpiry ?? null;
+            }
+            return patch;
           });
         });
       },
@@ -1191,6 +1235,7 @@ export const useStore = create<UserState>()(
           }
         }
 
+        const previousTournament = state.tournament;
         const newTournament = {
           weekKey: schedule.weekKey,
           joinedAt: new Date().toISOString(),
@@ -1202,6 +1247,31 @@ export const useStore = create<UserState>()(
         };
 
         set({ tournament: newTournament });
+
+        // Server-side gate: VIP-tier check + once-per-week dedup happen in the
+        // backend with service-role auth. If the server rejects, revert the
+        // optimistic local join and surface the reason.
+        if (isSupabaseConfigured && state.user.id) {
+          void joinTournamentRecord(paymentMethod)
+            .catch((err) => {
+              console.error('[Tournaments] Join rejected by server:', err);
+              const message = err instanceof Error ? err.message : 'Tournament join rejected';
+              set((current) => ({
+                tournament: previousTournament,
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Tournament join rejected',
+                    message,
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
+        }
 
         if (paymentMethod === 'vip') {
           return { success: true, message: 'VIP тегін кіру белсендірілді. Енді 3 ойын ойнап, нәтиже жинаңыз.' };
@@ -1671,7 +1741,7 @@ export const useStore = create<UserState>()(
         if (!state.mysteryBoxAvailable || state.coins < state.mysteryBoxPrice) return null;
 
         const rand = Math.random();
-        let mysteryBox: any = { id: Date.now().toString() };
+        const mysteryBox: any = { id: Date.now().toString() };
         const price = state.mysteryBoxPrice;
 
         if (rand > 0.9) {

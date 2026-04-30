@@ -23,7 +23,7 @@ export const MathGame = () => {
   );
 };
 
-export const MathBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins: number) => void, isPaused: boolean, theme: string }) => {
+export const MathBoard = ({ onEnd, isPaused: _isPaused, theme }: { onEnd: (score: string, coins: number) => void, isPaused: boolean, theme: string }) => {
   const { activeSkin, user } = useStore();
   const [question, setQuestion] = useState<{ text: string, answer: number, options: number[] } | null>(null);
   const [questionsAnswered, setQuestionsAnswered] = useState(0);

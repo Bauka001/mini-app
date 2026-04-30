@@ -682,6 +682,206 @@ const GAME_SUBMIT_MAX_SCORE = 1_000_000;
 const GAME_SUBMIT_MAX_COINS = 200;
 const GAME_SUBMIT_MIN_GAP_MS = 1500;
 
+const USER_READ_COLUMNS =
+  'telegram_id, first_name, last_name, username, photo_url, coins, gems, xp, level, plan, plan_expiry, hp, max_hp, fec_balance, brain_stats, skin_inventory, active_skin, inventory, daily_goal_minutes, streak, daily_reward_streak, last_daily_reward_date, promotion_end_iso, daily_quest, is_blocked, blocked_at, block_reason, created_at, updated_at';
+
+const PREMIUM_PLANS = new Set(['silver', 'gold', 'premium']);
+const VIP_TOURNAMENT_PLAN = 'premium';
+
+const isPlanActive = (row) => {
+  if (!row || !PREMIUM_PLANS.has(row.plan)) return false;
+  if (row.plan_expiry === null || row.plan_expiry === undefined) return true;
+  const expiryMs = Number(row.plan_expiry);
+  if (!Number.isFinite(expiryMs) || expiryMs <= 0) return true;
+  return expiryMs > Date.now();
+};
+
+// Mirrors the client's tournament week-keying.
+const getServerTournamentWeek = (now = new Date()) => {
+  const d = new Date(now);
+  const day = d.getUTCDay(); // 0=Sun .. 6=Sat
+  const monday = new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((day + 6) % 7))
+  );
+  return monday.toISOString().slice(0, 10);
+};
+
+app.post('/users/me', authLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const { data, error } = await supabase
+      .from('users')
+      .select(USER_READ_COLUMNS)
+      .eq('telegram_id', userTelegramId)
+      .maybeSingle();
+
+    if (error && !isMissingTableError(error)) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.json({ ok: true, user: null });
+    }
+
+    if (data.is_blocked) {
+      return res.status(403).json({
+        error: 'User is blocked',
+        reason: data.block_reason || null,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      user: {
+        telegramId: data.telegram_id,
+        firstName: data.first_name,
+        lastName: data.last_name,
+        username: data.username,
+        photoUrl: data.photo_url,
+        coins: Number(data.coins) || 0,
+        gems: Number(data.gems) || 0,
+        xp: Number(data.xp) || 0,
+        level: Number(data.level) || 1,
+        plan: data.plan,
+        planExpiry: data.plan_expiry,
+        planActive: isPlanActive(data),
+        hp: data.hp,
+        maxHp: data.max_hp,
+        fecBalance: data.fec_balance,
+        brainStats: data.brain_stats,
+        skinInventory: data.skin_inventory,
+        activeSkin: data.active_skin,
+        inventory: data.inventory,
+        dailyGoalMinutes: data.daily_goal_minutes,
+        streak: data.streak,
+        dailyRewardStreak: data.daily_reward_streak,
+        lastDailyRewardDate: data.last_daily_reward_date,
+        promotionEndISO: data.promotion_end_iso,
+        dailyQuest: data.daily_quest,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'users_me_error',
+    });
+  }
+});
+
+app.post('/tournaments/join', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const paymentMethod =
+      req.body?.paymentMethod === 'vip'
+        ? 'vip'
+        : req.body?.paymentMethod === 'ton'
+          ? 'ton'
+          : req.body?.paymentMethod === 'stars'
+            ? 'stars'
+            : null;
+
+    if (!paymentMethod) {
+      return res.status(400).json({ error: 'Invalid paymentMethod' });
+    }
+
+    const { data: userRow, error: userError } = await supabase
+      .from('users')
+      .select('telegram_id, plan, plan_expiry, is_blocked')
+      .eq('telegram_id', userTelegramId)
+      .maybeSingle();
+
+    if (userError && !isMissingTableError(userError)) {
+      throw userError;
+    }
+
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (userRow.is_blocked) {
+      return res.status(403).json({ error: 'User is blocked' });
+    }
+
+    const weekKey = getServerTournamentWeek();
+
+    if (paymentMethod === 'vip') {
+      if (userRow.plan !== VIP_TOURNAMENT_PLAN || !isPlanActive(userRow)) {
+        return res.status(403).json({
+          error: 'VIP free entry requires an active premium plan',
+          reason: 'plan_inactive',
+        });
+      }
+
+      const { data: existing, error: existingError } = await supabase
+        .from('tournament_entries')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('week_key', weekKey)
+        .eq('payment_method', 'vip')
+        .maybeSingle();
+
+      if (existingError && !isMissingTableError(existingError)) {
+        throw existingError;
+      }
+      if (existing) {
+        return res.status(409).json({
+          error: 'VIP free entry already used for this week',
+          reason: 'already_joined',
+        });
+      }
+
+      const { error: insertError } = await supabase.from('tournament_entries').insert({
+        user_telegram_id: userTelegramId,
+        week_key: weekKey,
+        payment_method: 'vip',
+      });
+
+      if (insertError && !isMissingTableError(insertError)) {
+        throw insertError;
+      }
+
+      return res.json({ ok: true, weekKey, paymentMethod: 'vip' });
+    }
+
+    // Paid methods (stars/ton): record the entry. Settlement is out of scope —
+    // a separate payment webhook would mark it confirmed.
+    const { error: insertError } = await supabase.from('tournament_entries').insert({
+      user_telegram_id: userTelegramId,
+      week_key: weekKey,
+      payment_method: paymentMethod,
+    });
+
+    if (insertError && !isMissingTableError(insertError)) {
+      throw insertError;
+    }
+
+    return res.json({ ok: true, weekKey, paymentMethod });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'tournaments_join_error',
+    });
+  }
+});
+
 app.post('/games/submit', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
@@ -831,6 +1031,8 @@ app.post('/tickets/issue', writeLimiter, async (req, res) => {
     }
 
     const source = req.body?.source === 'ticket_purchase' ? 'ticket_purchase' : 'plan_upgrade';
+    const ALLOWED_PLANS = ['silver', 'gold', 'premium'];
+    const targetPlan = ALLOWED_PLANS.includes(req.body?.targetPlan) ? req.body.targetPlan : 'premium';
 
     // Server is authoritative for id and ticket_number. Retry on the unique constraint
     // race (DB enforces uniqueness on ticket_number).
@@ -870,6 +1072,34 @@ app.post('/tickets/issue', writeLimiter, async (req, res) => {
       throw lastError || new Error('Could not allocate ticket');
     }
 
+    // Server is authoritative for plan changes. The frontend never gets to
+    // write users.plan / users.plan_expiry — only this endpoint does, and only
+    // after a ticket row was successfully created (the audit trail of "what
+    // the user paid for"). Failure here is logged but does not roll back the
+    // ticket — the user has the ticket as proof of purchase regardless.
+    let planResult = null;
+    if (source === 'plan_upgrade') {
+      const planExpiryMs = inserted.event_date ? new Date(inserted.event_date).getTime() : null;
+      const safePlanExpiry = Number.isFinite(planExpiryMs) ? planExpiryMs : null;
+
+      const { data: planRow, error: planError } = await supabase
+        .from('users')
+        .update({
+          plan: targetPlan,
+          plan_expiry: safePlanExpiry,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('telegram_id', userTelegramId)
+        .select('plan, plan_expiry')
+        .maybeSingle();
+
+      if (planError && !isMissingTableError(planError)) {
+        console.error('[Tickets] Plan update failed:', planError);
+      } else if (planRow) {
+        planResult = { plan: planRow.plan, planExpiry: planRow.plan_expiry };
+      }
+    }
+
     if (userTelegramId) {
       const messageText = "Құттықтаймыз! Төлеміңіз қабылданды. Сіздің Premium статусыңыз қосылды";
       sendTelegramMessage(userTelegramId, messageText);
@@ -880,6 +1110,7 @@ app.post('/tickets/issue', writeLimiter, async (req, res) => {
       ticketId: inserted.id,
       ticketNumber: inserted.ticket_number,
       ticket: mapTicketRow(inserted),
+      plan: planResult,
     });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'ticket_issue_error' });
@@ -1563,36 +1794,66 @@ app.get('/health', (_req, res) => {
 
 // Final error handler — must be registered after all routes. Never leaks
 // stack traces to clients; logs server-side instead.
-// eslint-disable-next-line no-unused-vars
+ 
 app.use((err, _req, res, _next) => {
   console.error('Unhandled error:', err && err.stack ? err.stack : err);
   if (res.headersSent) return;
   res.status(500).json({ error: 'Internal error' });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-// Graceful shutdown for Render redeploys. Render sends SIGTERM and waits
-// up to 30s before SIGKILL — close the HTTP server so in-flight requests
-// finish, then exit.
-const shutdown = (signal) => {
-  console.log(`Received ${signal}, shutting down`);
-  const force = setTimeout(() => {
-    console.error('Force-exit after 25s shutdown timeout');
-    process.exit(1);
-  }, 25_000);
-  force.unref();
-
-  server.close((err) => {
-    if (err) {
-      console.error('Error during shutdown:', err);
-      process.exit(1);
+const checkEnv = () => {
+  const required = ['BOT_TOKEN', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+  const missing = required.filter((key) => {
+    if (key === 'SUPABASE_URL') return !(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
+    if (key === 'SUPABASE_SERVICE_ROLE_KEY') {
+      return !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY);
     }
-    process.exit(0);
+    return !process.env[key];
   });
+  if (missing.length === 0) return;
+  const message = `Missing env vars: ${missing.join(', ')}`;
+  // Only hard-exit when running as a standalone Node process (local dev,
+  // VPS, container). On Vercel this file is `require()`'d by the function
+  // wrapper, so process.exit would kill the lambda — instead log fatally
+  // and let the route handlers fail closed (they already do).
+  if (isProduction && require.main === module) {
+    console.error(`[fatal] ${message}`);
+    process.exit(1);
+  }
+  console.warn(`[env] ${message} (routes will fail closed)`);
 };
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+checkEnv();
+
+// Run the HTTP listener only when invoked directly (`node server/index.js`).
+// Under Vercel the file is `require()`'d for its `app` export and Vercel's
+// runtime owns the listener.
+if (require.main === module) {
+  const server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+
+  // Graceful shutdown for any host that sends SIGTERM (Docker, systemd,
+  // Render, fly.io, etc.). Vercel never invokes this path.
+  const shutdown = (signal) => {
+    console.log(`Received ${signal}, shutting down`);
+    const force = setTimeout(() => {
+      console.error('Force-exit after 25s shutdown timeout');
+      process.exit(1);
+    }, 25_000);
+    force.unref();
+
+    server.close((err) => {
+      if (err) {
+        console.error('Error during shutdown:', err);
+        process.exit(1);
+      }
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+module.exports = app;
