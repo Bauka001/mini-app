@@ -1040,6 +1040,15 @@ const LEVEL_REWARD_COINS = 100;
 const LEVEL_REWARD_GEMS = 5;
 const MAX_CLAIMABLE_LEVEL = 1_000;
 
+// Server-canonical social-task catalog. The client sends only the taskId;
+// the server looks up the gem reward and dedups against coin_transactions.
+// Adding/removing a task here is the only way to change the user-facing
+// reward — no client state can override it.
+const SOCIAL_TASK_CATALOG = {
+  yt_founding: { gems: 10 },
+  tg_founding: { gems: 10 },
+};
+
 app.post('/rewards/grant', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
@@ -1118,6 +1127,79 @@ app.post('/rewards/grant', writeLimiter, async (req, res) => {
         granted: { coins: AD_REWARD_COINS, gems: 0 },
         coins: newCoins,
         remainingToday: Math.max(0, AD_REWARDS_PER_DAY - ((count ?? 0) + 1)),
+      });
+    }
+
+    if (reason === 'social') {
+      const taskId = `${req.body?.taskId || ''}`.trim().slice(0, 64);
+      if (!Object.prototype.hasOwnProperty.call(SOCIAL_TASK_CATALOG, taskId)) {
+        return res.status(400).json({ error: 'Unknown social task' });
+      }
+      const gemsAward = SOCIAL_TASK_CATALOG[taskId].gems;
+
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('gems, is_blocked')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
+      if (!userRow) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (userRow.is_blocked) {
+        return res.status(403).json({ error: 'User is blocked' });
+      }
+
+      // Dedup: one claim per task per user, ever.
+      const { data: existing, error: existingError } = await supabase
+        .from('coin_transactions')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('reason', 'social_reward')
+        .contains('metadata', { taskId })
+        .maybeSingle();
+
+      if (existingError && !isMissingTableError(existingError)) {
+        throw existingError;
+      }
+      if (existing) {
+        return res.status(409).json({
+          error: 'Social task already claimed',
+          reason: 'already_claimed',
+          taskId,
+        });
+      }
+
+      const newGems = (Number(userRow.gems) || 0) + gemsAward;
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ gems: newGems, updated_at: new Date().toISOString() })
+        .eq('telegram_id', userTelegramId);
+      if (updateError) {
+        throw updateError;
+      }
+
+      const { error: txError } = await supabase.from('coin_transactions').insert({
+        user_telegram_id: userTelegramId,
+        currency: 'gems',
+        amount: gemsAward,
+        direction: 'credit',
+        reason: 'social_reward',
+        metadata: { taskId },
+      });
+      if (txError && !isMissingTableError(txError)) {
+        console.error('[Rewards] social transaction log failed:', txError);
+      }
+
+      return res.json({
+        ok: true,
+        reason: 'social',
+        taskId,
+        granted: { coins: 0, gems: gemsAward },
+        gems: newGems,
       });
     }
 

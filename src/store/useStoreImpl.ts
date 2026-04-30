@@ -9,6 +9,7 @@ import {
   getUserMe,
   grantAdReward,
   grantLevelReward,
+  grantSocialReward,
   issueTicketRecord,
   joinTournamentRecord,
   purchaseSkin,
@@ -1444,16 +1445,56 @@ export const useStore = create<UserState>()(
         }
       },
 
-      claimSocialReward: (taskId) => set((state) => {
+      claimSocialReward: (taskId) => {
+        const state = get();
         const task = state.socialTasks.find(t => t.id === taskId);
-        if (!task || task.isClaimed) return state;
+        if (!task || task.isClaimed) return;
 
-        return {
-          gems: (state.gems || 0) + task.reward,
-          socialTasks: state.socialTasks.map(t => t.id === taskId ? { ...t, isClaimed: true } : t
-          )
-        };
-      }),
+        const localReward = task.reward;
+        // Optimistic local update so the UI flips to "claimed" instantly. The
+        // server is authoritative on the gem amount (it ignores task.reward
+        // and uses its own catalog) and on whether this task was already
+        // claimed by this user. We reconcile from the response.
+        set({
+          gems: (state.gems || 0) + localReward,
+          socialTasks: state.socialTasks.map(t =>
+            t.id === taskId ? { ...t, isClaimed: true } : t
+          ),
+        });
+
+        if (isSupabaseConfigured) {
+          void grantSocialReward(taskId)
+            .then((response) => {
+              if (typeof response.gems === 'number') {
+                set({ gems: response.gems });
+              }
+            })
+            .catch((err) => {
+              console.error('[Rewards] social reward rejected:', err);
+              // Revert: undo the optimistic gem credit and put the task back
+              // to unclaimed so the user can retry. 409 already_claimed will
+              // also revert here, which is correct: the server says they
+              // shouldn't have any pending state for this task.
+              set((current) => ({
+                gems: Math.max(0, (current.gems || 0) - localReward),
+                socialTasks: current.socialTasks.map(t =>
+                  t.id === taskId ? { ...t, isClaimed: false } : t
+                ),
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Social reward declined',
+                    message: err instanceof Error ? err.message : 'Reward unavailable',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
+        }
+      },
 
       addCoins: (amount) => {
         const newState = { coins: (get().coins || 0) + amount };
