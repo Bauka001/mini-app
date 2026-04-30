@@ -11,6 +11,7 @@ import {
   joinTournamentRecord,
   submitFeedbackEntry,
   submitGameResult,
+  syncUserToServer,
 } from '../utils/adminApi';
 import { calculateBrainScoreMetrics } from '../utils/brainScore';
 
@@ -489,8 +490,20 @@ const mapStateToDbUser = (state: any, telegramId: number) => ({
 const syncUserToSupabase = async (state: any, telegramId: number) => {
   if (!isSupabaseConfigured) return;
 
+  const dbData = mapStateToDbUser(state, telegramId);
+
+  // Prefer the server-routed /users/sync endpoint. The backend uses the
+  // service-role key (so it bypasses the broken JWT-claim RLS) and applies
+  // a column allow-list — it will silently drop attempts to write
+  // plan / coins / xp / level even if the client tries.
+  try {
+    await syncUserToServer(dbData);
+    return;
+  } catch (serverErr) {
+    console.warn('[Users] /users/sync unavailable, falling back to anon-key write:', serverErr);
+  }
+
   const attempt = async () => {
-    const dbData = mapStateToDbUser(state, telegramId);
     const existing = await getUserByTelegramId(telegramId);
     if (existing) {
       const ok = await updateUser(telegramId, dbData);
@@ -504,9 +517,6 @@ const syncUserToSupabase = async (state: any, telegramId: number) => {
   try {
     await attempt();
   } catch (firstError) {
-    // Single retry after a short backoff. Helps with transient network blips
-    // during normal play; if the second attempt fails we surface a real error
-    // instead of swallowing both silently.
     await new Promise((resolve) => setTimeout(resolve, 800));
     try {
       await attempt();

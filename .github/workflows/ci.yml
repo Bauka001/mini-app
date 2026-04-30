@@ -26,9 +26,7 @@ jobs:
 
       - run: npm run lint
 
-      # Typecheck is advisory until the remaining 44 ts errors are resolved.
       - run: npx tsc --noEmit -p tsconfig.app.json
-        continue-on-error: true
 
       # Build with shape-only env placeholders. Real values come from Vercel, not CI.
       - run: npm run build

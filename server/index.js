@@ -778,6 +778,177 @@ app.post('/users/me', authLimiter, async (req, res) => {
   }
 });
 
+// Allow-listed columns the client may write to its own users row through this
+// endpoint. plan / plan_expiry / coins / xp / level / is_blocked are
+// intentionally excluded — those are server-controlled by other endpoints
+// (/tickets/issue, /games/submit, /admin/users/block).
+const USER_SYNC_ALLOWED_COLUMNS = new Set([
+  'first_name',
+  'last_name',
+  'username',
+  'photo_url',
+  'gems',
+  'brain_stats',
+  'skin_inventory',
+  'active_skin',
+  'hp',
+  'max_hp',
+  'fec_balance',
+  'inventory',
+  'daily_goal_minutes',
+  'streak',
+  'daily_reward_streak',
+  'last_daily_reward_date',
+  'promotion_end_iso',
+  'daily_quest',
+  'weekly_quest',
+  'energy',
+  'max_energy',
+  'last_energy_regen_time',
+  'streak_protection',
+  'mystery_box_available',
+  'mystery_box_price',
+]);
+
+app.post('/users/sync', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const incoming = req.body?.user || {};
+
+    // Filter to allow-listed columns. The server is authoritative on identity
+    // and on monetary / role-bearing fields; the client cannot bypass that
+    // even by sending those columns in the body.
+    const writableUpdate = {};
+    for (const [key, value] of Object.entries(incoming)) {
+      if (USER_SYNC_ALLOWED_COLUMNS.has(key)) {
+        writableUpdate[key] = value;
+      }
+    }
+
+    if (Object.keys(writableUpdate).length === 0) {
+      return res.json({ ok: true, written: 0 });
+    }
+
+    writableUpdate.updated_at = new Date().toISOString();
+
+    // Upsert keyed on telegram_id so the first sync after sign-in creates the
+    // row. The created row only has the allow-listed columns and DB defaults
+    // (plan='free', coins=100, etc.) — the user can never bootstrap into
+    // premium via this endpoint.
+    const upsertPayload = { ...writableUpdate, telegram_id: userTelegramId };
+    const { error: upsertError } = await supabase
+      .from('users')
+      .upsert(upsertPayload, { onConflict: 'telegram_id' });
+
+    if (upsertError && !isMissingTableError(upsertError)) {
+      throw upsertError;
+    }
+
+    return res.json({
+      ok: true,
+      written: Object.keys(writableUpdate).length,
+      ignoredKeys: Object.keys(incoming).filter((k) => !USER_SYNC_ALLOWED_COLUMNS.has(k)),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'users_sync_error',
+    });
+  }
+});
+
+app.post('/tournaments/leaderboard', authLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    // Allow callers to ask for a specific past week, defaulting to the current.
+    const requestedWeek =
+      typeof req.body?.weekKey === 'string' && req.body.weekKey.length <= 16
+        ? req.body.weekKey
+        : null;
+    const weekKey = requestedWeek || getServerTournamentWeek();
+
+    const { data: scoreRows, error: scoresError } = await supabase
+      .from('tournament_scores')
+      .select('user_telegram_id, game_id, score')
+      .eq('week_key', weekKey);
+
+    if (scoresError) {
+      if (isMissingTableError(scoresError)) {
+        return res.json({ ok: true, weekKey, leaderboard: [] });
+      }
+      throw scoresError;
+    }
+
+    if (!scoreRows || scoreRows.length === 0) {
+      return res.json({ ok: true, weekKey, leaderboard: [] });
+    }
+
+    // Aggregate per user. Tournament score is the sum of per-game scores
+    // (capped at 3 games per user per week by /games/submit).
+    const aggregated = new Map();
+    for (const row of scoreRows) {
+      const id = row.user_telegram_id;
+      const score = Number(row.score) || 0;
+      const cur = aggregated.get(id) || { score: 0, games: 0 };
+      cur.score += score;
+      cur.games += 1;
+      aggregated.set(id, cur);
+    }
+
+    const userIds = [...aggregated.keys()];
+    const { data: userRows, error: usersError } = await supabase
+      .from('users')
+      .select('telegram_id, first_name, username, photo_url')
+      .in('telegram_id', userIds);
+
+    if (usersError && !isMissingTableError(usersError)) {
+      throw usersError;
+    }
+
+    const usersById = new Map();
+    for (const row of userRows || []) {
+      usersById.set(row.telegram_id, row);
+    }
+
+    const leaderboard = [...aggregated.entries()]
+      .map(([id, agg]) => {
+        const user = usersById.get(id);
+        return {
+          userTelegramId: id,
+          firstName: user?.first_name ?? null,
+          username: user?.username ?? null,
+          photoUrl: user?.photo_url ?? null,
+          score: agg.score,
+          gamesPlayed: agg.games,
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+    return res.json({ ok: true, weekKey, leaderboard });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'tournaments_leaderboard_error',
+    });
+  }
+});
+
 app.post('/tournaments/join', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
@@ -973,12 +1144,70 @@ app.post('/games/submit', writeLimiter, async (req, res) => {
       throw updateError;
     }
 
+    // Tournament scoring: if the user has an active entry for the current
+    // tournament week, record this game as a tournament-attributed score
+    // (server-canonical — bypasses client tampering). Cap at 3 games per
+    // week per user to match client behavior. The unique index on
+    // (user, week, game) means re-playing the same game during a week is
+    // a no-op insert.
+    const TOURNAMENT_GAMES_PER_WEEK_LIMIT = 3;
+    let tournamentRecorded = false;
+    try {
+      const weekKey = getServerTournamentWeek();
+      const { data: tournamentEntry, error: entryError } = await supabase
+        .from('tournament_entries')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('week_key', weekKey)
+        .maybeSingle();
+
+      if (entryError && !isMissingTableError(entryError)) {
+        console.error('[Tournaments] entry lookup failed:', entryError);
+      } else if (tournamentEntry) {
+        const { count, error: countError } = await supabase
+          .from('tournament_scores')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_telegram_id', userTelegramId)
+          .eq('week_key', weekKey);
+
+        if (countError && !isMissingTableError(countError)) {
+          console.error('[Tournaments] score count failed:', countError);
+        } else if ((count ?? 0) < TOURNAMENT_GAMES_PER_WEEK_LIMIT) {
+          const { error: scoreInsertError } = await supabase
+            .from('tournament_scores')
+            .insert({
+              user_telegram_id: userTelegramId,
+              week_key: weekKey,
+              game_id: gameId,
+              score: safeScore,
+            });
+
+          // 23505 = unique violation: same game already counted this week.
+          // Treat as a no-op rather than an error.
+          if (
+            scoreInsertError &&
+            scoreInsertError.code !== '23505' &&
+            !isMissingTableError(scoreInsertError)
+          ) {
+            console.error('[Tournaments] score insert failed:', scoreInsertError);
+          } else if (!scoreInsertError) {
+            tournamentRecorded = true;
+          }
+        }
+      }
+    } catch (tournamentError) {
+      // Tournament recording is best-effort. Don't fail the whole submit
+      // because a side-effect failed.
+      console.error('[Tournaments] best-effort recording threw:', tournamentError);
+    }
+
     return res.json({
       ok: true,
       awarded: safeCoins,
       coins: newCoins,
       xp: newXp,
       level: newLevel,
+      tournamentRecorded,
     });
   } catch (error) {
     return res.status(500).json({

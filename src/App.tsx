@@ -23,16 +23,26 @@ const AdminFallback = () => (
   <div className="flex h-screen items-center justify-center text-sm text-gray-400">Loading admin…</div>
 );
 
-// Static imports to prevent lazy loading errors
+const RouteFallback = () => (
+  <div className="flex h-screen items-center justify-center text-sm text-gray-400">Loading…</div>
+);
+
+// Wallet/chart-heavy pages are lazy so @tonconnect/ui-react and recharts
+// don't ship in the initial bundle. Other primary pages stay eager so the
+// home flow has zero extra fetches.
+const ShopPage = lazy(() => import('./pages/Shop'));
+const ProfilePage = lazy(() => import('./pages/Profile'));
+const AirdropPage = lazy(() => import('./pages/Airdrop'));
+const TonConnectShell = lazy(() => import('./telegram/TonConnectShell'));
+
 import Home from './pages/Home';
-import ShopPage from './pages/Shop';
 import SettingsPage from './pages/Settings';
-import ProfilePage from './pages/Profile';
 import LeaderboardPage from './pages/Leaderboard';
 import DailyWorkoutPage from './pages/DailyWorkout';
-import AirdropPage from './pages/Airdrop';
 import TournamentsPage from './pages/Tournaments';
 import AnalyticsPage from './pages/Analytics';
+import TermsPage from './pages/Terms';
+import PrivacyPage from './pages/Privacy';
 
 // Games
 import SchulteGame from './pages/games/SchulteGame';
@@ -356,15 +366,42 @@ function AppRoutes() {
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />
             <Route path="leaderboard" element={<LeaderboardPage />} />
-            <Route path="shop" element={<ShopPage />} />
-            <Route path="airdrop" element={<AirdropPage />} />
+            <Route
+              path="shop"
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <TonConnectShell>
+                    <ShopPage />
+                  </TonConnectShell>
+                </Suspense>
+              }
+            />
+            <Route
+              path="airdrop"
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <TonConnectShell>
+                    <AirdropPage />
+                  </TonConnectShell>
+                </Suspense>
+              }
+            />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 
-          <Route path="/profile" element={<ProfilePage />} />
+          <Route
+            path="/profile"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <ProfilePage />
+              </Suspense>
+            }
+          />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/daily-workout" element={<DailyWorkoutPage />} />
           <Route path="/tournaments" element={<TournamentsPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
 
           <Route path="/game/schulte" element={<SchulteGame />} />
           <Route path="/game/math" element={<MathGame />} />

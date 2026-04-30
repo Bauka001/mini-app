@@ -205,6 +205,28 @@ export interface TournamentJoinResponse {
   paymentMethod: 'vip' | 'stars' | 'ton';
 }
 
+export interface UsersSyncResponse {
+  ok: true;
+  written: number;
+  ignoredKeys?: string[];
+}
+
+export interface TournamentLeaderboardEntry {
+  userTelegramId: number;
+  firstName: string | null;
+  username: string | null;
+  photoUrl: string | null;
+  score: number;
+  gamesPlayed: number;
+  rank: number;
+}
+
+export interface TournamentLeaderboardResponse {
+  ok: true;
+  weekKey: string;
+  leaderboard: TournamentLeaderboardEntry[];
+}
+
 export interface GameSubmitPayload {
   gameId: string;
   score: number | string;
@@ -340,6 +362,12 @@ export const getUserMe = () => postJson<UsersMeResponse>('/users/me');
 
 export const joinTournamentRecord = (paymentMethod: 'vip' | 'stars' | 'ton') =>
   postJson<TournamentJoinResponse>('/tournaments/join', { paymentMethod });
+
+export const syncUserToServer = (user: Record<string, any>) =>
+  postJson<UsersSyncResponse>('/users/sync', { user });
+
+export const getTournamentLeaderboard = (weekKey?: string) =>
+  postJson<TournamentLeaderboardResponse>('/tournaments/leaderboard', weekKey ? { weekKey } : {});
 
 export const issueTicketRecord = (payload: TicketIssuePayload) =>
   postJson<TicketIssueResponse>('/tickets/issue', payload);
