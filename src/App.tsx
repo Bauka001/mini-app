@@ -443,12 +443,19 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Periodic sync check
+  // Re-sync when the tab/app regains focus rather than polling every 2s.
   useEffect(() => {
-    const timer = setInterval(() => {
-      syncUserFromTelegram();
-    }, 2000);
-    return () => clearInterval(timer);
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') {
+        syncUserFromTelegram();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisible);
+    window.addEventListener('focus', syncUserFromTelegram);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible);
+      window.removeEventListener('focus', syncUserFromTelegram);
+    };
   }, [syncUserFromTelegram]);
 
   useEffect(() => {

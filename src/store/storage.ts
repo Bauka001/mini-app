@@ -50,33 +50,37 @@ export const telegramStorage = {
     if (WebApp.isVersionAtLeast('6.9') && WebApp.CloudStorage) {
       try {
         return new Promise((resolve) => {
-          // Set a timeout for CloudStorage (2 seconds)
+          let settled = false;
+          const settle = (val: string | null) => {
+            if (settled) return;
+            settled = true;
+            resolve(val);
+          };
+
           const timeout = setTimeout(() => {
-            resolve(localStorage.getItem(key));
+            settle(localStorage.getItem(key));
           }, 2000);
 
           WebApp.CloudStorage.getItem(key, (err, value) => {
             clearTimeout(timeout);
             if (err) {
-              resolve(localStorage.getItem(key));
+              settle(localStorage.getItem(key));
+              return;
+            }
+            if (value) {
+              settle(value);
+              return;
+            }
+            const localValue = localStorage.getItem(key);
+            if (localValue) {
+              WebApp.CloudStorage.setItem(key, localValue, () => {});
+              settle(localValue);
             } else {
-              if (value) {
-                resolve(value);
-              } else {
-                // If cloud is empty, try local
-                const localValue = localStorage.getItem(key);
-                if (localValue) {
-                   WebApp.CloudStorage.setItem(key, localValue, (err) => {
-                   });
-                   resolve(localValue);
-                } else {
-                   resolve(null);
-                }
-              }
+              settle(null);
             }
           });
         });
-      } catch (e) {
+      } catch {
         return localStorage.getItem(key);
       }
     }
@@ -94,10 +98,8 @@ export const telegramStorage = {
     // Save to Telegram CloudStorage (async)
     if (WebApp.isVersionAtLeast('6.9') && WebApp.CloudStorage) {
       WebApp.CloudStorage.setItem(key, value, (err) => {
-        if (err) {
-            console.error(`[CloudStorage] Set Error for ${key}:`, err);
-        } else {
-            console.log(`[CloudStorage] Successfully saved data for ${key}`);
+        if (err && import.meta.env.DEV) {
+          console.error('[CloudStorage] Set Error:', err);
         }
       });
     }
@@ -108,7 +110,7 @@ export const telegramStorage = {
     localStorage.removeItem(key);
     if (WebApp.isVersionAtLeast('6.9') && WebApp.CloudStorage) {
       WebApp.CloudStorage.removeItem(key, (err) => {
-        if (err) console.error(`[CloudStorage] Remove Error for ${key}:`, err);
+        if (err && import.meta.env.DEV) console.error('[CloudStorage] Remove Error:', err);
       });
     }
   },

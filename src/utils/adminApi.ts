@@ -158,9 +158,22 @@ export interface FeedbackSubmissionPayload {
   imageUrl?: string;
 }
 
+export interface GameSubmitPayload {
+  gameId: string;
+  score: number | string;
+  coinsEarned: number;
+}
+
+export interface GameSubmitResponse {
+  ok: boolean;
+  awarded: number;
+  coins?: number;
+  xp?: number;
+  level?: number;
+  reason?: 'rate_limited';
+}
+
 export interface TicketIssuePayload {
-  id: string;
-  ticketNumber: number;
   userTelegramId: number;
   userName: string;
   eventName: string;
@@ -170,13 +183,20 @@ export interface TicketIssuePayload {
   source: 'plan_upgrade' | 'ticket_purchase';
 }
 
+export interface TicketIssueResponse {
+  ok: true;
+  ticketId: string;
+  ticketNumber: number;
+  ticket: AdminTicketRecord;
+}
+
 const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
 const getTelegramInitData = () => {
   return window.Telegram?.WebApp?.initData || WebApp?.initData || '';
 };
 
-async function postJson<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+async function postJson<T>(path: string, body: Record<string, any> = {}): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, {
     method: 'POST',
     headers: {
@@ -262,5 +282,8 @@ export const replyAdminFeedback = (feedbackId: number, reply: string) =>
 export const submitFeedbackEntry = (payload: FeedbackSubmissionPayload) =>
   postJson<{ ok: true; feedbackId: number }>('/feedback', payload);
 
+export const submitGameResult = (payload: GameSubmitPayload) =>
+  postJson<GameSubmitResponse>('/games/submit', payload);
+
 export const issueTicketRecord = (payload: TicketIssuePayload) =>
-  postJson<{ ok: true; ticketId: string }>('/tickets/issue', payload);
+  postJson<TicketIssueResponse>('/tickets/issue', payload);

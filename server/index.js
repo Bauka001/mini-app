@@ -1,16 +1,83 @@
-require('dotenv').config({ path: '../.env' });
+// Local dev only: load .env from repo root or server/. On Render (and any
+// prod host) env vars come from the platform, not a sibling file.
+if (process.env.NODE_ENV !== 'production') {
+  const path = require('path');
+  try {
+    require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+    require('dotenv').config({ path: path.join(__dirname, '.env') });
+  } catch {}
+}
+
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const https = require('https');
 const { createClient } = require('@supabase/supabase-js');
+const {
+  requireString,
+  optionalString,
+  requireInt,
+  optionalIsoDate,
+  optionalHttpUrl,
+  handleValidationError,
+} = require('./lib/validate');
 
 const app = express();
-app.use(cors());
+
+// Render terminates TLS at a proxy — trust one hop so req.ip and the
+// rate-limiter see the real client IP via X-Forwarded-For.
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+const parseOriginList = (value = '') =>
+  value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const allowedOrigins = parseOriginList(process.env.ALLOWED_ORIGINS || '');
+const corsOptions = allowedOrigins.length
+  ? {
+      origin: (origin, callback) => {
+        // Allow same-origin / server-to-server requests with no Origin header
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Deny silently: don't throw — that turns into a 500 with a stack
+        // trace. Returning false makes cors omit the Allow-Origin header,
+        // which causes the browser to block the response cleanly.
+        return callback(null, false);
+      },
+    }
+  : undefined;
+
+// JSON-only API: disable CSP (no HTML served) and let CORS handle origins.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(compression());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '200kb' }));
+
+// Per-route rate limits. Keys on req.ip (via trust proxy). standardHeaders
+// surfaces RateLimit-* headers so clients can back off.
+const makeLimiter = (max, windowMs = 60_000) =>
+  rateLimit({
+    windowMs,
+    max,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please retry shortly' },
+  });
+
+const authLimiter = makeLimiter(30);
+const writeLimiter = makeLimiter(10);
+const adminLimiter = makeLimiter(60);
 
 const PORT = Number(process.env.PORT || 3001);
 const isProduction = process.env.NODE_ENV === 'production';
+const allowDevAuthBypass = !isProduction && process.env.ALLOW_DEV_AUTH_BYPASS === 'true';
+const INIT_DATA_MAX_AGE_SEC = Number(process.env.INIT_DATA_MAX_AGE_SEC || 300);
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const supabaseServiceRoleKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
@@ -91,6 +158,15 @@ const mapTicketRow = (row) => ({
   verifiedBy: row.verified_by,
 });
 
+function safeEqualHex(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
+  } catch {
+    return false;
+  }
+}
+
 function validateTelegramInitData(initData, botToken) {
   if (!initData || !botToken) return { ok: false, reason: 'missing_initdata_or_token' };
   const urlParams = new URLSearchParams(initData);
@@ -107,7 +183,22 @@ function validateTelegramInitData(initData, botToken) {
 
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-  const ok = calculatedHash === hash;
+  const ok = safeEqualHex(calculatedHash, hash);
+
+  if (!ok) {
+    return { ok: false, reason: 'hash_mismatch' };
+  }
+
+  // Replay-attack protection: require fresh auth_date within INIT_DATA_MAX_AGE_SEC
+  const authDateRaw = urlParams.get('auth_date');
+  const authDate = Number(authDateRaw);
+  if (!Number.isFinite(authDate) || authDate <= 0) {
+    return { ok: false, reason: 'missing_auth_date' };
+  }
+  const ageSec = Math.floor(Date.now() / 1000) - authDate;
+  if (ageSec > INIT_DATA_MAX_AGE_SEC || ageSec < -60) {
+    return { ok: false, reason: 'auth_date_expired' };
+  }
 
   let userId = null;
   try {
@@ -118,7 +209,7 @@ function validateTelegramInitData(initData, botToken) {
     }
   } catch {}
 
-  return { ok, userId, reason: ok ? null : 'hash_mismatch' };
+  return { ok: true, userId, reason: null };
 }
 
 function extractUserFromInitData(initData) {
@@ -135,14 +226,19 @@ function extractUserFromInitData(initData) {
 async function resolveIdentity(initData) {
   const botToken = process.env.BOT_TOKEN || '';
 
-  // Local development fallback for empty initData
-  if (!isProduction && !initData) {
+  // Local development bypass — explicit opt-in via ALLOW_DEV_AUTH_BYPASS=true.
+  // Never engages in production (isProduction guard) and never engages without explicit env opt-in.
+  if (allowDevAuthBypass && !initData) {
     const fallbackUserId = bootstrapAdminIds[0] || 0;
     return { ok: true, mode: 'dev', userId: fallbackUserId };
   }
 
   if (!botToken) {
     if (isProduction) {
+      return { ok: false, reason: 'bot_token_missing' };
+    }
+
+    if (!allowDevAuthBypass) {
       return { ok: false, reason: 'bot_token_missing' };
     }
 
@@ -476,7 +572,7 @@ async function getFeedbackById(feedbackId) {
   return feedbacks.find((item) => item.id === feedbackId) || null;
 }
 
-app.post('/auth/verify', async (req, res) => {
+app.post('/auth/verify', authLimiter, async (req, res) => {
   try {
     const identity = await resolveIdentity(req.body?.initData || '');
     const membership = await getAdminMembership(identity.userId || 0);
@@ -496,7 +592,7 @@ app.post('/auth/verify', async (req, res) => {
   }
 });
 
-app.post('/admin/session', async (req, res) => {
+app.post('/admin/session', adminLimiter, async (req, res) => {
   try {
     const access = await resolveRequestAccess(req, res, { adminOnly: true });
 
@@ -517,7 +613,7 @@ app.post('/admin/session', async (req, res) => {
   }
 });
 
-app.post('/feedback', async (req, res) => {
+app.post('/feedback', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -529,13 +625,18 @@ app.post('/feedback', async (req, res) => {
       return;
     }
 
-    const text = `${req.body?.text || ''}`.trim();
-    const username = `${req.body?.username || ''}`.trim();
-    const userTelegramId = Number(req.body?.userTelegramId);
-    const imageUrl = `${req.body?.imageUrl || ''}`.trim() || null;
-
-    if (!text) {
-      return res.status(400).json({ error: 'Feedback text is required' });
+    let text;
+    let username;
+    let userTelegramId;
+    let imageUrl;
+    try {
+      text = requireString(req.body?.text, 'text', { min: 1, max: 5000 });
+      username = optionalString(req.body?.username, 'username', { max: 64 }) || '';
+      userTelegramId = requireInt(req.body?.userTelegramId, 'userTelegramId', { min: 1 });
+      imageUrl = optionalHttpUrl(req.body?.imageUrl, 'imageUrl');
+    } catch (error) {
+      if (handleValidationError(error, res)) return;
+      throw error;
     }
 
     if (userTelegramId !== access.identity.userId) {
@@ -563,7 +664,139 @@ app.post('/feedback', async (req, res) => {
   }
 });
 
-app.post('/tickets/issue', async (req, res) => {
+const KNOWN_GAME_IDS = new Set([
+  'schulte',
+  'math',
+  'stroop',
+  'memory',
+  'odd_one_out',
+  'pairs',
+  'tetris',
+  '2048',
+  'agent_spot',
+  'agent_sequence',
+  'code_breaker',
+]);
+
+const GAME_SUBMIT_MAX_SCORE = 1_000_000;
+const GAME_SUBMIT_MAX_COINS = 200;
+const GAME_SUBMIT_MIN_GAP_MS = 1500;
+
+app.post('/games/submit', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const gameId = `${req.body?.gameId || ''}`.trim().slice(0, 64);
+    if (!KNOWN_GAME_IDS.has(gameId)) {
+      return res.status(400).json({ error: 'Unknown game' });
+    }
+
+    const rawScore = Number(req.body?.score);
+    const safeScore = Number.isFinite(rawScore)
+      ? Math.max(0, Math.min(GAME_SUBMIT_MAX_SCORE, rawScore))
+      : 0;
+
+    const rawCoins = Number(req.body?.coinsEarned);
+    const safeCoins = Number.isFinite(rawCoins)
+      ? Math.max(0, Math.min(GAME_SUBMIT_MAX_COINS, Math.floor(rawCoins)))
+      : 0;
+
+    // Dedup: reject if the user submitted the same game inside the gap window.
+    const { data: lastRow, error: lastError } = await supabase
+      .from('game_results')
+      .select('submitted_at')
+      .eq('user_telegram_id', userTelegramId)
+      .eq('game_id', gameId)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastError && !isMissingTableError(lastError)) {
+      throw lastError;
+    }
+
+    if (lastRow?.submitted_at) {
+      const lastMs = new Date(lastRow.submitted_at).getTime();
+      if (Number.isFinite(lastMs) && Date.now() - lastMs < GAME_SUBMIT_MIN_GAP_MS) {
+        return res.json({ ok: true, awarded: 0, reason: 'rate_limited' });
+      }
+    }
+
+    const { error: insertError } = await supabase.from('game_results').insert({
+      user_telegram_id: userTelegramId,
+      game_id: gameId,
+      score: safeScore,
+      coins_awarded: safeCoins,
+    });
+
+    if (insertError && !isMissingTableError(insertError)) {
+      throw insertError;
+    }
+
+    const { data: userRow, error: userError } = await supabase
+      .from('users')
+      .select('coins, xp, level')
+      .eq('telegram_id', userTelegramId)
+      .maybeSingle();
+
+    if (userError && !isMissingTableError(userError)) {
+      throw userError;
+    }
+
+    if (!userRow) {
+      return res.json({ ok: true, awarded: safeCoins });
+    }
+
+    const newCoins = (Number(userRow.coins) || 0) + safeCoins;
+    const newXp = (Number(userRow.xp) || 0) + safeCoins;
+    const newLevel = Math.floor(newXp / 1000) + 1;
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        coins: newCoins,
+        xp: newXp,
+        level: newLevel,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('telegram_id', userTelegramId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    return res.json({
+      ok: true,
+      awarded: safeCoins,
+      coins: newCoins,
+      xp: newXp,
+      level: newLevel,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'game_submit_error',
+    });
+  }
+});
+
+function generateTicketId() {
+  return `tkt_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+}
+
+function generateTicketNumber() {
+  // 8-digit: 10000000 .. 99999999
+  return Math.floor(Math.random() * 90000000) + 10000000;
+}
+
+app.post('/tickets/issue', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -575,55 +808,85 @@ app.post('/tickets/issue', async (req, res) => {
       return;
     }
 
-    const ticketId = `${req.body?.id || ''}`.trim();
-    const ticketNumber = Number(req.body?.ticketNumber);
-    const userTelegramId = Number(req.body?.userTelegramId);
-
-    if (!ticketId || !Number.isInteger(ticketNumber) || ticketNumber <= 0) {
-      return res.status(400).json({ error: 'Invalid ticket payload' });
+    let userTelegramId;
+    let userName;
+    let eventName;
+    let eventDate;
+    let price;
+    let purchaseDate;
+    try {
+      userTelegramId = requireInt(req.body?.userTelegramId, 'userTelegramId', { min: 1 });
+      userName = optionalString(req.body?.userName, 'userName', { max: 128 }) || `user_${userTelegramId}`;
+      eventName = optionalString(req.body?.eventName, 'eventName', { max: 128 }) || 'Premium Event';
+      eventDate = optionalIsoDate(req.body?.eventDate, 'eventDate');
+      price = requireInt(req.body?.price ?? 0, 'price', { min: 0, max: 1_000_000 });
+      purchaseDate = optionalIsoDate(req.body?.purchaseDate, 'purchaseDate') || new Date().toISOString();
+    } catch (error) {
+      if (handleValidationError(error, res)) return;
+      throw error;
     }
 
     if (userTelegramId !== access.identity.userId) {
       return res.status(403).json({ error: 'Ticket identity mismatch' });
     }
 
-    const { data, error } = await supabase
-      .from('tickets')
-      .upsert(
-        {
-          id: ticketId,
-          ticket_number: ticketNumber,
-          user_telegram_id: userTelegramId,
-          user_name: `${req.body?.userName || ''}`.trim() || `user_${userTelegramId}`,
-          event_name: `${req.body?.eventName || ''}`.trim() || 'Premium Event',
-          event_date: req.body?.eventDate,
-          price: Number(req.body?.price || 0),
-          purchase_date: req.body?.purchaseDate,
-          source: req.body?.source === 'ticket_purchase' ? 'ticket_purchase' : 'plan_upgrade',
-        },
-        { onConflict: 'id' }
-      )
-      .select('id')
-      .single();
+    const source = req.body?.source === 'ticket_purchase' ? 'ticket_purchase' : 'plan_upgrade';
 
-    if (error) {
-      throw error;
+    // Server is authoritative for id and ticket_number. Retry on the unique constraint
+    // race (DB enforces uniqueness on ticket_number).
+    let inserted = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = {
+        id: generateTicketId(),
+        ticket_number: generateTicketNumber(),
+        user_telegram_id: userTelegramId,
+        user_name: userName,
+        event_name: eventName,
+        event_date: eventDate,
+        price,
+        purchase_date: purchaseDate,
+        source,
+      };
+
+      const { data, error } = await supabase
+        .from('tickets')
+        .insert(candidate)
+        .select('id, ticket_number, user_telegram_id, user_name, event_name, event_date, price, purchase_date, status, source, verified_at, verified_by')
+        .single();
+
+      if (!error) {
+        inserted = data;
+        break;
+      }
+      lastError = error;
+      if (error.code !== '23505') {
+        // not a unique-violation — don't retry
+        break;
+      }
     }
 
-    // Send confirmation message to the user via Telegram Bot
-    const isPlanUpgrade = req.body?.source !== 'ticket_purchase';
+    if (!inserted) {
+      throw lastError || new Error('Could not allocate ticket');
+    }
+
     if (userTelegramId) {
       const messageText = "Құттықтаймыз! Төлеміңіз қабылданды. Сіздің Premium статусыңыз қосылды";
       sendTelegramMessage(userTelegramId, messageText);
     }
 
-    return res.json({ ok: true, ticketId: data.id });
+    return res.json({
+      ok: true,
+      ticketId: inserted.id,
+      ticketNumber: inserted.ticket_number,
+      ticket: mapTicketRow(inserted),
+    });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'ticket_issue_error' });
   }
 });
 
-app.post('/admin/dashboard', async (req, res) => {
+app.post('/admin/dashboard', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -690,7 +953,7 @@ app.post('/admin/dashboard', async (req, res) => {
   }
 });
 
-app.post('/admin/users', async (req, res) => {
+app.post('/admin/users', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -729,7 +992,7 @@ app.post('/admin/users', async (req, res) => {
   }
 });
 
-app.post('/admin/users/block', async (req, res) => {
+app.post('/admin/users/block', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -800,7 +1063,7 @@ app.post('/admin/users/block', async (req, res) => {
   }
 });
 
-app.post('/admin/chat/reports', async (req, res) => {
+app.post('/admin/chat/reports', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -850,7 +1113,7 @@ app.post('/admin/chat/reports', async (req, res) => {
   }
 });
 
-app.post('/admin/chat/reports/action', async (req, res) => {
+app.post('/admin/chat/reports/action', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -914,7 +1177,7 @@ app.post('/admin/chat/reports/action', async (req, res) => {
   }
 });
 
-app.post('/admin/settings', async (req, res) => {
+app.post('/admin/settings', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -948,7 +1211,7 @@ app.post('/admin/settings', async (req, res) => {
   }
 });
 
-app.post('/admin/settings/admins/add', async (req, res) => {
+app.post('/admin/settings/admins/add', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1010,7 +1273,7 @@ app.post('/admin/settings/admins/add', async (req, res) => {
   }
 });
 
-app.post('/admin/settings/admins/remove', async (req, res) => {
+app.post('/admin/settings/admins/remove', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1063,7 +1326,7 @@ app.post('/admin/settings/admins/remove', async (req, res) => {
   }
 });
 
-app.post('/admin/tickets', async (req, res) => {
+app.post('/admin/tickets', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1101,7 +1364,7 @@ app.post('/admin/tickets', async (req, res) => {
   }
 });
 
-app.post('/admin/tickets/verify', async (req, res) => {
+app.post('/admin/tickets/verify', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1177,7 +1440,7 @@ app.post('/admin/tickets/verify', async (req, res) => {
   }
 });
 
-app.post('/admin/feedback/status', async (req, res) => {
+app.post('/admin/feedback/status', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1225,7 +1488,7 @@ app.post('/admin/feedback/status', async (req, res) => {
   }
 });
 
-app.post('/admin/feedback/reply', async (req, res) => {
+app.post('/admin/feedback/reply', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1287,6 +1550,49 @@ app.post('/admin/feedback/reply', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// Cheap health check — no DB hit. Used by Render's health check and
+// any external warm-up pinger.
+app.get('/health', (_req, res) => {
+  res.json({
+    ok: true,
+    uptime: Math.round(process.uptime()),
+    hasSupabase,
+    env: process.env.NODE_ENV || 'development',
+  });
+});
+
+// Final error handler — must be registered after all routes. Never leaks
+// stack traces to clients; logs server-side instead.
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  console.error('Unhandled error:', err && err.stack ? err.stack : err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Internal error' });
+});
+
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+// Graceful shutdown for Render redeploys. Render sends SIGTERM and waits
+// up to 30s before SIGKILL — close the HTTP server so in-flight requests
+// finish, then exit.
+const shutdown = (signal) => {
+  console.log(`Received ${signal}, shutting down`);
+  const force = setTimeout(() => {
+    console.error('Force-exit after 25s shutdown timeout');
+    process.exit(1);
+  }, 25_000);
+  force.unref();
+
+  server.close((err) => {
+    if (err) {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    }
+    process.exit(0);
+  });
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

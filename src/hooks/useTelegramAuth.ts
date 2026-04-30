@@ -39,16 +39,23 @@ export const useTelegramAuth = () => {
         const user = getTelegramUser();
         
         if (!isTelegram && !user) {
-          // If not in telegram and no mock user found, we still allow for local testing
-          // but with a warning or fallback
-          console.warn('Not in Telegram environment');
-          // For now, let's allow it to proceed to not block the user
-          setAuthState({
-            isAuthenticated: true, // Set to true to allow entry in browser
-            isLoading: false,
-            error: null,
-            user: { id: 0, first_name: 'Guest' },
-          });
+          // Allow Guest entry only in dev builds; in production, require Telegram.
+          if (import.meta.env.DEV) {
+            console.warn('Not in Telegram environment — granting Guest access (dev build only)');
+            setAuthState({
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+              user: { id: 0, first_name: 'Guest' },
+            });
+          } else {
+            setAuthState({
+              isAuthenticated: false,
+              isLoading: false,
+              error: 'Telegram-нан ашыңыз',
+              user: null,
+            });
+          }
           return;
         }
 

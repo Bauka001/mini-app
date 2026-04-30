@@ -4,7 +4,7 @@ import { getTelegramUser } from '../utils/telegram';
 import { telegramStorage } from './storage';
 import { UserState, initialUserRaw, generateGameId, initialState, generateDailyChallenges, initialSocialTasks, Ticket, EventParticipant, Notification, TournamentState } from './useStore';
 import { getUserByTelegramId, createUser, updateUser, subscribeToUserChanges, isSupabaseConfigured, DatabaseUser } from '../utils/supabase';
-import { issueTicketRecord, submitFeedbackEntry } from '../utils/adminApi';
+import { issueTicketRecord, submitFeedbackEntry, submitGameResult } from '../utils/adminApi';
 import { calculateBrainScoreMetrics } from '../utils/brainScore';
 
 let supabaseChannel: ReturnType<typeof subscribeToUserChanges> | null = null;
@@ -556,11 +556,12 @@ const persistFeedbackEntry = async (
   }
 };
 
-const persistTicket = async (ticket: Ticket, source: 'plan_upgrade' | 'ticket_purchase') => {
+const persistTicket = async (
+  ticket: Ticket,
+  source: 'plan_upgrade' | 'ticket_purchase'
+): Promise<{ ticketId: string; ticketNumber: number } | null> => {
   try {
-    await issueTicketRecord({
-      id: ticket.id,
-      ticketNumber: ticket.ticketNumber,
+    const response = await issueTicketRecord({
       userTelegramId: ticket.userId,
       userName: ticket.userName,
       eventName: ticket.eventName,
@@ -569,8 +570,10 @@ const persistTicket = async (ticket: Ticket, source: 'plan_upgrade' | 'ticket_pu
       purchaseDate: ticket.purchaseDate,
       source,
     });
+    return { ticketId: response.ticketId, ticketNumber: response.ticketNumber };
   } catch (error) {
     console.error('[Admin API] Ticket sync error:', error);
+    return null;
   }
 };
 
@@ -684,17 +687,45 @@ export const useStore = create<UserState>()(
         user: { ...state.user, ...data }
       })),
 
-      addGameResult: (result) => set((state) => {
+      addGameResult: (result) => {
+        // Sanitize input. Anyone can call addGameResult, so clamp the credit a single
+        // submission can grant. Real games award well under this cap.
+        const MAX_COINS_PER_SUBMISSION = 200;
+        const MIN_RESUBMIT_GAP_MS = 1500;
+        const rawCoins = Number(result?.coinsEarned);
+        const sanitizedCoins = Number.isFinite(rawCoins)
+          ? Math.max(0, Math.min(MAX_COINS_PER_SUBMISSION, Math.floor(rawCoins)))
+          : 0;
+        const rawScoreNum = Number(result?.score);
+        const sanitizedScore: string | number = Number.isFinite(rawScoreNum)
+          ? rawScoreNum
+          : typeof result?.score === 'string'
+            ? result.score
+            : 0;
+        const gameId = String(result?.gameId || '').slice(0, 64);
+        if (!gameId) return;
+
+        // Reject double-submits for the same gameId within the throttle window.
+        const preState = get();
+        const lastForGame = [...preState.history].reverse().find((entry) => entry.gameId === gameId);
+        if (lastForGame && Date.now() - (lastForGame.timestamp || 0) < MIN_RESUBMIT_GAP_MS) {
+          return;
+        }
+
+        const userIdForSubmit = preState.user.id;
+
+        set((state) => {
+        const sanitizedResult = { ...result, gameId, score: sanitizedScore, coinsEarned: sanitizedCoins };
         const safeDailyQuest = normalizeDailyQuest(state.dailyQuest);
         const safeWeeklyQuest = normalizeWeeklyQuest(state.weeklyQuest);
-        const xpGained = result.coinsEarned;
+        const xpGained = sanitizedCoins;
         const newXp = state.user.xp + xpGained;
         const newLevel = Math.floor(newXp / 1000) + 1;
 
         const newStats = { ...state.brainStats };
         const increment = 1;
 
-        switch (result.gameId) {
+        switch (gameId) {
           case 'schulte':
           case 'odd_one_out':
           case 'agent_spot':
@@ -750,15 +781,15 @@ export const useStore = create<UserState>()(
         const updatedChallenges = state.challenges.map(ch => {
           if (ch.isClaimed) return ch;
           if (ch.type === 'play_count') return { ...ch, current: ch.current + 1 };
-          if (ch.type === 'total_coins') return { ...ch, current: ch.current + result.coinsEarned };
+          if (ch.type === 'total_coins') return { ...ch, current: ch.current + sanitizedCoins };
           return ch;
         });
 
         const today = new Date().toISOString().split('T')[0];
         const needsReset = safeDailyQuest.lastResetDate !== today;
         const newGamesPlayed = needsReset
-          ? [result.gameId]
-          : [...safeDailyQuest.gamesPlayed, result.gameId];
+          ? [gameId]
+          : [...safeDailyQuest.gamesPlayed, gameId];
         const uniqueGames = new Set(newGamesPlayed);
         const isNowComplete = uniqueGames.size >= 3;
 
@@ -766,7 +797,7 @@ export const useStore = create<UserState>()(
         if (needsReset) {
           finalDailyQuest = {
             id: 'daily_quest_3games',
-            gamesPlayed: [result.gameId],
+            gamesPlayed: [gameId],
             isCompleted: uniqueGames.size >= 3,
             isClaimed: false,
             lastResetDate: today
@@ -774,7 +805,7 @@ export const useStore = create<UserState>()(
         } else {
           finalDailyQuest = {
             ...safeDailyQuest,
-            gamesPlayed: [...safeDailyQuest.gamesPlayed, result.gameId],
+            gamesPlayed: [...safeDailyQuest.gamesPlayed, gameId],
             isCompleted: safeDailyQuest.isCompleted || isNowComplete
           };
         }
@@ -805,7 +836,7 @@ export const useStore = create<UserState>()(
         const playedAt = new Date().toISOString();
         const playedAtTimestamp = Date.now();
         const nextHistoryEntry = {
-          ...result,
+          ...sanitizedResult,
           date: playedAt.split('T')[0],
           timestamp: playedAtTimestamp,
         };
@@ -822,8 +853,8 @@ export const useStore = create<UserState>()(
           const tournamentGames = calculateTournamentScoreProgress([
             ...state.tournament.games,
             {
-              gameId: result.gameId,
-              score: result.score,
+              gameId,
+              score: sanitizedScore,
               playedAt,
               tournamentBrainScore: 0,
             },
@@ -838,7 +869,7 @@ export const useStore = create<UserState>()(
 
         const shouldAddWorkoutNotification =
           Boolean(state.user.id) &&
-          shouldShowFirstWorkoutNotification(state.user.id, result.gameId, playedAtTimestamp);
+          shouldShowFirstWorkoutNotification(state.user.id, gameId, playedAtTimestamp);
 
         const onboardingNotification: Notification | null = shouldAddWorkoutNotification
           ? {
@@ -852,7 +883,7 @@ export const useStore = create<UserState>()(
           : null;
 
         const newState = {
-          coins: state.coins + result.coinsEarned,
+          coins: state.coins + sanitizedCoins,
           history: updatedHistory,
           user: {
             ...state.user,
@@ -878,59 +909,116 @@ export const useStore = create<UserState>()(
         }
 
         return newState;
-      }),
+        });
 
-      upgradePlan: (plan, days) => set((state) => {
+        // Server-side validation & authoritative coin/xp/level credit. The local
+        // state above is optimistic; reconcile it with the server's response so
+        // a tampered local state can't outpace the canonical balance.
+        if (isSupabaseConfigured && userIdForSubmit) {
+          void submitGameResult({
+            gameId,
+            score: sanitizedScore,
+            coinsEarned: sanitizedCoins,
+          })
+            .then((response) => {
+              if (response?.reason === 'rate_limited') {
+                // Server treated this as a duplicate; refund the optimistic credit.
+                set((state) => ({
+                  coins: Math.max(0, state.coins - sanitizedCoins),
+                  user: {
+                    ...state.user,
+                    xp: Math.max(0, state.user.xp - sanitizedCoins),
+                  },
+                }));
+                return;
+              }
+              if (typeof response?.coins === 'number') {
+                set((state) => ({
+                  coins: response.coins!,
+                  user: {
+                    ...state.user,
+                    xp: typeof response.xp === 'number' ? response.xp : state.user.xp,
+                    level: typeof response.level === 'number' ? response.level : state.user.level,
+                  },
+                }));
+              }
+            })
+            .catch((err) => {
+              console.error('[Game Submit] sync error:', err);
+            });
+        }
+      },
+
+      upgradePlan: (plan, days) => {
+        const state = get();
         const currentPlan = state.plan;
         const currentExpiry = state.planExpiry || Date.now();
-        let newExpiry = currentExpiry;
+        const newExpiry =
+          plan !== currentPlan
+            ? Date.now() + days * 24 * 60 * 60 * 1000
+            : currentExpiry + days * 24 * 60 * 60 * 1000;
 
-        if (plan !== currentPlan) {
-          newExpiry = Date.now() + days * 24 * 60 * 60 * 1000;
-        } else {
-          newExpiry = currentExpiry + days * 24 * 60 * 60 * 1000;
-        }
-
-        const ticketNumber = Math.floor(Math.random() * 90000000) + 10000000;
+        const localId = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
         const eventName = plan === 'premium' ? 'VIP Tournament Access' : 'VIP Access Event';
-        const newTicket: Ticket = {
-          id: Date.now().toString(),
-          ticketNumber,
+        const optimisticTicket: Ticket = {
+          id: localId,
+          ticketNumber: 0, // placeholder until server issues canonical number
           eventName,
           eventDate: new Date(newExpiry).toISOString(),
           price: 0,
           purchaseDate: new Date().toISOString(),
           userId: state.user.id,
           userName: state.user.firstName,
-          isUsed: false
+          isUsed: false,
         };
 
-        const newParticipant: EventParticipant = {
-          ticketId: newTicket.id,
-          ticketNumber,
+        const optimisticParticipant: EventParticipant = {
+          ticketId: localId,
+          ticketNumber: 0,
           userId: state.user.id,
           userName: state.user.firstName,
           userPhoto: state.user.photoUrl,
-          purchaseDate: new Date().toISOString(),
-          isVerified: false
+          purchaseDate: optimisticTicket.purchaseDate,
+          isVerified: false,
         };
 
         const newState = {
           plan,
           planExpiry: newExpiry,
           hp: state.maxHp,
-          tickets: [...state.tickets, newTicket],
-          eventParticipants: [...state.eventParticipants, newParticipant]
+          tickets: [...state.tickets, optimisticTicket],
+          eventParticipants: [...state.eventParticipants, optimisticParticipant],
         };
 
-        void persistTicket(newTicket, 'plan_upgrade');
+        set(newState);
 
         if (isSupabaseConfigured) {
           syncUserToSupabase(newState, state.user.id);
         }
 
-        return newState;
-      }),
+        // Reconcile with server-issued ticket id + number
+        void persistTicket(optimisticTicket, 'plan_upgrade').then((issued) => {
+          set((current) => {
+            if (!issued) {
+              // Server failed: drop the optimistic ticket so the user isn't shown a broken one.
+              return {
+                tickets: current.tickets.filter((t) => t.id !== localId),
+                eventParticipants: current.eventParticipants.filter((p) => p.ticketId !== localId),
+              };
+            }
+            return {
+              tickets: current.tickets.map((t) =>
+                t.id === localId ? { ...t, id: issued.ticketId, ticketNumber: issued.ticketNumber } : t
+              ),
+              eventParticipants: current.eventParticipants.map((p) =>
+                p.ticketId === localId
+                  ? { ...p, ticketId: issued.ticketId, ticketNumber: issued.ticketNumber }
+                  : p
+              ),
+            };
+          });
+        });
+      },
 
       buySkin: (skinId, cost) => {
         const { coins, skinInventory } = get();
@@ -1309,38 +1397,59 @@ export const useStore = create<UserState>()(
           return { success: false };
         }
 
-        const ticketNumber = Math.floor(Math.random() * 90000000) + 10000000;
-        const newTicket: Ticket = {
-          id: Date.now().toString(),
-          ticketNumber,
+        const localId = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        const optimisticTicket: Ticket = {
+          id: localId,
+          ticketNumber: 0,
           eventName,
           eventDate,
           price,
           purchaseDate: new Date().toISOString(),
           userId: state.user.id,
           userName: state.user.firstName,
-          isUsed: false
+          isUsed: false,
         };
 
-        const newParticipant: EventParticipant = {
-          ticketId: newTicket.id,
-          ticketNumber,
+        const optimisticParticipant: EventParticipant = {
+          ticketId: localId,
+          ticketNumber: 0,
           userId: state.user.id,
           userName: state.user.firstName,
           userPhoto: state.user.photoUrl,
-          purchaseDate: new Date().toISOString(),
-          isVerified: false
+          purchaseDate: optimisticTicket.purchaseDate,
+          isVerified: false,
         };
 
-        set((state) => ({
-          coins: state.coins - price,
-          tickets: [...state.tickets, newTicket],
-          eventParticipants: [...state.eventParticipants, newParticipant]
+        set((s) => ({
+          coins: s.coins - price,
+          tickets: [...s.tickets, optimisticTicket],
+          eventParticipants: [...s.eventParticipants, optimisticParticipant],
         }));
 
-        void persistTicket(newTicket, 'ticket_purchase');
+        void persistTicket(optimisticTicket, 'ticket_purchase').then((issued) => {
+          set((current) => {
+            if (!issued) {
+              // Refund and remove optimistic entries on server failure.
+              return {
+                coins: current.coins + price,
+                tickets: current.tickets.filter((t) => t.id !== localId),
+                eventParticipants: current.eventParticipants.filter((p) => p.ticketId !== localId),
+              };
+            }
+            return {
+              tickets: current.tickets.map((t) =>
+                t.id === localId ? { ...t, id: issued.ticketId, ticketNumber: issued.ticketNumber } : t
+              ),
+              eventParticipants: current.eventParticipants.map((p) =>
+                p.ticketId === localId
+                  ? { ...p, ticketId: issued.ticketId, ticketNumber: issued.ticketNumber }
+                  : p
+              ),
+            };
+          });
+        });
 
-        return { success: true, ticketNumber };
+        return { success: true };
       },
 
       verifyTicket: (ticketNumber) => {
