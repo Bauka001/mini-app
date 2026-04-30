@@ -8,6 +8,7 @@ import WebApp from '@twa-dev/sdk';
 import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
 import { TermsModal } from '../components/TermsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import ShopClaude from './ShopClaude';
 
 const PaymentModal = ({ 
   isOpen, 
@@ -496,7 +497,14 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
   );
 };
 
+// Theme switcher — Claude renders the editorial layout in ShopClaude.tsx;
+// the dark / light / blue / gold themes keep the original markup untouched.
 const ShopPage = () => {
+  const styles = useThemeStyles();
+  return styles.isClaude ? <ShopClaude /> : <LegacyShopPage />;
+};
+
+const LegacyShopPage = () => {
   const { t } = useTranslation();
   const { coins, skinInventory, activeSkin, buySkin, equipSkin, plan } = useStore();
   const [activeTab, setActiveTab] = useState<'vip' | 'skins'>('vip');
