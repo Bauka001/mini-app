@@ -22,14 +22,32 @@ export const AuthGuard = ({
   ),
   adminOnly = false,
 }: AuthGuardProps) => {
-  const { isAuthenticated, isLoading, error, user } = useTelegramAuth();
+  const { isAuthenticated, isLoading, error, user, isGuest } = useTelegramAuth();
   const {
     isAdmin,
     isLoading: isAdminLoading,
     error: adminError,
-  } = useAdminAccess(adminOnly && isAuthenticated);
+  } = useAdminAccess(adminOnly && isAuthenticated && !isGuest);
 
   if (isLoading) return <>{fallback}</>;
+
+  if (adminOnly && isGuest) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">🔒</div>
+          <h2 className="text-2xl font-bold mb-4">Telegram-нан ашыңыз</h2>
+          <p className="text-gray-400 mb-6">Admin беті тек Telegram арқылы ашылады.</p>
+          <button
+            onClick={() => window.history.back()}
+            className="px-6 py-3 bg-gray-600 text-white font-bold rounded-xl hover:scale-105 transition-transform"
+          >
+            Артқа қайту
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (adminOnly && isAdminLoading) return <>{fallback}</>;
 

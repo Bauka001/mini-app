@@ -8,6 +8,9 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
   user: any | null;
+  // Browser/PWA visitors with no Telegram identity. Local-only gameplay; the
+  // store and server skip any path that requires a real telegram_id.
+  isGuest: boolean;
 }
 
 export const useTelegramAuth = () => {
@@ -16,6 +19,7 @@ export const useTelegramAuth = () => {
     isLoading: true,
     error: null,
     user: null,
+    isGuest: false,
   });
 
   useEffect(() => {
@@ -38,24 +42,18 @@ export const useTelegramAuth = () => {
         // Get user data
         const user = getTelegramUser();
         
+        // Browser / PWA visitor — no Telegram identity. Allow local-only play
+        // as a guest. The store skips server sync when user.id === 0, and the
+        // backend rejects calls without initData via authLimiter + initData
+        // HMAC, so guests have no path to authenticated endpoints.
         if (!isTelegram && !user) {
-          // Allow Guest entry only in dev builds; in production, require Telegram.
-          if (import.meta.env.DEV) {
-            console.warn('Not in Telegram environment — granting Guest access (dev build only)');
-            setAuthState({
-              isAuthenticated: true,
-              isLoading: false,
-              error: null,
-              user: { id: 0, first_name: 'Guest' },
-            });
-          } else {
-            setAuthState({
-              isAuthenticated: false,
-              isLoading: false,
-              error: 'Telegram-нан ашыңыз',
-              user: null,
-            });
-          }
+          setAuthState({
+            isAuthenticated: true,
+            isLoading: false,
+            error: null,
+            user: { id: 0, first_name: 'Guest' },
+            isGuest: true,
+          });
           return;
         }
 
@@ -65,6 +63,7 @@ export const useTelegramAuth = () => {
             isLoading: false,
             error: 'Пайдаланушы деректері табылмады',
             user: null,
+            isGuest: false,
           });
           return;
         }
@@ -79,6 +78,7 @@ export const useTelegramAuth = () => {
               isLoading: false,
               error: 'Telegram деректерін тексеру сәтсіз болды',
               user: null,
+              isGuest: false,
             });
             return;
           }
@@ -89,17 +89,19 @@ export const useTelegramAuth = () => {
           isLoading: false,
           error: null,
           user: user || { id: 0, first_name: 'Guest' },
+          isGuest: !isTelegram,
         });
 
       } catch (err) {
         if (!isMounted) return;
-        
+
         console.error('Auth error:', err);
         setAuthState({
           isAuthenticated: false,
           isLoading: false,
           error: err instanceof Error ? err.message : 'Аутентификация қатесі орын алды',
           user: null,
+          isGuest: false,
         });
       }
     };

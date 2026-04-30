@@ -1,5 +1,14 @@
 import { useEffect, useState } from 'react';
+import WebApp from '@twa-dev/sdk';
 import { CanonicalUser, getUserMe } from '../utils/adminApi';
+
+const isBrowserGuest = (): boolean => {
+  try {
+    return !WebApp.initData;
+  } catch {
+    return true;
+  }
+};
 
 interface PlanGateState {
   isPremiumActive: boolean | null;
@@ -67,6 +76,23 @@ export const usePlanGate = () => {
 
   useEffect(() => {
     let active = true;
+
+    // Browser/PWA guests have no initData and the server will 401 every call.
+    // Short-circuit to a definite "not premium" so the UI doesn't flash a
+    // spinner and the network log isn't full of 401s.
+    if (isBrowserGuest()) {
+      setState({
+        isPremiumActive: false,
+        plan: 'free',
+        planExpiry: null,
+        isLoading: false,
+        error: null,
+      });
+      return () => {
+        active = false;
+      };
+    }
+
     fetchCanonicalUser()
       .then((user) => {
         if (!active) return;
@@ -107,6 +133,16 @@ export const usePlanGate = () => {
   return {
     ...state,
     refresh: async () => {
+      if (isBrowserGuest()) {
+        setState({
+          isPremiumActive: false,
+          plan: 'free',
+          planExpiry: null,
+          isLoading: false,
+          error: null,
+        });
+        return;
+      }
       invalidatePlanGate();
       const user = await fetchCanonicalUser();
       setState({

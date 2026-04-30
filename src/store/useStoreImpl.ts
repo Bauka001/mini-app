@@ -490,6 +490,8 @@ const mapStateToDbUser = (state: any, telegramId: number) => ({
 
 const syncUserToSupabase = async (state: any, telegramId: number) => {
   if (!isSupabaseConfigured) return;
+  // Browser/PWA guest — id is 0, no Telegram identity. Local-only mode.
+  if (!telegramId) return;
 
   const dbData = mapStateToDbUser(state, telegramId);
 
@@ -532,6 +534,7 @@ const syncUserToSupabase = async (state: any, telegramId: number) => {
 
 const subscribeToSupabaseChanges = (telegramId: number, setState: (partial: any) => void) => {
   if (!isSupabaseConfigured) return;
+  if (!telegramId) return;
 
   if (supabaseChannel) {
     supabaseChannel.unsubscribe();
@@ -587,6 +590,7 @@ const mapCanonicalUserToState = (user: CanonicalUser) => ({
 
 const loadUserFromSupabase = async (telegramId: number, setState: (partial: any) => void) => {
   if (!isSupabaseConfigured) return;
+  if (!telegramId) return;
 
   // Prefer the server-routed /users/me endpoint. The Node backend uses the
   // service-role key, so it bypasses the JWT-claim RLS on the users table that

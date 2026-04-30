@@ -12,6 +12,7 @@ import { useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
 import { DailyRewardModal } from '../components/DailyRewardModal';
 import { NotificationsModal } from '../components/NotificationsModal';
+import { GuestBanner } from '../components/GuestBanner';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { hapticFeedback } from '../utils/telegram';
 import type { Variants } from 'framer-motion';
@@ -145,6 +146,8 @@ const Home = () => {
           </motion.button>
         </div>
       </motion.header>
+
+      <GuestBanner />
 
       <motion.div
         initial={{ opacity: 0 }}

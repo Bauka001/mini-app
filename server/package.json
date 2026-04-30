@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node index.js",
-    "dev": "node index.js"
+    "dev": "node index.js",
+    "register-webhook": "node scripts/register-webhook.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.1",
