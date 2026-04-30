@@ -6,7 +6,12 @@ import { verifyTelegramInitData } from '../utils/auth';
 interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
-  error: string | null;
+  // Translation key for the user-visible label.
+  errorKey: string | null;
+  // Machine-readable reason from /auth/verify (e.g. 'bot_token_missing',
+  // 'auth_date_expired', 'hash_mismatch'). Surfaced under the label so the
+  // operator can diagnose backend config issues.
+  errorReason: string | null;
   user: any | null;
   // Browser/PWA visitors with no Telegram identity. Local-only gameplay; the
   // store and server skip any path that requires a real telegram_id.
@@ -17,7 +22,8 @@ export const useTelegramAuth = () => {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     isLoading: true,
-    error: null,
+    errorKey: null,
+    errorReason: null,
     user: null,
     isGuest: false,
   });
@@ -50,7 +56,8 @@ export const useTelegramAuth = () => {
           setAuthState({
             isAuthenticated: true,
             isLoading: false,
-            error: null,
+            errorKey: null,
+            errorReason: null,
             user: { id: 0, first_name: 'Guest' },
             isGuest: true,
           });
@@ -61,7 +68,8 @@ export const useTelegramAuth = () => {
           setAuthState({
             isAuthenticated: false,
             isLoading: false,
-            error: 'Пайдаланушы деректері табылмады',
+            errorKey: 'auth_error_user_missing',
+            errorReason: 'no_user_in_init_data',
             user: null,
             isGuest: false,
           });
@@ -76,7 +84,8 @@ export const useTelegramAuth = () => {
             setAuthState({
               isAuthenticated: false,
               isLoading: false,
-              error: 'Telegram деректерін тексеру сәтсіз болды',
+              errorKey: 'auth_error_verify_failed',
+              errorReason: verify?.reason || null,
               user: null,
               isGuest: false,
             });
@@ -87,7 +96,8 @@ export const useTelegramAuth = () => {
         setAuthState({
           isAuthenticated: true,
           isLoading: false,
-          error: null,
+          errorKey: null,
+          errorReason: null,
           user: user || { id: 0, first_name: 'Guest' },
           isGuest: !isTelegram,
         });
@@ -99,7 +109,8 @@ export const useTelegramAuth = () => {
         setAuthState({
           isAuthenticated: false,
           isLoading: false,
-          error: err instanceof Error ? err.message : 'Аутентификация қатесі орын алды',
+          errorKey: 'auth_error_generic',
+          errorReason: err instanceof Error ? err.message : null,
           user: null,
           isGuest: false,
         });

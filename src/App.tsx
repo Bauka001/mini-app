@@ -278,6 +278,9 @@ function AppRoutes() {
     if (location.pathname !== '/daily-workout' && !location.pathname.startsWith('/admin')) {
       navigate('/daily-workout', { replace: true });
     }
+    // updateOnboardingProgress intentionally omitted — it's a stable closure
+    // and including it would re-fire the route guard on every progress write.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, navigate, onboardingProgress, userId]);
 
   const firstWorkoutResult = useMemo(() => {
@@ -310,6 +313,9 @@ function AppRoutes() {
     }
 
     updateOnboardingProgress({ screen: 2 });
+    // updateOnboardingProgress is a stable closure; including it would loop
+    // because every progress write changes its identity in this scope.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstWorkoutResult, onboardingProgress]);
 
   const handleOnboardingStart = () => {

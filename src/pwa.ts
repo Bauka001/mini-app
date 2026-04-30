@@ -11,7 +11,7 @@ import { registerSW } from 'virtual:pwa-register';
 
 const isTelegramHost = (): boolean => {
   if (typeof window === 'undefined') return false;
-  const tg = (window as any).Telegram?.WebApp;
+  const tg = window.Telegram?.WebApp;
   if (!tg) return false;
   // tg.platform is 'unknown' when the page is opened in a normal browser
   // even with the telegram-web-app.js script loaded.

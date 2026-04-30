@@ -164,6 +164,11 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // move/rotate/softDrop/hardDrop are function declarations (hoisted); they
+    // close over the latest activePiece via React state setters. Wrapping them
+    // in useCallback would require restructuring the file and adding them to
+    // the deps creates an unbounded re-bind loop on the keydown listener.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameOver, isGamePaused, activePiece, move, rotate, softDrop, hardDrop]);
 
   const checkCollision = useCallback((pieceX: number, pieceY: number, shape: number[][], currentBoard?: string[][]) => {
@@ -284,6 +289,10 @@ const TetrisBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: number) =>
        setActivePiece(newPiece);
        setNextPiece(getNextTetromino());
     }
+    // triggerLineClearEffects is intentionally omitted — it's a fire-and-forget
+    // visual side-effect; including it would re-run mergePiece on each effect
+    // tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activePiece, board, lines, level, score, nextPiece, onEnd, checkCollision]);
 
   // Custom hook for interval

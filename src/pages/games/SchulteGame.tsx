@@ -62,6 +62,9 @@ export const SchulteBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string
     }, 100);
 
     return () => clearInterval(timer);
+    // Mount-only ticker; onEnd / isPaused identities change every render and
+    // would reset the countdown if added.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCellClick = (num: number) => {

@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Variants } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 
-export const pageFlipVariants: Variants = {
+const pageFlipVariants: Variants = {
   initial: {
     rotateY: 90,
     opacity: 0,
@@ -31,7 +31,9 @@ export const pageFlipVariants: Variants = {
   },
 };
 
-export const slideVariants = {
+// Reserved for slide-direction transitions; not currently mounted but kept
+// alongside pageFlipVariants so swapping is a one-line change.
+const _slideVariants = {
   initial: {
     x: '100%',
     opacity: 0,

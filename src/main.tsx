@@ -15,7 +15,7 @@ registerPwa();
 // pipeline. Skipped outside Telegram (analytics service rejects non-WebApp
 // hosts) and when no token is provided so local dev keeps working.
 const analyticsToken = import.meta.env.VITE_TG_ANALYTICS_TOKEN as string | undefined;
-const analyticsAppName = (import.meta.env.VITE_TG_ANALYTICS_APP_NAME as string | undefined) || 'focusgameapp';
+const analyticsAppName = (import.meta.env.VITE_TG_ANALYTICS_APP_NAME as string | undefined) || 'focus_game';
 if (analyticsToken && isTelegramHost()) {
   telegramAnalytics
     .init({ token: analyticsToken, appName: analyticsAppName })

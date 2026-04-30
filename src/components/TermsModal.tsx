@@ -1,6 +1,7 @@
 import { FileText, CheckCircle, Sparkles } from 'lucide-react';
 import { useState } from 'react';
-import { ClaudeModal, ClaudeButton, ClaudePill, claudeTokens } from './ui/ClaudeModal';
+import { ClaudeModal, ClaudeButton, ClaudePill } from './ui/ClaudeModal';
+import { claudeTokens } from './ui/claudeTokens';
 
 export const TermsModal = ({
   isOpen,

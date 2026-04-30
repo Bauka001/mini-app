@@ -14,8 +14,6 @@ import { clsx } from 'clsx';
 import type { ReactNode, MouseEvent } from 'react';
 import { claudeTokens } from './claudeTokens';
 
-export { claudeTokens };
-
 interface ClaudeModalProps {
   isOpen: boolean;
   onClose: () => void;

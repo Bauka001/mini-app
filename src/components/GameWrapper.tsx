@@ -14,7 +14,7 @@ type GameState = 'instruction' | 'playing' | 'paused' | 'finished';
 interface GameWrapperProps {
   title: string;
   instructions: string;
-  children: (props: { onEnd: (score: any, coins: number) => void; isPaused: boolean; theme: string }) => React.ReactNode;
+  children: (props: { onEnd: (score: string | number, coins: number) => void; isPaused: boolean; theme: string }) => React.ReactNode;
   onExit?: () => void;
 }
 

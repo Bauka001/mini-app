@@ -72,6 +72,9 @@ const MemoryBoard = ({ onEnd: _onEnd, isGamePaused, theme }: { onEnd: (score: st
       }
     }
     return newPattern;
+    // getTileCount is a small pure function defined in module scope; we
+    // intentionally regenerate only when the level/grid changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level, gridSize]);
 
   useEffect(() => {

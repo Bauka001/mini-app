@@ -301,6 +301,9 @@ function CodeBreakerBoard({
     if (timeLeft > 0) return;
 
     finishGame(score, correctAnswers, bestStreak);
+    // finishGame is defined below and guarded internally by hasFinishedRef
+    // so adding it would not change behaviour but would require hoisting.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bestStreak, correctAnswers, onEnd, score, timeLeft]);
 
   const finishGame = (finalScore: number, finalCorrectAnswers: number, finalBestStreak: number) => {

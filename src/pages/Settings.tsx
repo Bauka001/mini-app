@@ -4,7 +4,7 @@ import { useStore } from '../store/useStoreImpl';
 import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
-import { useState } from 'react';
+import { useState, type ElementType } from 'react';
 import { InfoGuideModal } from '../components/InfoGuideModal';
 import { FeedbackModal } from '../components/FeedbackModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
@@ -16,7 +16,7 @@ const SettingItem = ({
   children,
   onClick,
 }: {
-  icon: any;
+  icon: ElementType;
   title: string;
   children?: React.ReactNode;
   onClick?: () => void;

@@ -47,6 +47,9 @@ export const MathBoard = ({ onEnd, isPaused: _isPaused, theme }: { onEnd: (score
     }, 100);
 
     return () => clearInterval(timer);
+    // Timer must run exactly once per game session. onEnd would re-fire on
+    // every parent re-render and reset the timer, breaking the game.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const generateQuestion = () => {

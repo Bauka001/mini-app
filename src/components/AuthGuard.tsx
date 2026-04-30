@@ -1,5 +1,6 @@
 import React, { ReactNode } from 'react';
 import WebApp from '@twa-dev/sdk';
+import { useTranslation } from 'react-i18next';
 import { useTelegramAuth } from '../hooks/useTelegramAuth';
 import { useAdminAccess } from '../hooks/useAdminAccess';
 
@@ -9,60 +10,73 @@ interface AuthGuardProps {
   adminOnly?: boolean;
 }
 
-export const AuthGuard = ({
-  children,
-  fallback = (
+const LoadingPanel = () => {
+  const { t } = useTranslation();
+  return (
     <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
       <div className="text-center">
         <div className="w-16 h-16 border-4 border-t-primary border-white/10 rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-lg font-bold">Жүктелуде...</p>
-        <p className="text-sm text-gray-400 mt-1">Telegram-нан деректер алынуда</p>
+        <p className="text-lg font-bold">{t('auth_loading_title')}</p>
+        <p className="text-sm text-gray-400 mt-1">{t('auth_loading_subtitle')}</p>
       </div>
     </div>
-  ),
+  );
+};
+
+export const AuthGuard = ({
+  children,
+  fallback,
   adminOnly = false,
 }: AuthGuardProps) => {
-  const { isAuthenticated, isLoading, error, user, isGuest } = useTelegramAuth();
+  const { t } = useTranslation();
+  const { isAuthenticated, isLoading, errorKey, errorReason, user, isGuest } = useTelegramAuth();
   const {
     isAdmin,
     isLoading: isAdminLoading,
     error: adminError,
   } = useAdminAccess(adminOnly && isAuthenticated && !isGuest);
 
-  if (isLoading) return <>{fallback}</>;
+  const fallbackNode = fallback ?? <LoadingPanel />;
+
+  if (isLoading) return <>{fallbackNode}</>;
 
   if (adminOnly && isGuest) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">🔒</div>
-          <h2 className="text-2xl font-bold mb-4">Telegram-нан ашыңыз</h2>
-          <p className="text-gray-400 mb-6">Admin беті тек Telegram арқылы ашылады.</p>
+          <h2 className="text-2xl font-bold mb-4">{t('auth_admin_only_title')}</h2>
+          <p className="text-gray-400 mb-6">{t('auth_admin_only_body')}</p>
           <button
             onClick={() => window.history.back()}
             className="px-6 py-3 bg-gray-600 text-white font-bold rounded-xl hover:scale-105 transition-transform"
           >
-            Артқа қайту
+            {t('back')}
           </button>
         </div>
       </div>
     );
   }
 
-  if (adminOnly && isAdminLoading) return <>{fallback}</>;
+  if (adminOnly && isAdminLoading) return <>{fallbackNode}</>;
 
-  if (error) {
+  if (errorKey) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">🔒</div>
-          <h2 className="text-2xl font-bold text-red-500 mb-4">Қате орын алды!</h2>
-          <p className="text-gray-300 mb-6">{error}</p>
+          <h2 className="text-2xl font-bold text-red-500 mb-4">{t('auth_error_title')}</h2>
+          <p className="text-gray-300 mb-2">{t(errorKey)}</p>
+          {errorReason && (
+            <p className="text-xs text-gray-500 mb-6 font-mono break-all">
+              {t('auth_reason_label')}: {errorReason}
+            </p>
+          )}
           <button
             onClick={() => WebApp.close()}
             className="px-6 py-3 bg-primary text-black font-bold rounded-xl hover:scale-105 transition-transform"
           >
-            Жабу
+            {t('auth_error_close')}
           </button>
         </div>
       </div>
@@ -74,16 +88,13 @@ export const AuthGuard = ({
       <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">📱</div>
-          <h2 className="text-2xl font-bold mb-4">Telegram-нан ашыңыз</h2>
-          <p className="text-gray-400 mb-8">
-            Бұл қолданба Telegram Mini App.
-            Дұрыс аутентификация үшін Telegram-ден ашыңыз.
-          </p>
+          <h2 className="text-2xl font-bold mb-4">{t('auth_open_in_telegram_title')}</h2>
+          <p className="text-gray-400 mb-8">{t('auth_open_in_telegram_body')}</p>
           <button
-            onClick={() => WebApp.openTelegramLink('https://t.me/Focus_game_bot?startapp')}
+            onClick={() => WebApp.openTelegramLink('https://t.me/focusgameapp_bot?startapp')}
             className="px-6 py-3 bg-[#2AABEE] text-white font-bold rounded-xl hover:scale-105 transition-transform"
           >
-            Bot-қа өту
+            {t('auth_open_in_telegram_cta')}
           </button>
         </div>
       </div>
@@ -95,13 +106,13 @@ export const AuthGuard = ({
       <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">🛡️</div>
-          <h2 className="text-2xl font-bold text-red-500 mb-4">Admin тексерісі сәтсіз</h2>
+          <h2 className="text-2xl font-bold text-red-500 mb-4">{t('auth_admin_check_failed_title')}</h2>
           <p className="text-gray-300 mb-6">{adminError}</p>
           <button
             onClick={() => window.history.back()}
             className="px-6 py-3 bg-gray-600 text-white font-bold rounded-xl hover:scale-105 transition-transform"
           >
-            Артқа қайту
+            {t('back')}
           </button>
         </div>
       </div>
@@ -113,15 +124,13 @@ export const AuthGuard = ({
       <div className="flex items-center justify-center min-h-screen bg-black text-white p-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">🚫</div>
-          <h2 className="text-2xl font-bold text-red-500 mb-4">Қатынау жоқ</h2>
-          <p className="text-gray-300 mb-6">
-            Бұл бет тек әкімшілер үшін қолжетімді.
-          </p>
+          <h2 className="text-2xl font-bold text-red-500 mb-4">{t('auth_no_access_title')}</h2>
+          <p className="text-gray-300 mb-6">{t('auth_no_access_body')}</p>
           <button
             onClick={() => window.history.back()}
             className="px-6 py-3 bg-gray-600 text-white font-bold rounded-xl hover:scale-105 transition-transform"
           >
-            Артқа қайту
+            {t('back')}
           </button>
         </div>
       </div>

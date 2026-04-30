@@ -1,3 +1,5 @@
+import type { ComponentType, SVGProps } from 'react';
+
 export interface ChatMessage {
   id: string;
   userId?: number;
@@ -11,7 +13,8 @@ export interface ChatMessage {
 export interface ChatGroup {
   id: string;
   name: string;
-  icon: any;
+  // Lucide icon component (e.g. Users, MessageCircle).
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
   color: string;
   onlineCount: number;
   messages: ChatMessage[];

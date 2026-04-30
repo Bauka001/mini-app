@@ -80,6 +80,10 @@ const PairsBoard = ({ onEnd, isPaused: _isPaused, theme }: { onEnd: (score: stri
     }, 2000);
 
     return () => clearTimeout(previewTimer);
+    // Mount-only timer: onEnd is provided by the GameWrapper render-prop and
+    // its identity changes every render; including it would re-arm the
+    // preview/timer on every parent re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCardClick = (index: number) => {
