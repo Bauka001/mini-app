@@ -1049,6 +1049,12 @@ const SOCIAL_TASK_CATALOG = {
   tg_founding: { gems: 10 },
 };
 
+// Daily challenges are generated client-side by generateDailyChallenges() so
+// the server has no fixed catalog. We accept the client's challengeId as a
+// dedup key but hard-cap the per-claim reward and only allow one claim per
+// challengeId per UTC day per user.
+const MAX_CHALLENGE_REWARD_COINS = 200;
+
 app.post('/rewards/grant', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
@@ -1200,6 +1206,89 @@ app.post('/rewards/grant', writeLimiter, async (req, res) => {
         taskId,
         granted: { coins: 0, gems: gemsAward },
         gems: newGems,
+      });
+    }
+
+    if (reason === 'challenge') {
+      const challengeId = `${req.body?.challengeId || ''}`.trim().slice(0, 64);
+      if (!challengeId) {
+        return res.status(400).json({ error: 'Invalid challengeId' });
+      }
+
+      const requested = Number(req.body?.amount);
+      const safeAmount = Number.isFinite(requested)
+        ? Math.max(0, Math.min(MAX_CHALLENGE_REWARD_COINS, Math.floor(requested)))
+        : 0;
+      if (safeAmount === 0) {
+        return res.status(400).json({ error: 'Invalid challenge amount' });
+      }
+
+      const todayKey = new Date().toISOString().split('T')[0];
+
+      // One claim per challengeId per UTC day per user.
+      const { data: existing, error: existingError } = await supabase
+        .from('coin_transactions')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('reason', 'challenge_reward')
+        .contains('metadata', { challengeId, date: todayKey })
+        .maybeSingle();
+
+      if (existingError && !isMissingTableError(existingError)) {
+        throw existingError;
+      }
+      if (existing) {
+        return res.status(409).json({
+          error: 'Challenge already claimed today',
+          reason: 'already_claimed',
+          challengeId,
+        });
+      }
+
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('coins, is_blocked')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
+      if (!userRow) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (userRow.is_blocked) {
+        return res.status(403).json({ error: 'User is blocked' });
+      }
+
+      const newCoins = (Number(userRow.coins) || 0) + safeAmount;
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ coins: newCoins, updated_at: new Date().toISOString() })
+        .eq('telegram_id', userTelegramId);
+      if (updateError) {
+        throw updateError;
+      }
+
+      const { error: txError } = await supabase.from('coin_transactions').insert({
+        user_telegram_id: userTelegramId,
+        currency: 'coins',
+        amount: safeAmount,
+        direction: 'credit',
+        reason: 'challenge_reward',
+        metadata: { challengeId, date: todayKey, requested },
+      });
+      if (txError && !isMissingTableError(txError)) {
+        console.error('[Rewards] challenge transaction log failed:', txError);
+      }
+
+      return res.json({
+        ok: true,
+        reason: 'challenge',
+        challengeId,
+        granted: { coins: safeAmount, gems: 0 },
+        coins: newCoins,
+        clamped: safeAmount < (Number.isFinite(requested) ? requested : 0),
       });
     }
 

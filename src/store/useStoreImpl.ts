@@ -8,6 +8,7 @@ import {
   CanonicalUser,
   getUserMe,
   grantAdReward,
+  grantChallengeReward,
   grantLevelReward,
   grantSocialReward,
   issueTicketRecord,
@@ -1399,16 +1400,53 @@ export const useStore = create<UserState>()(
         }
       },
 
-      claimChallengeReward: (challengeId) => set((state) => {
+      claimChallengeReward: (challengeId) => {
+        const state = get();
         const challenge = state.challenges.find(c => c.id === challengeId);
-        if (!challenge || challenge.isClaimed || challenge.current < challenge.target) return state;
+        if (!challenge || challenge.isClaimed || challenge.current < challenge.target) return;
 
-        return {
-          coins: state.coins + challenge.reward,
-          challenges: state.challenges.map(c => c.id === challengeId ? { ...c, isClaimed: true } : c
-          )
-        };
-      }),
+        const localReward = challenge.reward;
+        // Optimistic UI: flip claimed state, credit coins. Server has final
+        // say — caps the reward at MAX_CHALLENGE_REWARD_COINS (200) and dedups
+        // per-day-per-challengeId. We reconcile on success / revert on
+        // rejection (most common: 409 already_claimed when the user spams
+        // the button or replays a previous day's id).
+        set({
+          coins: state.coins + localReward,
+          challenges: state.challenges.map(c =>
+            c.id === challengeId ? { ...c, isClaimed: true } : c
+          ),
+        });
+
+        if (isSupabaseConfigured) {
+          void grantChallengeReward(challengeId, localReward)
+            .then((response) => {
+              if (typeof response.coins === 'number') {
+                set({ coins: response.coins });
+              }
+            })
+            .catch((err) => {
+              console.error('[Rewards] challenge reward rejected:', err);
+              set((current) => ({
+                coins: Math.max(0, current.coins - localReward),
+                challenges: current.challenges.map(c =>
+                  c.id === challengeId ? { ...c, isClaimed: false } : c
+                ),
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Challenge reward declined',
+                    message: err instanceof Error ? err.message : 'Reward unavailable',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
+        }
+      },
 
       watchAd: (reward) => {
         // Optimistic local credit so the UI gives instant feedback. The server

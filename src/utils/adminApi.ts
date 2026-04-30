@@ -379,13 +379,15 @@ export const purchaseSkin = (skinId: string) =>
 
 export interface RewardGrantResponse {
   ok: true;
-  reason: 'ad' | 'level' | 'social';
+  reason: 'ad' | 'level' | 'social' | 'challenge';
   level?: number;
   taskId?: string;
+  challengeId?: string;
   granted: { coins: number; gems: number };
   coins?: number;
   gems?: number;
   remainingToday?: number;
+  clamped?: boolean;
 }
 
 export const grantAdReward = () =>
@@ -396,6 +398,13 @@ export const grantLevelReward = (level: number) =>
 
 export const grantSocialReward = (taskId: string) =>
   postJson<RewardGrantResponse>('/rewards/grant', { reason: 'social', taskId });
+
+export const grantChallengeReward = (challengeId: string, amount: number) =>
+  postJson<RewardGrantResponse>('/rewards/grant', {
+    reason: 'challenge',
+    challengeId,
+    amount,
+  });
 
 export const getTournamentLeaderboard = (weekKey?: string) =>
   postJson<TournamentLeaderboardResponse>('/tournaments/leaderboard', weekKey ? { weekKey } : {});
