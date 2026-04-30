@@ -108,7 +108,7 @@ export const DailyRewardModal = ({
           initial={{ scale: 0.8, y: 50 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.8, y: 50 }}
-          className="bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative"
+          className="bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/15 shadow-2xl relative"
         >
            <button 
              onClick={onClose}
@@ -117,19 +117,24 @@ export const DailyRewardModal = ({
              <X size={20} />
            </button>
 
-           <div className="p-8 text-center relative overflow-hidden">
-             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 bg-primary/20 blur-[80px] rounded-full pointer-events-none" />
+           <div className="p-8 text-center relative overflow-hidden isolate">
+             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 bg-primary/10 blur-[80px] rounded-full pointer-events-none z-0" aria-hidden="true" />
 
-             <h2 className="text-3xl font-black text-white mb-2 relative z-10 uppercase italic">Күнделікті аналитика</h2>
-             <p className="text-gray-400 text-sm mb-4 relative z-10 font-medium">
+             <h2
+               style={{ color: '#FFFFFF' }}
+               className="text-3xl font-extrabold mb-2 relative z-10 uppercase tracking-wide drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+             >
+               Күнделікті аналитика
+             </h2>
+             <p style={{ color: '#E5E7EB' }} className="text-sm mb-4 relative z-10 font-medium">
                Күнделікті кіру арқылы аналитика бөлімінің жаңа қабаттарын ашыңыз.
              </p>
 
-             <div className="relative z-10 mb-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-left">
+             <div className="relative z-10 mb-6 rounded-2xl border border-white/15 bg-white/[0.07] p-4 text-left">
                <div className="flex items-center justify-between gap-3 mb-2">
                  <div>
-                   <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Қазіргі серия</p>
-                   <p className="text-2xl font-black text-white">{dailyRewardStreak} күн</p>
+                   <p style={{ color: '#D1D5DB' }} className="text-xs uppercase tracking-[0.2em]">Қазіргі серия</p>
+                   <p style={{ color: '#FFFFFF' }} className="text-2xl font-extrabold">{dailyRewardStreak} күн</p>
                  </div>
                  {isVipActive ? (
                    <div className="inline-flex items-center gap-2 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-300">
@@ -138,9 +143,9 @@ export const DailyRewardModal = ({
                    </div>
                  ) : null}
                </div>
-               <p className="text-sm text-gray-400">{streakMessage}</p>
+               <p className="text-sm text-gray-200">{streakMessage}</p>
                {!isClaimedToday && nextMilestone ? (
-                 <p className="mt-2 text-xs font-semibold text-primary">
+                 <p className="mt-2 text-xs font-bold text-primary">
                    Келесі unlock: {nextMilestone.day}-күн, {nextMilestone.title.toLowerCase()}
                  </p>
                ) : null}
@@ -153,15 +158,15 @@ export const DailyRewardModal = ({
                  const isActive = !isUnlocked && currentFocusDay === step.day;
 
                  return (
-                   <div 
-                     key={step.day} 
+                   <div
+                     key={step.day}
                      className={clsx(
                        "relative rounded-2xl p-4 border transition-all text-left flex items-start gap-4",
                        isActive
-                         ? "bg-primary/15 border-primary shadow-[0_0_24px_rgba(255,215,0,0.22)]"
+                         ? "bg-primary/20 border-primary shadow-[0_0_24px_rgba(255,215,0,0.25)]"
                          : isUnlocked
-                           ? "bg-green-500/10 border-green-500/30"
-                           : "bg-white/5 border-white/10 opacity-70"
+                           ? "bg-green-500/15 border-green-500/40"
+                           : "bg-white/[0.07] border-white/15"
                      )}
                    >
                      <div className={clsx(
@@ -170,7 +175,7 @@ export const DailyRewardModal = ({
                          ? "bg-primary text-black"
                          : isUnlocked
                            ? "bg-green-500 text-white"
-                           : "bg-white/10 text-gray-400"
+                           : "bg-white/15 text-gray-200"
                      )}>
                        {isUnlocked ? <Check size={22} /> : <Icon size={22} />}
                      </div>
@@ -179,29 +184,29 @@ export const DailyRewardModal = ({
                        <div className="flex items-center justify-between gap-3 mb-1">
                          <span className={clsx(
                            "text-xs font-black uppercase tracking-[0.18em]",
-                           isActive ? "text-primary" : isUnlocked ? "text-green-400" : "text-gray-500"
+                           isActive ? "text-primary" : isUnlocked ? "text-green-300" : "text-gray-300"
                          )}>
                            Күн {step.day}
                          </span>
                          {isUnlocked ? (
-                           <span className="inline-flex items-center gap-1 rounded-full bg-green-500/15 px-2 py-1 text-[11px] font-bold text-green-300">
+                           <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-1 text-[11px] font-bold text-green-200">
                              <Check size={12} />
                              Ашық
                            </span>
                          ) : isActive ? (
-                           <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-[11px] font-bold text-primary">
+                           <span className="inline-flex items-center gap-1 rounded-full bg-primary/20 px-2 py-1 text-[11px] font-bold text-primary">
                              <Lock size={12} />
                              Кезекте
                            </span>
                          ) : (
-                           <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[11px] font-bold text-gray-400">
+                           <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1 text-[11px] font-bold text-gray-200">
                              <Lock size={12} />
                              Құлыптаулы
                            </span>
                          )}
                        </div>
-                       <div className="text-base font-bold text-white">{step.title}</div>
-                       <div className="text-sm text-gray-400">{step.description}</div>
+                       <div style={{ color: '#FFFFFF' }} className="text-base font-bold">{step.title}</div>
+                       <div style={{ color: '#E5E7EB' }} className="text-sm">{step.description}</div>
                      </div>
                    </div>
                  );
@@ -209,32 +214,32 @@ export const DailyRewardModal = ({
              </div>
 
              {claimedReward ? (
-               <motion.div 
+               <motion.div
                  initial={{ scale: 0 }}
                  animate={{ scale: 1 }}
-                 className="rounded-2xl border border-green-500/30 bg-green-500/10 p-5 text-left shadow-lg"
+                 className="rounded-2xl border border-green-500/40 bg-green-500/15 p-5 text-left shadow-lg"
                >
-                 <div className="flex items-center gap-2 text-green-300 font-black text-lg mb-2">
+                 <div className="flex items-center gap-2 text-green-200 font-black text-lg mb-2">
                    <Check size={22} />
                    {claimedReward.isNewUnlock ? 'Analytics ашылды' : 'Streak жаңартылды'}
                  </div>
-                 <div className="text-white font-bold">{claimedReward.analyticsTitle}</div>
-                 <div className="text-sm text-gray-300 mt-1">{claimedReward.analyticsDescription}</div>
+                 <div style={{ color: '#FFFFFF' }} className="font-bold">{claimedReward.analyticsTitle}</div>
+                 <div style={{ color: '#E5E7EB' }} className="text-sm mt-1">{claimedReward.analyticsDescription}</div>
                  {claimedReward.streakPreservedByVip ? (
-                   <div className="mt-3 text-xs font-semibold text-yellow-300">
+                   <div className="mt-3 text-xs font-semibold text-yellow-200">
                      VIP grace қолданылды: серия бір күн кешіккеніне қарамастан сақталды.
                    </div>
                  ) : null}
                </motion.div>
              ) : isClaimedToday ? (
-               <div className="bg-white/10 text-gray-400 font-bold py-4 rounded-xl text-sm flex items-center justify-center gap-2">
+               <div className="bg-white/15 text-gray-200 font-bold py-4 rounded-xl text-sm flex items-center justify-center gap-2">
                  <Check size={16} />
                  Ертең қайта кіріп, streak-ті жалғастырыңыз
                </div>
              ) : (
                <button
                  onClick={handleClaim}
-                 className="w-full bg-gradient-to-r from-primary to-orange-500 text-black font-black py-4 rounded-xl text-xl shadow-lg hover:scale-105 transition-transform active:scale-95"
+                 className="w-full bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 text-stone-950 font-black py-4 rounded-xl text-xl shadow-[0_8px_24px_rgba(245,158,11,0.45)] hover:scale-[1.02] transition-transform active:scale-95"
                >
                  Analytics ашу
                </button>

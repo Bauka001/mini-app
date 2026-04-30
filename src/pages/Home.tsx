@@ -295,7 +295,7 @@ const Home = () => {
             <p className="text-[12px] text-amber-100 mt-2 leading-snug drop-shadow-md font-medium max-w-[320px]">
               Жұма-жексенбі турниріне кіріңіз, VIP арқылы тегін entry алыңыз және analytics көмегімен нәтижеңізді бақылаңыз.
             </p>
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.2em] text-white">
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-2 text-[11px] font-black uppercase tracking-[0.2em] text-stone-950 shadow-[0_4px_14px_rgba(245,158,11,0.45)]">
               <Trophy size={12} />
               Join now
             </div>

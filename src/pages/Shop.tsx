@@ -350,60 +350,60 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
     <div className="space-y-6">
       <div className={clsx(
         "p-6 rounded-2xl border relative overflow-hidden",
-        "bg-gradient-to-br from-amber-500/10 to-yellow-500/10 border-amber-500/20"
+        "bg-gradient-to-br from-amber-500/15 to-yellow-500/15 border-amber-500/30"
       )}>
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-yellow-400/5 to-transparent" />
-        <div className="flex items-center justify-between mb-4">
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent pointer-events-none" />
+        <div className="relative z-10 flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500 text-white">
+            <div className="p-2.5 rounded-xl bg-amber-500 text-white shadow-md shadow-amber-500/30">
               <Crown size={24} fill="currentColor" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100">
+              <h3 className="text-lg font-black text-amber-950 dark:text-amber-100">
                 {t('vip_status') || 'VIP Status'}
               </h3>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
+              <p className="text-sm font-medium text-amber-900/80 dark:text-amber-200">
                 VIP мүшелік енді analytics, gold border және ads-free режимге бағытталған.
               </p>
             </div>
           </div>
-          <div className="px-3 py-1 rounded-full bg-amber-500 text-white text-xs font-bold">
+          <div className="px-3 py-1 rounded-full bg-amber-500 text-white text-xs font-black shadow-sm shadow-amber-500/40">
             {String(currentPlan || 'free').toUpperCase()}
           </div>
         </div>
         <div className="relative z-10 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-amber-500/20 bg-white/5 px-4 py-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-amber-100/70">Analytics</div>
-            <div className="mt-1 text-sm font-black text-white">VIP only</div>
+          <div className="rounded-2xl border border-amber-500/30 bg-white/70 dark:bg-white/[0.07] px-4 py-3">
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-800 dark:text-amber-200">Analytics</div>
+            <div className="mt-1 text-sm font-black text-stone-900 dark:text-white">VIP only</div>
           </div>
-          <div className="rounded-2xl border border-amber-500/20 bg-white/5 px-4 py-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-amber-100/70">Status</div>
-            <div className="mt-1 text-sm font-black text-white">Gold border</div>
+          <div className="rounded-2xl border border-amber-500/30 bg-white/70 dark:bg-white/[0.07] px-4 py-3">
+            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-800 dark:text-amber-200">Status</div>
+            <div className="mt-1 text-sm font-black text-stone-900 dark:text-white">Gold border</div>
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
-          <div className="flex items-center gap-2 text-cyan-300">
+        <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 p-4">
+          <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-300">
             <BarChart3 size={18} />
             <span className="text-xs font-black uppercase tracking-[0.2em]">Analytics</span>
           </div>
-          <div className="mt-3 text-sm font-bold text-white">30 күндік график пен Brain Score динамикасы</div>
+          <div className="mt-3 text-sm font-bold text-stone-900 dark:text-white">30 күндік график пен Brain Score динамикасы</div>
         </div>
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-          <div className="flex items-center gap-2 text-amber-300">
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4">
+          <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300">
             <Medal size={18} />
             <span className="text-xs font-black uppercase tracking-[0.2em]">Gold border</span>
           </div>
-          <div className="mt-3 text-sm font-bold text-white">Лидерборд пен профильде бірден байқалатын VIP статус</div>
+          <div className="mt-3 text-sm font-bold text-stone-900 dark:text-white">Лидерборд пен профильде бірден байқалатын VIP статус</div>
         </div>
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-          <div className="flex items-center gap-2 text-emerald-300">
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+          <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
             <Sparkles size={18} />
             <span className="text-xs font-black uppercase tracking-[0.2em]">Tournament</span>
           </div>
-          <div className="mt-3 text-sm font-bold text-white">Аптасына 1 тегін кіру weekend tournament монетизациясын ашады</div>
+          <div className="mt-3 text-sm font-bold text-stone-900 dark:text-white">Аптасына 1 тегін кіру weekend tournament монетизациясын ашады</div>
         </div>
       </div>
       
@@ -414,62 +414,62 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
             className={clsx(
               "p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden",
               plan.popular
-                ? "bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-yellow-500/40 ring-2 ring-yellow-400 scale-105"
-                : "bg-white/50 dark:bg-black/30 border-amber-500/20 hover:border-amber-500/40"
+                ? "bg-gradient-to-br from-amber-400/30 to-orange-500/30 dark:from-yellow-500/25 dark:to-orange-500/25 border-amber-500/60 ring-2 ring-amber-400 scale-105"
+                : "bg-white dark:bg-black/40 border-amber-500/30 hover:border-amber-500/60 shadow-sm"
             )}
           >
             {plan.popular && (
-              <div className="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] font-bold px-2 py-1 rounded-bl-xl">
+              <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-black px-2 py-1 rounded-bl-xl shadow-md">
                 TOP VALUE
               </div>
             )}
-            
+
             <div className="text-center mb-4">
               <div className={clsx(
                 "inline-flex items-center justify-center px-3 py-1 rounded-full text-xs font-black tracking-[0.18em] mb-3",
-                plan.popular ? "bg-yellow-400 text-stone-950" : "bg-amber-500 text-white"
+                plan.popular ? "bg-amber-500 text-white shadow-sm" : "bg-amber-500 text-white"
               )}>
                 {plan.badge}
               </div>
-              <h3 className={clsx("text-xl font-black", plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100")}>
+              <h3 className={clsx("text-xl font-black", plan.popular ? "text-amber-900 dark:text-yellow-200" : "text-amber-900 dark:text-amber-100")}>
                 {plan.name}
               </h3>
-              <p className={clsx("text-sm", plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300")}>
+              <p className={clsx("text-sm font-semibold", plan.popular ? "text-amber-800 dark:text-yellow-300" : "text-amber-800 dark:text-amber-300")}>
                 ({plan.duration})
               </p>
-              <p className={clsx("text-xs mt-2", plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300")}>
+              <p className={clsx("text-xs mt-2 font-medium", plan.popular ? "text-amber-800 dark:text-yellow-300" : "text-amber-800 dark:text-amber-300")}>
                 {plan.description}
               </p>
             </div>
-            
+
             <div className="text-center mb-4">
-              <div className={clsx("text-3xl font-black", plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100")}>
+              <div className={clsx("text-3xl font-black", plan.popular ? "text-amber-900 dark:text-yellow-300" : "text-amber-900 dark:text-amber-100")}>
                 {plan.priceLabel}
               </div>
-              <div className={clsx("text-sm font-bold mt-1", plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300")}>
+              <div className={clsx("text-sm font-bold mt-1", plan.popular ? "text-amber-800 dark:text-yellow-300" : "text-amber-800 dark:text-amber-300")}>
                 {plan.starsLabel}
               </div>
-              <div className="text-xs font-bold text-emerald-500 mt-1">
+              <div className="text-xs font-black text-emerald-600 dark:text-emerald-400 mt-1">
                 {plan.highlight}
               </div>
             </div>
-            
+
             <ul className="space-y-2 mb-4">
               {vipFeatures.map((feature, index) => (
-                <li key={index} className={clsx("text-xs flex items-start gap-2", plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300")}>
-                  <span className="mt-0.5">✓</span>
+                <li key={index} className={clsx("text-xs flex items-start gap-2 font-medium", plan.popular ? "text-amber-900 dark:text-yellow-200" : "text-amber-900 dark:text-amber-200")}>
+                  <span className="mt-0.5 text-emerald-600 dark:text-emerald-400 font-black">✓</span>
                   {feature}
                 </li>
               ))}
             </ul>
-            
+
             <button
               onClick={() => onBuyPlan(plan.id)}
               className={clsx(
-              "w-full py-3 rounded-xl font-bold text-sm transition-all",
+              "w-full py-3 rounded-xl font-black text-sm transition-all",
               plan.popular
-                ? "bg-gradient-to-r from-yellow-400 to-orange-500 text-black hover:scale-105 shadow-lg shadow-yellow-500/30"
-                : "bg-amber-500 text-white hover:bg-amber-600"
+                ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white hover:scale-[1.02] shadow-lg shadow-amber-500/40"
+                : "bg-amber-500 text-white hover:bg-amber-600 shadow-md shadow-amber-500/30"
             )}>
               {t('subscribe') || 'Subscribe'}
             </button>
@@ -479,7 +479,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
 
       <button
         onClick={onShowTerms}
-        className="w-full py-3 rounded-xl bg-blue-600/10 border border-blue-500/30 text-blue-400 font-bold text-sm hover:bg-blue-600/20 transition-all flex items-center justify-center gap-2"
+        className="w-full py-3 rounded-xl bg-blue-600/10 border border-blue-500/40 text-blue-700 dark:text-blue-300 font-bold text-sm hover:bg-blue-600/20 transition-all flex items-center justify-center gap-2"
       >
         <FileText size={16} />
         Қатысу шарттары / Условия участия
@@ -487,7 +487,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
 
       <button
         onClick={() => navigate('/analytics')}
-        className="w-full py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold text-sm hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2"
+        className="w-full py-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-800 dark:text-amber-200 font-bold text-sm hover:bg-amber-500/25 transition-all flex items-center justify-center gap-2"
       >
         <BarChart3 size={16} />
         {currentPlan === 'premium' ? 'VIP analytics ашу' : 'VIP analytics preview көру'}
