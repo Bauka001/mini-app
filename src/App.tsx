@@ -1,4 +1,4 @@
-import { HashRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import WebApp from '@twa-dev/sdk';
@@ -455,6 +455,13 @@ function AppRoutes() {
             <Route path="settings" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
             <Route path="tickets" element={<Suspense fallback={<AdminFallback />}><AdminPanel /></Suspense>} />
           </Route>
+
+          {/* Catch-all: if HashRouter restores a hash like /#/foo from a
+              previous session that points at a route we no longer ship,
+              the user would see Layout with an empty Outlet — looks
+              identical to a "blank screen" bug. Bouncing them to / keeps
+              the app self-rescuing. */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatedRoutes>
 

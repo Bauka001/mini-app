@@ -65,16 +65,25 @@ ReactDOM.createRoot(rootEl).render(
     }
   };
 
+  // childElementCount alone isn't enough — a Layout that renders its cream
+  // wrapper but mounts an empty <Outlet /> still counts as 1 child, but to
+  // the user it's a blank screen. Use textContent length as a stronger signal
+  // that the app actually rendered useful UI.
+  const isVisuallyEmpty = () => {
+    const text = (rootEl.textContent || '').trim();
+    return rootEl.childElementCount === 0 || text.length < 10;
+  };
+
   // Successful render → clear the counter so a future stuck state still gets
   // its full quota.
   setTimeout(() => {
-    if (rootEl.childElementCount > 0 && getAttempts() > 0) {
+    if (!isVisuallyEmpty() && getAttempts() > 0) {
       try { sessionStorage.removeItem(ATTEMPT_KEY); } catch { /* noop */ }
     }
   }, TIMEOUT_MS + 1000);
 
   setTimeout(async () => {
-    if (rootEl.childElementCount > 0) return;
+    if (!isVisuallyEmpty()) return;
 
     const attempts = getAttempts();
     if (attempts >= MAX_ATTEMPTS) {
