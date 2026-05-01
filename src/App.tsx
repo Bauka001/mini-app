@@ -276,7 +276,17 @@ function AppRoutes() {
       return;
     }
 
-    if (location.pathname !== '/daily-workout' && !location.pathname.startsWith('/admin')) {
+    // Pin the user to /daily-workout while screen 1 is still asking them to
+    // start. Once they tap PLAY (`hasStartedWorkout` flips true), we hand off
+    // to the game route the handler navigated to — clamping back to
+    // /daily-workout here would otherwise cancel the navigation and look
+    // exactly like a "PLAY does nothing" reload.
+    const isGameRoute = location.pathname.startsWith('/game/');
+    const isAdminRoute = location.pathname.startsWith('/admin');
+    const isDailyWorkout = location.pathname === '/daily-workout';
+    const allowedDuringWorkout = onboardingProgress.hasStartedWorkout && isGameRoute;
+
+    if (!isDailyWorkout && !isAdminRoute && !allowedDuringWorkout) {
       navigate('/daily-workout', { replace: true });
     }
     // updateOnboardingProgress intentionally omitted — it's a stable closure
