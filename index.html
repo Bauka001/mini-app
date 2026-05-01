@@ -30,7 +30,46 @@
     </style>
   </head>
   <body class="bg-black text-white overflow-hidden">
-    <div id="root"></div>
+    <div id="root">
+      <!-- JS-free boot fallback. Stays visible only until React replaces the
+           root's children. If the bundle never executes (Telegram WebView
+           serving a stale cached page, blocked CDN, broken module graph),
+           the user still sees a recognisable screen with a manual reload
+           button instead of an unrecoverable blank cream WebView. -->
+      <div id="boot-fallback" style="
+        position: fixed; inset: 0;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 16px; padding: 24px;
+        background: #0F0F13; color: #FFFFFF;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+        text-align: center;
+      ">
+        <div style="
+          width: 48px; height: 48px;
+          border: 3px solid rgba(255,255,255,0.15);
+          border-top-color: #D97757;
+          border-radius: 50%;
+          animation: focus-spin 0.9s linear infinite;
+        "></div>
+        <div style="font-size: 16px; font-weight: 600; letter-spacing: 0.02em;">Loading Focus…</div>
+        <div id="boot-fallback-hint" style="
+          font-size: 13px; color: rgba(255,255,255,0.55); max-width: 280px; line-height: 1.45;
+          opacity: 0; transition: opacity 250ms ease;
+        ">Taking longer than usual. Tap below to reload — this clears the local cache.</div>
+        <button id="boot-fallback-reload" type="button" style="
+          margin-top: 4px; padding: 12px 20px;
+          background: #D97757; color: #FFFFFF;
+          border: 0; border-radius: 12px;
+          font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
+          cursor: pointer;
+          opacity: 0; pointer-events: none; transition: opacity 250ms ease;
+        ">Reload</button>
+      </div>
+    </div>
+    <style>
+      @keyframes focus-spin { to { transform: rotate(360deg); } }
+    </style>
+    <script src="/boot-fallback.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
