@@ -26,10 +26,85 @@ if (analyticsToken && isTelegramHost()) {
     });
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootEl = document.getElementById('root')!;
+
+ReactDOM.createRoot(rootEl).render(
   <React.StrictMode>
     <GlobalErrorBoundary>
       <App />
     </GlobalErrorBoundary>
   </React.StrictMode>,
 )
+
+// Self-healing watchdog. If we got this far the bundle parsed and ReactDOM.render
+// was called — but a stuck Telegram WebView (cached HTML referencing dead asset
+// hashes, half-installed SW, broken zustand persist payload, etc.) can leave
+// `#root` empty for the entire session, presenting users with a blank cream
+// screen they can't escape. Instead of asking them to clear data manually,
+// detect the empty-render state and self-repair: unregister all SWs, drop every
+// cache, then hard reload bypassing the cache. Bounded by a session-scoped
+// attempt counter so we can never loop forever.
+{
+  const ATTEMPT_KEY = 'focus-watchdog-attempts';
+  const MAX_ATTEMPTS = 3;
+  const TIMEOUT_MS = 5000;
+
+  const getAttempts = (): number => {
+    try {
+      return parseInt(sessionStorage.getItem(ATTEMPT_KEY) || '0', 10) || 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const incAttempts = (n: number) => {
+    try {
+      sessionStorage.setItem(ATTEMPT_KEY, String(n));
+    } catch {
+      /* sessionStorage unavailable — give up rather than loop */
+    }
+  };
+
+  // Successful render → clear the counter so a future stuck state still gets
+  // its full quota.
+  setTimeout(() => {
+    if (rootEl.childElementCount > 0 && getAttempts() > 0) {
+      try { sessionStorage.removeItem(ATTEMPT_KEY); } catch { /* noop */ }
+    }
+  }, TIMEOUT_MS + 1000);
+
+  setTimeout(async () => {
+    if (rootEl.childElementCount > 0) return;
+
+    const attempts = getAttempts();
+    if (attempts >= MAX_ATTEMPTS) {
+      // We've already auto-recovered enough — leaving further loops to the
+      // user prevents a retry storm if the bundle itself is permanently
+      // broken on this device.
+      console.error('[watchdog] empty render after', attempts, 'attempts — giving up');
+      return;
+    }
+
+    incAttempts(attempts + 1);
+    console.warn('[watchdog] empty render after', TIMEOUT_MS, 'ms — purging caches and reloading');
+
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      if (typeof caches !== 'undefined') {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch (err) {
+      console.warn('[watchdog] purge failed:', err);
+    }
+
+    // Append a cache-buster so Telegram's WebView (which sometimes ignores
+    // cache-control on the HTML doc) is forced to fetch fresh.
+    const url = new URL(window.location.href);
+    url.searchParams.set('_r', String(Date.now()));
+    window.location.replace(url.toString());
+  }, TIMEOUT_MS);
+}
