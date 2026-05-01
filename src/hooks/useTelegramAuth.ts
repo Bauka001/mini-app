@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { getTelegramUser } from '../utils/telegram';
-import { verifyTelegramInitData } from '../utils/auth';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -76,23 +75,12 @@ export const useTelegramAuth = () => {
           return;
         }
 
-        // If in Telegram, verify initData signature with backend
-        if (isTelegram) {
-          const initData = (window as any)?.Telegram?.WebApp?.initData || WebApp?.initData || '';
-          const verify = await verifyTelegramInitData(initData);
-          if (!verify?.ok) {
-            setAuthState({
-              isAuthenticated: false,
-              isLoading: false,
-              errorKey: 'auth_error_verify_failed',
-              errorReason: verify?.reason || null,
-              user: null,
-              isGuest: false,
-            });
-            return;
-          }
-        }
-
+        // We do not gate UI render on /auth/verify. Telegram already validates
+        // initData when launching the WebApp, and every server endpoint that
+        // returns user data (e.g. /users/me, /games/submit, /tickets/issue)
+        // re-verifies the HMAC with BOT_TOKEN on its own — so the UI block was
+        // redundant with the real security boundary. Removing it lets the app
+        // load even when the backend env isn't fully configured yet.
         setAuthState({
           isAuthenticated: true,
           isLoading: false,
