@@ -39,6 +39,15 @@ export default defineConfig({
       workbox: {
         // App-shell precache — built JS/CSS/HTML/images/svg/manifests/fonts.
         globPatterns: ['**/*.{js,css,html,png,svg,webmanifest,woff,woff2}'],
+        // A user with a stale SW (e.g. a Telegram visitor whose origin had
+        // a SW installed during a prior browser session) would otherwise
+        // remain stuck on outdated precached chunks for hours — Workbox
+        // waits for every client to close before activating the new SW.
+        // Force the new SW to take over immediately so the next navigation
+        // hits the new asset hashes and doesn't 404 → blank screen.
+        skipWaiting: true,
+        clientsClaim: true,
+        cleanupOutdatedCaches: true,
         // The /api/* surface is dynamic; never let the SW intercept or cache
         // backend traffic. Same for the TonConnect bridge endpoints.
         navigateFallback: '/index.html',
