@@ -89,7 +89,10 @@ type WorkoutOnboardingGame = {
 };
 
 const DAILY_WORKOUT_STORAGE_KEY = 'focus-daily-workout-v1';
-const ONBOARDING_STORAGE_PREFIX = 'focus-onboarding-v1';
+// v2: drops any state written by the broken redirect-loop builds —
+// hasStartedWorkout=true with screen still 1 would leave the user trapped
+// forever otherwise.
+const ONBOARDING_STORAGE_PREFIX = 'focus-onboarding-v2';
 
 const workoutOnboardingGames: WorkoutOnboardingGame[] = [
   { id: 'memory', routeId: 'memory', historyIds: ['memory'] },
