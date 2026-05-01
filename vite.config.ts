@@ -9,6 +9,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      // Self-destroying SW: the previous deploys shipped a precaching SW that
+      // got stuck on Telegram users — it kept serving stale chunks across
+      // deploys, blanking the mini app on second launch. Generate a SW that
+      // unregisters itself + clears caches on every device the moment it's
+      // fetched, then we can decide whether to re-introduce PWA later.
+      selfDestroying: true,
       // Skip Vite's auto-injection — we register the SW ourselves in
       // src/pwa.ts so we can disable registration inside the Telegram
       // WebView (where service workers are unreliable and add no value).
