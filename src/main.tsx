@@ -85,8 +85,9 @@ ReactDOM.createRoot(rootEl).render(
       return;
     }
 
-    incAttempts(attempts + 1);
-    console.warn('[watchdog] empty render after', TIMEOUT_MS, 'ms — purging caches and reloading');
+    const nextAttempt = attempts + 1;
+    incAttempts(nextAttempt);
+    console.warn('[watchdog] empty render after', TIMEOUT_MS, 'ms — purging (attempt', nextAttempt, ')');
 
     try {
       if ('serviceWorker' in navigator) {
@@ -98,7 +99,23 @@ ReactDOM.createRoot(rootEl).render(
         await Promise.all(keys.map((k) => caches.delete(k)));
       }
     } catch (err) {
-      console.warn('[watchdog] purge failed:', err);
+      console.warn('[watchdog] cache purge failed:', err);
+    }
+
+    // On the second attempt also drop persisted app state — covers the case
+    // where a corrupted zustand payload (interrupted write, schema drift)
+    // is what's preventing render. Consent flag is preserved so the user
+    // doesn't have to re-tick the boxes after a crash recovery.
+    if (nextAttempt >= 2) {
+      try {
+        const consent = localStorage.getItem('focus-consent-v1');
+        Object.keys(localStorage)
+          .filter((k) => k.startsWith('focus-app-') || k.startsWith('focus-onboarding-'))
+          .forEach((k) => localStorage.removeItem(k));
+        if (consent) localStorage.setItem('focus-consent-v1', consent);
+      } catch (err) {
+        console.warn('[watchdog] localStorage reset failed:', err);
+      }
     }
 
     // Append a cache-buster so Telegram's WebView (which sometimes ignores
