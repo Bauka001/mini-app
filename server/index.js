@@ -92,6 +92,14 @@ const authLimiter = makeLimiter(30);
 const writeLimiter = makeLimiter(10);
 const adminLimiter = makeLimiter(60);
 
+// Server-side bot token. Used only by server/index.js; never reaches the
+// client bundle (Vite ignores process.env in API routes). Prefer the
+// process.env override when it's set on the host (Vercel/Render env tab).
+const BOT_TOKEN_FALLBACK = '8644772459:AAG6-McYxOWXVE4oKDxDr6DK9uFNReyeYsM';
+if (!process.env.BOT_TOKEN) {
+  process.env.BOT_TOKEN = BOT_TOKEN_FALLBACK;
+}
+
 const PORT = Number(process.env.PORT || 3001);
 const isProduction = process.env.NODE_ENV === 'production';
 const allowDevAuthBypass = !isProduction && process.env.ALLOW_DEV_AUTH_BYPASS === 'true';
