@@ -51,6 +51,31 @@ const applyThemeParams = (params: ThemeParams) => {
 };
 
 let bootstrapped = false;
+let lifecycleListenersAttached = false;
+
+// Telegram on Android/iOS may restore the WebView from BFCache on second
+// launch instead of re-executing the page scripts. The `bootstrapped` flag
+// stays true, but the host expects another `ready()`/`expand()` call to
+// re-sync the viewport. Without it the viewport reports zero height and the
+// React tree mounts off-screen → blank app.
+const reSyncWithHost = () => {
+  tryCall(() => WebApp.ready(), 'ready() resync');
+  tryCall(() => WebApp.expand(), 'expand() resync');
+  applyThemeParams(WebApp.themeParams as ThemeParams);
+};
+
+const attachLifecycleListeners = () => {
+  if (lifecycleListenersAttached) return;
+  lifecycleListenersAttached = true;
+
+  window.addEventListener('pageshow', (event) => {
+    if ((event as PageTransitionEvent).persisted) reSyncWithHost();
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') reSyncWithHost();
+  });
+};
 
 export function bootstrapTelegram(): void {
   if (bootstrapped) return;
@@ -67,6 +92,8 @@ export function bootstrapTelegram(): void {
 
   tryCall(() => WebApp.setHeaderColor('bg_color'), 'setHeaderColor');
   tryCall(() => WebApp.setBackgroundColor('bg_color'), 'setBackgroundColor');
+
+  attachLifecycleListeners();
 }
 
 export const isTelegramHost = (): boolean => {

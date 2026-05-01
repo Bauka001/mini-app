@@ -18,10 +18,36 @@ const isTelegramHost = (): boolean => {
   return typeof tg.platform === 'string' && tg.platform !== 'unknown';
 };
 
+// If the user previously visited this origin in a regular browser or installed
+// the PWA, a service worker is registered for the origin. Skipping registerSW
+// inside Telegram doesn't unregister it — the existing SW still controls every
+// fetch in the WebView. After a deploy, hashed asset names in the new
+// index.html no longer match what the SW precached, so module imports 404 and
+// React mounts a blank tree. This was the cause of the "second launch =
+// empty screen" bug. Tear it down hard whenever we detect Telegram.
+const purgeServiceWorkers = async (): Promise<void> => {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    }
+    if (typeof caches !== 'undefined') {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    }
+  } catch (err) {
+    if (import.meta.env.DEV) console.warn('[pwa] purge failed:', err);
+  }
+};
+
 export const registerPwa = (): void => {
   if (typeof window === 'undefined') return;
   if (!('serviceWorker' in navigator)) return;
-  if (isTelegramHost()) return;
+
+  if (isTelegramHost()) {
+    void purgeServiceWorkers();
+    return;
+  }
 
   registerSW({
     immediate: true,
