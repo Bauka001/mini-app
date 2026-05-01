@@ -2,57 +2,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type { Variants } from 'framer-motion';
 import { useLocation } from 'react-router-dom';
 
-const pageFlipVariants: Variants = {
-  initial: {
-    rotateY: 90,
-    opacity: 0,
-    filter: 'blur(10px)',
-    transformOrigin: 'left center',
-  },
+// The previous variants used rotateY(90deg) with transformOrigin 'left center'.
+// Inside Telegram's WebView the entering animation occasionally got stuck at
+// `initial`, leaving the page rotated edge-on so users only saw a thin sliver
+// of content along the left edge. A plain opacity transition has no equivalent
+// failure mode — the worst case is a hard cut, never an invisible page.
+const pageFadeVariants: Variants = {
+  initial: { opacity: 0 },
   animate: {
-    rotateY: 0,
     opacity: 1,
-    filter: 'blur(0px)',
-    transformOrigin: 'left center',
-    transition: {
-      duration: 0.5,
-      ease: [0.22, 1, 0.36, 1],
-    },
+    transition: { duration: 0.2, ease: 'easeOut' },
   },
   exit: {
-    rotateY: -90,
     opacity: 0,
-    filter: 'blur(10px)',
-    transformOrigin: 'right center',
-    transition: {
-      duration: 0.4,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-};
-
-// Reserved for slide-direction transitions; not currently mounted but kept
-// alongside pageFlipVariants so swapping is a one-line change.
-const _slideVariants = {
-  initial: {
-    x: '100%',
-    opacity: 0,
-  },
-  animate: {
-    x: 0,
-    opacity: 1,
-    transition: {
-      duration: 0.4,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
-  exit: {
-    x: '-30%',
-    opacity: 0,
-    transition: {
-      duration: 0.3,
-      ease: [0.22, 1, 0.36, 1],
-    },
+    transition: { duration: 0.15, ease: 'easeIn' },
   },
 };
 
@@ -63,14 +26,10 @@ export const AnimatedRoutes = ({ children }: { children: React.ReactNode }) => {
     <AnimatePresence mode="wait" initial={false}>
       <motion.div
         key={location.pathname}
-        variants={pageFlipVariants}
+        variants={pageFadeVariants}
         initial="initial"
         animate="animate"
         exit="exit"
-        style={{
-          perspective: '1500px',
-          transformStyle: 'preserve-3d',
-        }}
       >
         {children}
       </motion.div>
@@ -83,14 +42,10 @@ export const GameTransition = ({ children, isVisible }: { children: React.ReactN
     <AnimatePresence mode="wait">
       {isVisible && (
         <motion.div
-          variants={pageFlipVariants}
+          variants={pageFadeVariants}
           initial="initial"
           animate="animate"
           exit="exit"
-          style={{
-            perspective: '1500px',
-            transformStyle: 'preserve-3d',
-          }}
         >
           {children}
         </motion.div>
