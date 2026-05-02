@@ -96,8 +96,6 @@ export const telegramStorage = {
       WebApp.CloudStorage.setItem(key, value, (err) => {
         if (err) {
             console.error(`[CloudStorage] Set Error for ${key}:`, err);
-        } else {
-            console.log(`[CloudStorage] Successfully saved data for ${key}`);
         }
       });
     }

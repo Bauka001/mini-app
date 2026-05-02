@@ -3,12 +3,14 @@ import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import WebApp from '@twa-dev/sdk';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { buildVipAnalyticsSnapshot, useStore } from '../store/useStoreImpl';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
 
 export default function AnalyticsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const styles = useThemeStyles();
   const history = useStore((state) => state.history);
   const brainStats = useStore((state) => state.brainStats);
@@ -38,29 +40,29 @@ export default function AnalyticsPage() {
                   <Crown size={14} />
                   VIP Analytics
                 </div>
-                <h1 className={clsx('mt-3 text-2xl sm:text-3xl font-black', styles.textPrimary)}>Brain Score аналитикасы</h1>
+                <h1 className={clsx('mt-3 text-2xl sm:text-3xl font-black', styles.textPrimary)}>{t('analytics_title')}</h1>
                 <p className={clsx('mt-2 max-w-2xl text-sm leading-6', styles.textSecondary)}>
-                  Бұл бет VIP сатылымының негізгі нүктесі: ойыншы өз динамикасын, gold мәртебесін және турнирге дайындық деңгейін осы жерден көреді.
+                  {t('analytics_page_desc')}
                 </p>
               </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3 w-full lg:w-auto">
               <div className={clsx('rounded-2xl px-4 py-3', styles.cardClass)}>
-                <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>Статус</div>
+                <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>{t('analytics_status')}</div>
                 <div className={clsx('mt-1 text-sm font-black', styles.textPrimary)}>
-                  {isVipAnalyticsUnlocked ? 'VIP Active' : 'Locked'}
+                  {isVipAnalyticsUnlocked ? t('analytics_vip_active') : t('analytics_locked')}
                 </div>
               </div>
               <div className={clsx('rounded-2xl px-4 py-3', styles.cardClass)}>
-                <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>Combined Score</div>
+                <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>{t('analytics_combined_score')}</div>
                 <div className={clsx('mt-1 text-sm font-black', styles.textPrimary)}>
                   {brainStats.combinedScore ?? 100}
                 </div>
               </div>
               <div className={clsx('rounded-2xl px-4 py-3', styles.cardClass)}>
-                <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>Weekend Mode</div>
-                <div className={clsx('mt-1 text-sm font-black', styles.textPrimary)}>Tournament Ready</div>
+                <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>{t('analytics_weekend_mode')}</div>
+                <div className={clsx('mt-1 text-sm font-black', styles.textPrimary)}>{t('analytics_tournament_ready')}</div>
               </div>
             </div>
           </div>
@@ -70,18 +72,18 @@ export default function AnalyticsPage() {
           {[
             {
               icon: Brain,
-              title: 'Premium analytics',
-              text: '30 күндік график, Brain Score өзгерісі және ойындар breakdown бір бетке жиналады.',
+              title: t('analytics_premium'),
+              text: t('analytics_premium_desc'),
             },
             {
               icon: Crown,
-              title: 'Gold шекара',
-              text: 'VIP ойыншы leaderboard пен профильде ерекше gold мәртебемен көрінеді.',
+              title: t('analytics_gold_border'),
+              text: t('analytics_gold_border_desc'),
             },
             {
               icon: Trophy,
-              title: 'Tournament utility',
-              text: 'Аптасына 1 тегін турнир кіруі турнир монетизациясымен тікелей байланысады.',
+              title: t('analytics_tournament_utility'),
+              text: t('analytics_tournament_utility_desc'),
             },
           ].map((item) => (
             <div key={item.title} className={clsx('rounded-[28px] border p-5', styles.panelClass)}>
@@ -115,9 +117,9 @@ export default function AnalyticsPage() {
               <Sparkles size={20} />
             </div>
             <div>
-              <h2 className={clsx('text-lg font-black', styles.textPrimary)}>VIP қалай сатылады</h2>
+              <h2 className={clsx('text-lg font-black', styles.textPrimary)}>{t('analytics_how_sold')}</h2>
               <p className={clsx('mt-1 text-sm', styles.textSecondary)}>
-                Analytics + gold статус + weekend tournament utility бір bundle ретінде көрсетіледі.
+                {t('analytics_how_sold_desc')}
               </p>
             </div>
           </div>

@@ -69,7 +69,7 @@ const PROFILE_STICKERS = [
 const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
 
 const ProfilePage = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { 
     user, 
@@ -126,13 +126,13 @@ const ProfilePage = () => {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      WebApp.showAlert('Тек сурет файлын таңдаңыз');
+      WebApp.showAlert(t('select_only_image'));
       event.target.value = '';
       return;
     }
 
     if (file.size > MAX_PROFILE_IMAGE_SIZE) {
-      WebApp.showAlert('Сурет өлшемі 5 MB-тан аспауы керек');
+      WebApp.showAlert(t('image_size_limit'));
       event.target.value = '';
       return;
     }
@@ -327,12 +327,12 @@ const ProfilePage = () => {
                       className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
                     >
                       <Camera size={14} />
-                      {user.photoUrl ? 'Суретті ауыстыру' : 'Сурет жүктеу'}
+                      {user.photoUrl ? t('change_photo') : t('upload_photo')}
                     </button>
                     {activeSkin !== 'default' ? (
                       <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] font-black text-emerald-500">
                         <LayoutGrid size={14} />
-                        Белсенді стикер: {ownedProfileStickers.find((sticker) => sticker.id === activeSkin)?.name || activeSkin}
+                        {i18n.language === 'kz' ? 'Белсенді стикер:' : i18n.language === 'ru' ? 'Активный стикер:' : 'Active Sticker:'} {ownedProfileStickers.find((sticker) => sticker.id === activeSkin)?.name || activeSkin}
                       </div>
                     ) : null}
                   </div>
@@ -380,9 +380,9 @@ const ProfilePage = () => {
               <BarChart3 size={20} />
             </div>
             <div>
-              <div className={clsx("text-sm font-black", textPrimary)}>VIP Analytics беті</div>
+              <div className={clsx("text-sm font-black", textPrimary)}>{t('profile_analytics_title')}</div>
               <div className={clsx("text-xs mt-1", textSecondary)}>
-                {isVipAnalyticsUnlocked ? 'Толық аналитиканы ашу' : 'Analytics, gold border және турнир utility VIP ішінде'}
+                {isVipAnalyticsUnlocked ? t('profile_analytics_unlocked') : t('profile_analytics_locked')}
               </div>
             </div>
           </div>
@@ -456,8 +456,8 @@ const ProfilePage = () => {
                         </div>
 
                         <div className="flex items-center gap-3">
-                          <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 p-2.5 rounded-full shadow-lg flex-shrink-0">
-                            <Car className="w-8 h-8 text-yellow-900" />
+                          <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 border-yellow-500/30 shadow-lg">
+                            <img src="/mustang.jpg" alt="Mustang" className="w-full h-full object-cover" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="text-2xl font-black text-yellow-800 font-mono tracking-wider">
@@ -514,7 +514,7 @@ const ProfilePage = () => {
               <div className="flex items-center justify-between mb-4 px-2">
                 <h3 className={clsx("text-lg font-black flex items-center gap-2", textPrimary)}>
                   <LayoutGrid size={20} className={textSecondary} />
-                  Стикерлер топтамасы
+                  {t('profile_sticker_collection')}
                 </h3>
                 <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>
                   {ownedProfileStickers.length}
@@ -540,7 +540,7 @@ const ProfilePage = () => {
                         </div>
                         {isSelected ? (
                           <span className="rounded-full bg-emerald-500 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-white">
-                            Таңдалған
+                            {t('profile_sticker_selected')}
                           </span>
                         ) : null}
                       </div>
@@ -548,7 +548,7 @@ const ProfilePage = () => {
                       <div className="mt-3">
                         <div className={clsx("text-sm font-black", textPrimary)}>{sticker.name}</div>
                         <div className={clsx("mt-1 text-xs", textSecondary)}>
-                          Профиль стикері ретінде қолдануға болады
+                          {t('profile_sticker_desc')}
                         </div>
                       </div>
 
@@ -561,7 +561,7 @@ const ProfilePage = () => {
                           isSelected ? "bg-emerald-600 text-white cursor-default" : styles.btnSecondary
                         )}
                       >
-                        {isSelected ? 'Қосулы' : 'Қосу'}
+                        {isSelected ? t('equipped') : t('equip')}
                       </button>
                     </div>
                   );
@@ -740,7 +740,6 @@ const getGameIcon = (gameId: string) => {
     case 'math': return <Calculator size={20} />;
     case 'memory': return <LayoutGrid size={20} />;
     case 'schulte': return <Star size={20} />;
-    case 'agent_spot': return <Target size={20} />;
     case 'code_breaker': return <Lock size={20} />;
     case 'tetris': return <LayoutGrid size={20} />;
     case '2048': return <Zap size={20} />;

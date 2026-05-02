@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { useStore } from '../../store/useStoreImpl';
 import { Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { Difficulty, DIFFICULTY_COIN_MULT } from '../../types/games';
 import { useGameTimer } from '../../hooks/useGameTimer';
 import { useLocalBest } from '../../hooks/useLocalBest';
@@ -193,7 +193,7 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
           ));
           setFlippedIndices([]);
           setMismatchIndices([]);
-        }, 600);
+        }, 2000);
       }
     }
   }, [isPreviewing, isGamePaused, cards, flippedIndices, combo, timeLeftMs, score, config.pairs, submit, difficulty, onEnd, haptic]);
@@ -251,14 +251,9 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
         />
       </motion.div>
 
-      <motion.div
+      <div
         role="grid"
         aria-label="Memory pairs grid"
-        aria-rowcount={Math.ceil((config.pairs * 2) / config.cols)}
-        aria-colcount={config.cols}
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={mismatchIndices.length > 0 ? { x: [-6, 6, -4, 4, 0] } : { scale: 1, opacity: 1 }}
-        transition={mismatchIndices.length > 0 ? { duration: 0.25 } : { duration: 0.5, type: "spring" }}
         className={clsx(
           "grid gap-3 sm:gap-4 w-full max-w-sm p-4 sm:p-6 rounded-[2.5rem] backdrop-blur-2xl border shadow-2xl z-10",
           mismatchIndices.length > 0 ? "bg-red-500/20 border-red-500/50" : gridBg
@@ -268,35 +263,27 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
         {cards.map((card, index) => {
           const Icon = ICONS[card.iconIndex];
           const isRevealed = card.isFlipped || card.isMatched;
-          const row = Math.floor(index / config.cols) + 1;
-          const col = (index % config.cols) + 1;
 
           return (
-            <div key={card.id} className="relative aspect-square perspective-1000">
-              <motion.button
-                role="button"
-                aria-rowindex={row}
-                aria-colindex={col}
-                aria-label={`Card ${index + 1}${isRevealed ? (card.isMatched ? ' matched' : ' flipped') : ''}`}
-                onClick={() => handleCardClick(index)}
-                animate={{ rotateY: isRevealed ? 180 : 0, scale: card.isMatched ? [1, 1.1, 1] : 1 }}
-                transition={{ 
-                  rotateY: { duration: 0.4, type: "spring", stiffness: 200, damping: 20 },
-                  scale: { duration: 0.4, type: "tween" }
+            <div key={card.id} className="relative aspect-square" style={{ perspective: '800px' }}>
+              <div
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '100%',
+                  transformStyle: 'preserve-3d',
+                  transform: isRevealed ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                  transition: 'transform 0.5s ease-in-out',
                 }}
-                whileHover={!isRevealed && !isGamePaused ? { scale: 1.05, y: -2 } : {}}
-                whileTap={!isRevealed && !isGamePaused ? { scale: 0.95 } : {}}
-                className="w-full h-full preserve-3d cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/60 disabled:opacity-60"
-                disabled={isRevealed || isPreviewing || isGamePaused}
               >
-                {/* Back of Card */}
                 <div
                   className={clsx(
-                    "absolute inset-0 backface-hidden rounded-2xl border shadow-lg flex items-center justify-center overflow-hidden",
+                    "absolute inset-0 rounded-2xl border shadow-lg flex items-center justify-center overflow-hidden",
                     theme === 'light'
                       ? "bg-gradient-to-br from-indigo-100 to-purple-100 border-white"
                       : "bg-gradient-to-br from-white/10 to-white/5 border-white/10"
                   )}
+                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
                 >
                   <div
                     className={clsx(
@@ -304,13 +291,11 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
                       theme === 'light' ? "border-indigo-300" : "border-white/20"
                     )}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
                 </div>
 
-                {/* Front of Card */}
                 <div
                   className={clsx(
-                    "absolute inset-0 backface-hidden rounded-2xl border shadow-xl flex items-center justify-center rotate-y-180 overflow-hidden",
+                    "absolute inset-0 rounded-2xl border shadow-xl flex items-center justify-center overflow-hidden",
                     card.isMatched
                       ? theme === 'light'
                         ? "bg-gradient-to-br from-green-100 to-emerald-100 border-green-200"
@@ -319,33 +304,44 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
                       ? "bg-white border-white"
                       : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-indigo-500/30"
                   )}
+                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
                 >
-                  <motion.div
-                    initial={false}
-                    animate={card.isMatched ? { scale: [1, 1.2, 1], rotate: [0, 10, -10, 0] } : {}}
-                    transition={{ duration: 0.5, type: "tween" }}
-                  >
-                    <Icon
-                      size={40}
-                      strokeWidth={2.5}
-                      className={clsx(
-                        "drop-shadow-md",
-                        card.isMatched
-                          ? "text-emerald-500"
-                          : theme === 'light'
-                          ? "text-indigo-600"
-                          : "text-indigo-300"
-                      )}
-                    />
-                  </motion.div>
-                  {/* Glossy reflection */}
+                  <Icon
+                    size={40}
+                    strokeWidth={2.5}
+                    className={clsx(
+                      "drop-shadow-md",
+                      card.isMatched
+                        ? "text-emerald-500"
+                        : theme === 'light'
+                        ? "text-indigo-600"
+                        : "text-indigo-300"
+                    )}
+                  />
                   <div className="absolute top-0 left-0 right-0 h-1/2 bg-gradient-to-b from-white/20 to-transparent rounded-t-2xl pointer-events-none" />
                 </div>
-              </motion.button>
+
+                <button
+                  type="button"
+                  onClick={() => handleCardClick(index)}
+                  disabled={isRevealed || isPreviewing || isGamePaused}
+                  aria-label={`Card ${index + 1}${isRevealed ? (card.isMatched ? ' matched' : ' flipped') : ''}`}
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    zIndex: 10,
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    cursor: isRevealed || isPreviewing || isGamePaused ? 'default' : 'pointer',
+                    opacity: isRevealed || isPreviewing || isGamePaused ? 0.6 : 1,
+                  }}
+                />
+              </div>
             </div>
           );
         })}
-      </motion.div>
+      </div>
     </div>
   );
 };

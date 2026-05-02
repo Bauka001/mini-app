@@ -80,13 +80,11 @@ export const applyBrainStatProgress = (
     case 'schulte':
     case 'odd_one':
     case 'odd_one_out':
-    case 'agent_spot':
       nextStats.focus = Math.min(100, nextStats.focus + increment);
       nextStats.speed = Math.min(100, nextStats.speed + increment);
       break;
     case 'memory':
     case 'pairs':
-    case 'agent_sequence':
       nextStats.memory = Math.min(100, nextStats.memory + increment);
       nextStats.logic = Math.min(100, nextStats.logic + increment);
       break;

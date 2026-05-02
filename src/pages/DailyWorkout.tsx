@@ -13,7 +13,6 @@ import {
   Grid,
   Grid2x2,
   Calculator,
-  Lock,
   RotateCcw,
   Sparkles,
   Target,
@@ -98,33 +97,6 @@ const workoutGamesCatalog: WorkoutGame[] = [
     icon: Eye,
     accentClass: 'from-orange-500/20 to-amber-500/20 border-orange-400/30',
     historyIds: ['odd_one_out']
-  },
-  {
-    id: 'agent-spot',
-    routeId: 'agent-spot',
-    titleKey: 'game_agent_spot',
-    description: 'Күдіктілер ішінен жалған белгі мен intruder-ді сүзеді.',
-    icon: Target,
-    accentClass: 'from-cyan-500/20 to-red-500/20 border-cyan-400/30',
-    historyIds: ['agent_spot']
-  },
-  {
-    id: 'agent-sequence',
-    routeId: 'agent-sequence',
-    titleKey: 'game_agent_sequence',
-    description: 'Құпия маршруттарды жаттап, кері, айна және checkpoint режимінде қайта құрады.',
-    icon: RouteIcon,
-    accentClass: 'from-cyan-500/20 to-violet-500/20 border-cyan-400/30',
-    historyIds: ['agent_sequence']
-  },
-  {
-    id: 'code-breaker',
-    routeId: 'code-breaker',
-    titleKey: 'game_code_breaker',
-    description: 'Шифрларды тез шешіп, логикалық тізбекті үзіп алмаңыз.',
-    icon: Lock,
-    accentClass: 'from-cyan-500/20 to-violet-500/20 border-cyan-400/30',
-    historyIds: ['code_breaker']
   },
   {
     id: 'stroop',

@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Brain, Target, Zap, Lightbulb } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-export type GameType = 'schulte' | 'stroop' | 'memory' | 'math' | 'tetris' | '2048' | 'odd_one' | 'pairs';
+export type GameType = 'schulte' | 'stroop' | 'memory' | 'math' | 'tetris' | '2048' | 'odd_one' | 'pairs' | 'general';
 
 interface GameInfo {
   title: string;
@@ -14,11 +14,11 @@ interface GameInfo {
 export const InfoGuideModal = ({ 
   isOpen, 
   onClose,
-  gameType 
+  gameType = 'general'
 }: { 
   isOpen: boolean; 
   onClose: () => void;
-  gameType: GameType;
+  gameType?: GameType;
 }) => {
   const { t, i18n } = useTranslation();
   const lang = i18n.language as 'kz' | 'ru' | 'en';
@@ -184,6 +184,26 @@ export const InfoGuideModal = ({
         benefits: ["Develops associative memory", "Improves concentration", "Forms imaginative thinking"],
         science: "Stimulates hippocampus activity. This area is responsible for memory and spatial navigation.",
         skills: ["Memory", "Imagery"]
+      }
+    },
+    general: {
+      kz: {
+        title: "Миға арналған жаттығулар",
+        benefits: ["Барлық когнитивті функцияларды жақсартады", "Есте сақтауды, зейінді және логиканы дамытады", "Мидың қартаюын баяулатады"],
+        science: "Жүйелі түрде миды жаттықтыру нейропластиканы арттырады және жаңа нейрондық байланыстар құруға көмектеседі.",
+        skills: ["Комплексті", "Нейропластика"]
+      },
+      ru: {
+        title: "Тренировка мозга",
+        benefits: ["Улучшает все когнитивные функции", "Развивает память, внимание и логику", "Замедляет старение мозга"],
+        science: "Регулярные тренировки мозга повышают нейропластичность и помогают создавать новые нейронные связи.",
+        skills: ["Комплексно", "Нейропластичность"]
+      },
+      en: {
+        title: "Brain Training",
+        benefits: ["Improves all cognitive functions", "Develops memory, attention and logic", "Slows down brain aging"],
+        science: "Regular brain training increases neuroplasticity and helps create new neural connections.",
+        skills: ["Complex", "Neuroplasticity"]
       }
     }
   };

@@ -73,6 +73,16 @@ export const Achievements = () => {
       rarity: 'epic'
     },
     {
+      id: 'first_100_games',
+      title: lang === 'kz' ? 'Тәжірибелі' : lang === 'ru' ? 'Опытный' : 'Experienced',
+      description: lang === 'kz' ? '100 ойын ойнадыңыз' : lang === 'ru' ? 'Сыграйте 100 игр' : 'Play 100 games',
+      icon: <Trophy size={28} className="text-amber-400" />,
+      unlocked: user.achievements?.includes('first_100_games'),
+      progress: Math.min(100, user.history?.length || 0),
+      maxProgress: 100,
+      rarity: 'legendary'
+    },
+    {
       id: 'premium_member',
       title: lang === 'kz' ? 'Premium Мүшесі' : lang === 'ru' ? 'Premium Член' : 'Premium Member',
       description: lang === 'kz' ? 'Premium жоспарын сатып алдыңыз' : lang === 'ru' ? 'Приобретите Premium план' : 'Purchase Premium plan',

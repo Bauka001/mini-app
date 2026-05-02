@@ -264,3 +264,26 @@ export const submitFeedbackEntry = (payload: FeedbackSubmissionPayload) =>
 
 export const issueTicketRecord = (payload: TicketIssuePayload) =>
   postJson<{ ok: true; ticketId: string }>('/tickets/issue', payload);
+
+export interface AdminSocialTask {
+  id: string;
+  platform: 'youtube' | 'telegram' | 'instagram' | 'twitter' | 'other';
+  url: string;
+  reward: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const getAdminTasks = () =>
+  postJson<{ tasks: AdminSocialTask[] }>('/api/admin/tasks');
+
+export const addAdminTask = (payload: Omit<AdminSocialTask, 'created_at' | 'updated_at'>) =>
+  postJson<{ task: AdminSocialTask }>('/api/admin/tasks/add', payload);
+
+export const updateAdminTask = (payload: Omit<AdminSocialTask, 'created_at' | 'updated_at'>) =>
+  postJson<{ task: AdminSocialTask }>('/api/admin/tasks/update', payload);
+
+export const deleteAdminTask = (id: string) =>
+  postJson<{ ok: true }>('/api/admin/tasks/delete', { id });
+

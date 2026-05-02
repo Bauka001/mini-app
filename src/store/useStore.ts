@@ -1,7 +1,7 @@
 import { getTelegramUser, MOCK_USER } from '../utils/telegram';
 
 export type Language = 'en' | 'ru' | 'kz';
-export type Theme = 'dark' | 'light' | 'gold' | 'blue';
+export type Theme = 'dark' | 'light' | 'blue';
 
 interface GameResult {
   gameId: string;
@@ -35,7 +35,7 @@ export interface Challenge {
 
 export interface SocialTask {
   id: string;
-  platform: 'youtube' | 'telegram';
+  platform: 'youtube' | 'telegram' | 'instagram' | 'twitter' | 'other';
   url: string;
   reward: number;
   isClaimed: boolean;
@@ -246,7 +246,8 @@ export interface UserState {
   refreshChallenges: () => void;
   claimChallengeReward: (challengeId: string) => void;
   watchAd: (reward: number) => void;
-  claimSocialReward: (taskId: string) => void;
+  fetchSocialTasks: () => Promise<void>;
+  claimSocialTask: (taskId: string) => Promise<void>;
   addFec: (amount: number) => void;
   addCoins: (amount: number) => void;
   spendCoins: (amount: number) => boolean;
@@ -344,6 +345,13 @@ export const initialSocialTasks: SocialTask[] = [
     isClaimed: false
   },
   {
+    id: 'ig_founding',
+    platform: 'instagram',
+    url: 'https://www.instagram.com/focus_game_clube?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==',
+    reward: 10,
+    isClaimed: false
+  },
+  {
     id: 'tg_founding',
     platform: 'telegram',
     url: 'https://t.me/+od_Mx-6Iz3Q3NWEy',
@@ -365,7 +373,7 @@ type TelegramWindow = Window & {
 };
 
 const getInitialLanguage = (): Language => {
-  if (typeof window === 'undefined') return 'en';
+  if (typeof window === 'undefined') return 'ru';
   
   const tg = (window as TelegramWindow).Telegram?.WebApp;
   if (tg?.initDataUnsafe?.user?.language_code) {
@@ -381,13 +389,13 @@ const getInitialLanguage = (): Language => {
     if (browserLang.startsWith('kk') || browserLang.startsWith('kz') || browserLang.startsWith('ky')) return 'kz';
   }
   
-  return 'en';
+  return 'ru';
 };
 
 export const initialState = {
   language: getInitialLanguage(),
   soundEnabled: true,
-  theme: 'light' as Theme,
+  theme: 'blue' as Theme,
   brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
   coins: 100,
   gems: 0,

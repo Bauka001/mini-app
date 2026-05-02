@@ -48,6 +48,7 @@ export const AdminLayout = () => {
       { icon: MessageSquare, label: 'Чат модерациясы', path: '/admin/chat', badge: 'chat', hint: 'Reports' },
       { icon: Ticket, label: 'Тікеттер', path: '/admin/tickets', badge: 'tickets', hint: 'Pending verify' },
       { icon: Gamepad2, label: 'Ойын аналитикасы', path: '/admin/games', hint: 'Usage stats' },
+      { icon: Share2, label: 'Social Tasks', path: '/admin/tasks', hint: 'Әлеуметтік тапсырмалар' },
       { icon: Settings, label: 'Баптаулар', path: '/admin/settings', hint: 'Feature flags' },
     ],
     []

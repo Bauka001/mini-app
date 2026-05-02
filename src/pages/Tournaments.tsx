@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Brain, CalendarDays, CheckCircle2, Crown, Lock, Medal, Sparkles, Star, Trophy, Wallet } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
@@ -65,6 +66,7 @@ const formatDate = (value: Date) =>
   }).format(value);
 
 export default function Tournaments() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const styles = useThemeStyles();
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -89,7 +91,7 @@ export default function Tournaments() {
     if (joinedCurrentWeek) {
       base.push({
         id: user.id || 999999,
-        name: user.firstName || 'Сіз',
+        name: user.firstName || t('you'),
         score: tournament.score,
         avatar: user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.firstName || 'player'}`,
       });
@@ -98,7 +100,7 @@ export default function Tournaments() {
     return base
       .sort((a, b) => b.score - a.score)
       .map((player, index) => ({ ...player, rank: index + 1, isCurrentUser: player.id === user.id }));
-  }, [joinedCurrentWeek, tournament.score, user.firstName, user.id, user.photoUrl]);
+  }, [joinedCurrentWeek, tournament.score, user.firstName, user.id, user.photoUrl, t]);
 
   const currentUserRank = leaderboard.find((player) => player.isCurrentUser);
 
@@ -124,10 +126,9 @@ export default function Tournaments() {
                 Weekly Tournament
               </div>
               <div>
-                <h1 className={clsx('text-2xl sm:text-3xl font-black', styles.textPrimary)}>Апталық турнир</h1>
+                <h1 className={clsx('text-2xl sm:text-3xl font-black', styles.textPrimary)}>{t('tournaments_title')}</h1>
                 <p className={clsx('mt-2 max-w-xl text-sm leading-6', styles.textSecondary)}>
-                  Турнир жұма күні ашылып, жексенбіде жабылады. Қатысушылар 3 ойын ойнайды, ал финалдық орын
-                  турнирлік Brain Score арқылы анықталады.
+                  {t('tournaments_desc')}
                 </p>
               </div>
             </div>
@@ -138,24 +139,24 @@ export default function Tournaments() {
 
           <div className="mt-5 grid gap-3 md:grid-cols-3">
             <div className={clsx('rounded-2xl p-4', styles.cardClass)}>
-              <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>Кіру бағасы</div>
+              <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>{t('entry_fee')}</div>
               <div className={clsx('mt-2 flex items-center gap-2 text-lg font-black', styles.textPrimary)}>
                 <Star size={18} className="text-amber-400" />
-                {ENTRY_STARS} Stars немесе TON
+                {ENTRY_STARS} Stars {t('or_ton')}
               </div>
             </div>
             <div className={clsx('rounded-2xl p-4', styles.cardClass)}>
-              <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>Формат</div>
+              <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>{t('format')}</div>
               <div className={clsx('mt-2 flex items-center gap-2 text-lg font-black', styles.textPrimary)}>
                 <Brain size={18} className={styles.textAccent} />
-                3 ойын / 1 нәтиже
+                {t('games_1_result')}
               </div>
             </div>
             <div className={clsx('rounded-2xl p-4', styles.cardClass)}>
-              <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>VIP перк</div>
+              <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>{t('vip_perk')}</div>
               <div className={clsx('mt-2 flex items-center gap-2 text-lg font-black', styles.textPrimary)}>
                 <Sparkles size={18} className="text-emerald-400" />
-                Аптасына 1 тегін кіру
+                {t('free_entry_per_week')}
               </div>
             </div>
           </div>
@@ -167,12 +168,12 @@ export default function Tournaments() {
               <CalendarDays size={20} className={styles.textAccent} />
               <div>
                 <div className={clsx('font-bold', styles.textPrimary)}>
-                  {schedule.isOpen ? 'Турнир ашық' : 'Турнир жабық'}
+                  {schedule.isOpen ? t('tournament_open') : t('tournament_closed')}
                 </div>
                 <div className={clsx('text-sm', styles.textSecondary)}>
                   {schedule.isOpen
-                    ? `Жабылуы: ${formatDate(schedule.sunday)}`
-                    : `Келесі ашылуы: ${formatDate(schedule.nextFriday)}`}
+                    ? `${t('closes_at')}: ${formatDate(schedule.sunday)}`
+                    : `${t('next_opens_at')}: ${formatDate(schedule.nextFriday)}`}
                 </div>
               </div>
             </div>
@@ -192,7 +193,7 @@ export default function Tournaments() {
                   Stars
                 </div>
                 <div className="mt-2 text-2xl font-black">{ENTRY_STARS}</div>
-                <div className="mt-1 text-xs opacity-80">Telegram Stars арқылы апталық турнирге кіру</div>
+                <div className="mt-1 text-xs opacity-80">{t('join_with_stars_desc')}</div>
               </button>
 
               <button
@@ -209,7 +210,7 @@ export default function Tournaments() {
                   TON
                 </div>
                 <div className={clsx('mt-2 text-2xl font-black', styles.textPrimary)}>TON</div>
-                <div className={clsx('mt-1 text-xs', styles.textSecondary)}>TON төлемімен кіруді белгілеу</div>
+                <div className={clsx('mt-1 text-xs', styles.textSecondary)}>{t('ton_payment_desc')}</div>
               </button>
             </div>
 
@@ -230,10 +231,10 @@ export default function Tournaments() {
                       Ticket entry
                     </div>
                     <div className={clsx('mt-2 text-lg font-black', styles.textPrimary)}>
-                      Тегін кіру
+                      {t('free_entry')}
                     </div>
                     <div className={clsx('mt-1 text-xs', styles.textSecondary)}>
-                      Қолыңызда: {tournamentTickets} ticket
+                      {t('tickets_available', { count: tournamentTickets })}
                     </div>
                   </div>
                   <div className="rounded-2xl bg-purple-400/15 p-3 text-purple-200">
@@ -256,13 +257,13 @@ export default function Tournaments() {
                 <div>
                   <div className={clsx('flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em]', isVip ? 'text-emerald-300' : styles.textSecondary)}>
                     {isVip ? <Sparkles size={16} /> : <Lock size={16} />}
-                    VIP тегін кіру
+                    {t('vip_free_entry')}
                   </div>
                   <div className={clsx('mt-2 text-lg font-black', styles.textPrimary)}>
-                    {isVip ? 'Premium қолданушысы үшін аптасына 1 рет' : 'Premium жоспарымен ашылады'}
+                    {isVip ? t('premium_once_a_week') : t('unlocks_with_premium')}
                   </div>
                   <div className={clsx('mt-1 text-xs', styles.textSecondary)}>
-                    {vipUsedThisWeek ? 'Осы аптадағы тегін кіру қолданылды.' : 'Stars немесе TON төлемін алмастырады.'}
+                    {vipUsedThisWeek ? t('free_entry_used') : t('replaces_stars_or_ton')}
                   </div>
                 </div>
                 <div className={clsx('rounded-2xl p-3', isVip ? 'bg-emerald-400/15 text-emerald-300' : 'bg-white/5 text-white/60')}>
@@ -281,9 +282,9 @@ export default function Tournaments() {
           <div className={clsx('rounded-3xl p-4', styles.cardClass)}>
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>Сіздің прогресс</div>
+                <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>{t('your_progress')}</div>
                 <div className={clsx('mt-2 text-3xl font-black', styles.textPrimary)}>{joinedCurrentWeek ? tournament.score : 0}</div>
-                <div className={clsx('text-sm', styles.textSecondary)}>Турнирлік Brain Score</div>
+                <div className={clsx('text-sm', styles.textSecondary)}>{t('tournament_brain_score')}</div>
               </div>
               <div className="rounded-2xl bg-blue-500/10 p-3 text-blue-300">
                 <Brain size={24} />
@@ -301,12 +302,12 @@ export default function Tournaments() {
                       playedGame ? 'border-emerald-400/30 bg-emerald-500/10' : 'border-white/10 bg-white/5'
                     )}
                   >
-                    <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>Ойын {index + 1}</div>
+                    <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>{t('game_index', { index: index + 1 })}</div>
                     <div className={clsx('mt-2 text-sm font-bold', styles.textPrimary)}>
-                      {playedGame ? playedGame.gameId : 'Күтуде'}
+                      {playedGame ? playedGame.gameId : t('waiting')}
                     </div>
                     <div className={clsx('mt-1 text-xs', styles.textSecondary)}>
-                      {playedGame ? `${playedGame.tournamentBrainScore} BS` : 'Ойналмаған'}
+                      {playedGame ? `${playedGame.tournamentBrainScore} BS` : t('not_played')}
                     </div>
                   </div>
                 );
@@ -315,17 +316,17 @@ export default function Tournaments() {
 
             <div className={clsx('mt-4 rounded-2xl p-4', styles.cardClass)}>
               <div className={clsx('font-bold', styles.textPrimary)}>
-                {isCompleted ? '3/3 ойын аяқталды' : `${gamesRemaining} ойын қалды`}
+                {isCompleted ? t('games_completed') : t('games_left', { count: gamesRemaining })}
               </div>
               <div className={clsx('mt-1 text-sm leading-6', styles.textSecondary)}>
-                Турнирге кірген соң ойнаған алғашқы 3 ойын автоматты түрде осы турнирге есептеледі.
+                {t('tournament_auto_count_desc')}
               </div>
               <button
                 type="button"
                 onClick={() => navigate('/daily-workout')}
                 className={clsx('mt-4 w-full rounded-2xl px-4 py-3 min-h-[44px] font-bold', styles.btnPrimary)}
               >
-                Ойындарды бастау
+                {t('start_games')}
               </button>
             </div>
           </div>
@@ -335,7 +336,7 @@ export default function Tournaments() {
           <div className={clsx('p-5', styles.panelClass)}>
             <div className="flex items-center gap-2">
               <Medal size={20} className="text-amber-400" />
-              <h2 className={clsx('text-xl font-black', styles.textPrimary)}>Сыйлықтар</h2>
+              <h2 className={clsx('text-xl font-black', styles.textPrimary)}>{t('prizes')}</h2>
             </div>
             <div className="mt-4 space-y-3">
               {PRIZE_TIERS.map((tier) => (
@@ -350,15 +351,15 @@ export default function Tournaments() {
           <div className={clsx('p-5', styles.panelClass)}>
             <div className="flex items-center gap-2">
               <CheckCircle2 size={20} className="text-emerald-400" />
-              <h2 className={clsx('text-xl font-black', styles.textPrimary)}>Ережелер</h2>
+              <h2 className={clsx('text-xl font-black', styles.textPrimary)}>{t('rules')}</h2>
             </div>
             <div className="mt-4 space-y-3">
               {[
-                'Турнир әр аптада жұма 00:00-де ашылады.',
-                'Турнир жексенбі 23:59-да жабылады.',
-                'Әр қатысушыға дәл 3 ойын есептеледі.',
-                'Қорытынды рейтинг турнирлік Brain Score бойынша жасалады.',
-                'VIP premium қолданушысы аптасына 1 тегін кіру алады.',
+                t('rule_1'),
+                t('rule_2'),
+                t('rule_3'),
+                t('rule_4'),
+                t('rule_5'),
               ].map((rule) => (
                 <div key={rule} className={clsx('rounded-2xl p-4 text-sm leading-6', styles.cardClass, styles.textSecondary)}>
                   {rule}
@@ -371,14 +372,14 @@ export default function Tournaments() {
         <section className={clsx('p-5', styles.panelClass)}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className={clsx('text-xl font-black', styles.textPrimary)}>Апталық лидерборд</h2>
+              <h2 className={clsx('text-xl font-black', styles.textPrimary)}>{t('weekly_leaderboard')}</h2>
               <p className={clsx('mt-1 text-sm', styles.textSecondary)}>
-                Турнирлік Brain Score бойынша үздік ойыншылар.
+                {t('leaderboard_desc')}
               </p>
             </div>
             {currentUserRank && (
               <div className="rounded-2xl bg-blue-500/10 px-3 py-2 text-right">
-                <div className="text-xs uppercase tracking-[0.2em] text-blue-300">Сіздің орын</div>
+                <div className="text-xs uppercase tracking-[0.2em] text-blue-300">{t('your_rank')}</div>
                 <div className="text-lg font-black text-blue-200">#{currentUserRank.rank}</div>
               </div>
             )}
@@ -400,7 +401,7 @@ export default function Tournaments() {
                   <div className="min-w-0">
                     <div className={clsx('font-bold truncate', styles.textPrimary)}>
                       {player.name}
-                      {player.isCurrentUser ? ' (Сіз)' : ''}
+                      {player.isCurrentUser ? ` (${t('you')})` : ''}
                     </div>
                     <div className={clsx('text-xs', styles.textSecondary)}>
                       {player.rank <= 1 ? 'Grand Final' : player.rank <= 10 ? 'Prize Zone' : 'Tournament Pool'}

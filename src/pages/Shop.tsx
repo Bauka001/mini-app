@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, Crown, Coins, Layout, FileText, X, BarChart3, Medal, Sparkles, Car, Gift } from 'lucide-react';
@@ -20,6 +20,7 @@ const PaymentModal = ({
   planTitle: string,
   price: string
 }) => {
+  const { t } = useTranslation();
   const [selectedMethod, setSelectedMethod] = useState<'stars' | 'ton'>('stars');
   const [tonUi] = useTonConnectUI();
 
@@ -64,7 +65,7 @@ const PaymentModal = ({
     <div className="modal-shell fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="modal-card w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-2xl flex flex-col">
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
-          <h3 className="text-lg font-bold text-black">Payment Method</h3>
+          <h3 className="text-lg font-bold text-black">{t('payment_method')}</h3>
           <button onClick={onClose} className="rounded-full p-2 min-h-[44px] min-w-[44px] text-gray-500 transition-colors hover:bg-gray-100">
             <X size={20} />
           </button>
@@ -72,7 +73,7 @@ const PaymentModal = ({
 
         <div className="space-y-4 p-4 sm:p-6 overflow-y-auto">
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <div className="mb-1 text-sm text-gray-500">Item Summary</div>
+            <div className="mb-1 text-sm text-gray-500">{t('item_summary')}</div>
             <div className="text-xl font-bold text-black">{planTitle}</div>
             <div className="mt-2 text-2xl font-black text-black">{price}</div>
           </div>
@@ -91,10 +92,10 @@ const PaymentModal = ({
                   <div className="flex items-center gap-2">
                     <span className="text-base font-bold text-black">Telegram Stars</span>
                     <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-green-700">
-                      Recommended
+                      {t('recommended')}
                     </span>
                   </div>
-                  <div className="mt-1 text-sm text-gray-600">Telegram mini app ішінде жылдам төлем</div>
+                  <div className="mt-1 text-sm text-gray-600">{t('tg_fast_payment')}</div>
                 </div>
                 <div
                   className={`mt-1 h-5 w-5 rounded-full border-2 ${
@@ -115,7 +116,7 @@ const PaymentModal = ({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-base font-bold text-black">TON (TonConnect)</div>
-                  <div className="mt-1 text-sm text-gray-600">TonConnect арқылы әмиянмен төлеу</div>
+                  <div className="mt-1 text-sm text-gray-600">{t('ton_wallet_payment')}</div>
                 </div>
                 <div
                   className={`mt-1 h-5 w-5 rounded-full border-2 ${
@@ -137,10 +138,46 @@ const PaymentModal = ({
             onClick={handlePayNow}
             className="w-full min-h-[44px] rounded-2xl bg-green-500 px-4 py-3 text-base font-bold text-white transition-colors hover:bg-green-600"
           >
-            Pay Now
+            {t('pay_now')}
           </button>
         </div>
       </div>
+    </div>
+  );
+};
+
+const CountdownTimer = ({ targetDateISO }: { targetDateISO: string }) => {
+  const [timeLeft, setTimeLeft] = useState(() => {
+    const diff = new Date(targetDateISO).getTime() - Date.now();
+    return Math.max(0, diff);
+  });
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const diff = new Date(targetDateISO).getTime() - Date.now();
+      setTimeLeft(Math.max(0, diff));
+    }, 1000);
+    return () => clearInterval(id);
+  }, [targetDateISO]);
+
+  const days = Math.floor(timeLeft / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((timeLeft / (1000 * 60 * 60)) % 24);
+  const minutes = Math.floor((timeLeft / 1000 / 60) % 60);
+  const seconds = Math.floor((timeLeft / 1000) % 60);
+
+  return (
+    <div className="flex gap-2 justify-center mt-3">
+      {[
+        { label: 'КҮН', value: days },
+        { label: 'САҒ', value: hours },
+        { label: 'МИН', value: minutes },
+        { label: 'СЕК', value: seconds },
+      ].map((item, idx) => (
+        <div key={idx} className="flex flex-col items-center bg-black/40 rounded-lg p-2 min-w-[50px] border border-amber-500/30">
+          <span className="text-lg font-black text-amber-400">{item.value.toString().padStart(2, '0')}</span>
+          <span className="text-[9px] text-amber-200/70 uppercase font-bold">{item.label}</span>
+        </div>
+      ))}
     </div>
   );
 };
@@ -299,7 +336,6 @@ const PRO_PRICE = '8 590 ₸';
 const PRO_STARS = '≈ 175 Stars';
 const PREMIUM_PRICE = '9 990 ₸';
 const PREMIUM_STARS = '≈ 205 Stars';
-const YEARLY_DURATION_DAYS = 365;
 
 // Purchased tier is tracked in localStorage so game routes can gate access
 // without touching the Supabase user schema.
@@ -475,34 +511,35 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
   const navigate = useNavigate();
 
   const basicFeatures = [
-    'Жарнамасыз тыныш режим',
-    'Прогресс бұлтта сақталады',
-    'Күнделікті 1 challenge',
-    'Барлық негізгі ойындар ашық',
+    t('basic_f1'),
+    t('basic_f2'),
+    t('basic_f3'),
+    t('basic_f4'),
   ];
   const proFeatures = [
-    'Қолжетімдідегі барлығы',
-    'Premium Analytics: тарих + графикалар',
-    'Leaderboard ішінде Gold шекара',
-    'Аптасына 1 тегін турнир билеті',
-    'Қосымша сахналар мен ойын типтері',
+    t('pro_f1'),
+    t('pro_f2'),
+    t('pro_f3'),
+    t('pro_f4'),
+    t('pro_f5'),
   ];
   const premiumFeatures = [
-    'Pro-дағы барлығы',
-    'Эксклюзив аватар және рамкалар',
-    'Приоритетті қолдау 24/7',
-    'Барлық болашақ жаңартулар тегін',
+    t('premium_f1'),
+    t('premium_f2'),
+    t('premium_f3'),
+    t('premium_f4'),
+    t('premium_f5'),
   ];
 
   const vipPlans = [
     {
       id: 'basic' as const,
-      name: 'Қолжетімді',
+      name: t('plan_standard'),
       duration: '365 days',
       badge: 'BASIC',
       priceLabel: BASIC_PRICE,
       starsLabel: BASIC_STARS,
-      description: 'Жылдық негізгі жазылу',
+      description: t('plan_basic_desc'),
       highlight: 'Жылдық',
       popular: false,
       isPremium: false,
@@ -512,10 +549,10 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
       id: 'pro' as const,
       name: 'Pro',
       duration: '365 days',
-      badge: 'ҮЗДІК ТАҢДАУ',
+      badge: t('badge_best'),
       priceLabel: PRO_PRICE,
       starsLabel: PRO_STARS,
-      description: 'Жылдық кеңейтілген access',
+      description: t('plan_pro_desc'),
       highlight: 'Ең танымал',
       popular: true,
       isPremium: false,
@@ -523,13 +560,14 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
     },
     {
       id: 'premium' as const,
-      name: 'Премиальный',
+      name: t('plan_premium'),
       duration: '365 days',
-      badge: '👑 ПРЕМИАЛЬНЫЙ',
+      badge: '👑 ' + t('plan_premium'),
       priceLabel: PREMIUM_PRICE,
+      originalPrice: '15 990 ₸',
       starsLabel: PREMIUM_STARS,
-      description: 'Жылдық + машина ұтысы',
-      highlight: '🚗 Машина ұтысына билет',
+      description: t('plan_premium_desc'),
+      highlight: '🚗 ' + t('car_raffle'),
       popular: false,
       isPremium: true,
       features: premiumFeatures,
@@ -553,7 +591,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
                 {t('vip_status') || 'VIP Status'}
               </h3>
               <p className="text-sm text-amber-700 dark:text-amber-300">
-                VIP мүшелік енді analytics, gold border және ads-free режимге бағытталған.
+                {t('vip_membership_desc')}
               </p>
             </div>
           </div>
@@ -579,21 +617,21 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
             <BarChart3 size={18} />
             <span className="text-xs font-black uppercase tracking-[0.2em]">Analytics</span>
           </div>
-          <div className="mt-3 text-sm font-bold text-white">30 күндік график пен Brain Score динамикасы</div>
+          <div className="mt-3 text-sm font-bold text-white">{t('analytics_desc')}</div>
         </div>
         <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
           <div className="flex items-center gap-2 text-amber-300">
             <Medal size={18} />
             <span className="text-xs font-black uppercase tracking-[0.2em]">Gold border</span>
           </div>
-          <div className="mt-3 text-sm font-bold text-white">Лидерборд пен профильде бірден байқалатын VIP статус</div>
+          <div className="mt-3 text-sm font-bold text-white">{t('gold_border_desc')}</div>
         </div>
         <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
           <div className="flex items-center gap-2 text-emerald-300">
             <Sparkles size={18} />
             <span className="text-xs font-black uppercase tracking-[0.2em]">Tournament</span>
           </div>
-          <div className="mt-3 text-sm font-bold text-white">Аптасына 1 тегін кіру weekend tournament монетизациясын ашады</div>
+          <div className="mt-3 text-sm font-bold text-white">{t('tournament_desc')}</div>
         </div>
       </div>
       
@@ -604,7 +642,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
             className={clsx(
               "p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden",
               plan.isPremium
-                ? "bg-gradient-to-br from-amber-500/25 via-yellow-500/15 to-rose-500/15 border-amber-400 ring-2 ring-amber-300 shadow-xl shadow-amber-500/30"
+                ? "bg-gradient-to-br from-amber-900 via-stone-900 to-rose-950 border-amber-400 ring-2 ring-amber-300 shadow-xl shadow-amber-500/30"
                 : plan.popular
                   ? "bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-yellow-500/40 ring-2 ring-yellow-400 scale-[1.02]"
                   : "bg-white/50 dark:bg-black/30 border-amber-500/20 hover:border-amber-500/40"
@@ -623,7 +661,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
               <div className={clsx(
                 "inline-flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-black tracking-[0.18em] mb-3",
                 plan.isPremium
-                  ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-stone-950"
+                  ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-black shadow-lg shadow-amber-500/30"
                   : plan.popular
                     ? "bg-yellow-400 text-stone-950"
                     : "bg-amber-500 text-white"
@@ -632,56 +670,87 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
               </div>
               <h3 className={clsx(
                 "text-xl font-black",
-                plan.isPremium ? "text-amber-700 dark:text-amber-200" : plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100"
+                plan.isPremium ? "text-amber-500 dark:text-amber-300 drop-shadow-sm" : plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100"
               )}>
                 {plan.name}
               </h3>
               <p className={clsx(
-                "text-sm",
-                plan.isPremium ? "text-amber-600 dark:text-amber-300" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
+                "text-sm font-bold",
+                plan.isPremium ? "text-amber-600 dark:text-amber-400" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
               )}>
                 (365 күн)
               </p>
               <p className={clsx(
-                "text-xs mt-2",
-                plan.isPremium ? "text-amber-600 dark:text-amber-300" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
+                "text-xs mt-2 font-medium",
+                plan.isPremium ? "text-amber-700 dark:text-amber-200" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
               )}>
                 {plan.description}
               </p>
             </div>
 
             <div className="text-center mb-4">
+              {plan.isPremium && plan.originalPrice && (
+                <div className="text-lg font-bold text-gray-400 line-through mb-1">
+                  {plan.originalPrice}
+                </div>
+              )}
               <div className={clsx(
                 "text-3xl font-black",
-                plan.isPremium ? "bg-gradient-to-b from-amber-300 to-yellow-600 bg-clip-text text-transparent" : plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100"
+                plan.isPremium ? "bg-gradient-to-b from-amber-200 to-yellow-500 bg-clip-text text-transparent drop-shadow-md" : plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100"
               )}>
                 {plan.priceLabel}
               </div>
               <div className={clsx(
                 "text-xs font-bold mt-1",
-                plan.isPremium ? "text-amber-500" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
+                plan.isPremium ? "text-amber-500 drop-shadow-sm" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
               )}>
                 {plan.starsLabel}
               </div>
               <div className={clsx(
-                "text-xs font-bold mt-1",
-                plan.isPremium ? "text-amber-600 dark:text-amber-300" : "text-emerald-500"
+                "text-xs font-black mt-1",
+                plan.isPremium ? "text-emerald-400 drop-shadow-sm" : "text-emerald-500"
               )}>
                 {plan.highlight}
               </div>
+              {plan.isPremium && (
+                <CountdownTimer targetDateISO="2026-05-25T23:59:59.000Z" />
+              )}
             </div>
 
             {plan.isPremium && (
-              <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-400/50 bg-gradient-to-r from-amber-500/20 to-rose-500/10 p-3">
-                <div className="rounded-lg bg-amber-500/25 p-2">
-                  <Car size={20} className="text-amber-600 dark:text-amber-300" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1 text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-200">
-                    <Gift size={12} /> Машина ұтысы
+              <div className="mb-4 space-y-3">
+                {/* Мустанг суреті рамка ішінде */}
+                <div className="relative w-full aspect-video rounded-xl border-2 border-amber-400 p-1 bg-amber-500/10 shadow-[0_0_15px_rgba(251,191,36,0.5)] overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 rounded-lg pointer-events-none" />
+                  <img 
+                    src="/mustang.jpg" 
+                    alt="Ford Mustang" 
+                    className="w-full h-full object-cover rounded-lg transform group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute bottom-2 left-3 z-20 flex items-center gap-1.5">
+                    <Car size={16} className="text-amber-400" />
+                    <span className="text-sm font-black text-white uppercase tracking-wider drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">
+                      Ford Mustang
+                    </span>
                   </div>
-                  <div className="mt-0.5 text-[11px] font-semibold leading-tight text-amber-600 dark:text-amber-300">
-                    Жылдық розыгрыштың қатысу билеті кіреді
+                  <div className="absolute top-2 right-2 z-20">
+                    <div className="px-2 py-0.5 rounded bg-amber-500 text-[10px] font-black text-black uppercase shadow-lg border border-amber-300">
+                      {t('main_prize')}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3 rounded-xl border border-amber-400 bg-amber-500/10 p-3">
+                  <div className="rounded-lg bg-amber-500 p-2">
+                    <Gift size={20} className="text-black" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1 text-[13px] font-black uppercase tracking-wider text-amber-500 drop-shadow-sm">
+                      {t('car_raffle')}
+                    </div>
+                    <div className="mt-0.5 text-xs font-bold leading-tight text-white drop-shadow-sm">
+                      {t('car_raffle_desc')}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -690,10 +759,10 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
             <ul className="space-y-2 mb-4">
               {plan.features.map((feature, index) => (
                 <li key={index} className={clsx(
-                  "text-xs flex items-start gap-2",
-                  plan.isPremium ? "text-amber-700 dark:text-amber-200" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
+                  "text-xs flex items-start gap-2 font-medium",
+                  plan.isPremium ? "text-amber-100 drop-shadow-sm" : plan.popular ? "text-yellow-800 dark:text-yellow-200" : "text-amber-800 dark:text-amber-200"
                 )}>
-                  <span className="mt-0.5">✓</span>
+                  <span className="mt-0.5 font-black text-amber-400">✓</span>
                   {feature}
                 </li>
               ))}
@@ -709,7 +778,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
                     ? "bg-gradient-to-r from-yellow-400 to-orange-500 text-black hover:scale-105 shadow-lg shadow-yellow-500/30"
                     : "bg-amber-500 text-white hover:bg-amber-600"
               )}>
-              {plan.isPremium ? 'Премиальный алу' : (t('subscribe') || 'Subscribe')}
+              {plan.isPremium ? t('get_premium') : (t('subscribe') || 'Subscribe')}
             </button>
           </div>
         ))}
@@ -720,7 +789,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
         className="w-full py-3 rounded-xl bg-blue-600/10 border border-blue-500/30 text-blue-400 font-bold text-sm hover:bg-blue-600/20 transition-all flex items-center justify-center gap-2"
       >
         <FileText size={16} />
-        Қатысу шарттары / Условия участия
+        {t('terms_link')}
       </button>
 
       <button
@@ -728,7 +797,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
         className="w-full py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold text-sm hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2"
       >
         <BarChart3 size={16} />
-        {currentPlan === 'premium' ? 'VIP analytics ашу' : 'VIP analytics preview көру'}
+        {currentPlan === 'premium' ? t('open_vip_analytics') : t('preview_vip_analytics')}
       </button>
     </div>
   );
@@ -736,7 +805,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
 
 const ShopPage = () => {
   const { t } = useTranslation();
-  const { coins, skinInventory, activeSkin, buySkin, equipSkin, upgradePlan, plan } = useStore();
+  const { coins, skinInventory, activeSkin, buySkin, equipSkin, plan } = useStore();
   const [activeTab, setActiveTab] = useState<'vip' | 'skins'>('vip');
   const [showTerms, setShowTerms] = useState(false);
   const [paymentModal, setPaymentModal] = useState<{ title: string; price: string } | null>(null);
@@ -840,23 +909,7 @@ const ShopPage = () => {
 
       <PaymentModal
         isOpen={!!paymentModal}
-        onClose={() => {
-          if (paymentModal) {
-            // Barlyq tarif jyldyq (365 kun). Store-da "premium" flag-pen saqtaymyz,
-            // al naqty tier (basic/pro/premium) — game gating ushin localStorage-te.
-            if (paymentModal.title === 'BASIC YEARLY') {
-              upgradePlan('premium', YEARLY_DURATION_DAYS);
-              setFocusTier('basic');
-            } else if (paymentModal.title === 'PRO YEARLY') {
-              upgradePlan('premium', YEARLY_DURATION_DAYS);
-              setFocusTier('pro');
-            } else if (paymentModal.title === 'PREMIUM YEARLY') {
-              upgradePlan('premium', YEARLY_DURATION_DAYS);
-              setFocusTier('premium');
-            }
-          }
-          setPaymentModal(null);
-        }}
+        onClose={() => setPaymentModal(null)}
         planTitle={paymentModal?.title || ''}
         price={paymentModal?.price || ''}
       />

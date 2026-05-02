@@ -32,14 +32,14 @@ const ANALYTICS_REWARD_STEPS = [
   },
   {
     day: 14,
-    title: 'Орташа білім баласы',
-    description: 'Орташа білім баласын көре аласыз',
+    title: 'Орташа білім деңгейі',
+    description: 'Орташа білім деңгейін көре аласыз',
     icon: BrainCircuit,
   },
   {
     day: 30,
     title: 'Қоғамдық салыстырма',
-    description: 'Айдан көпшілік салыстырма ашылады',
+    description: 'Айлық көпшілік салыстырма ашылады',
     icon: Users,
   },
 ] as const;

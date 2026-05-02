@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Search, Shield, Ticket as TicketIcon, CheckCircle, XCircle, RefreshCcw, AlertCircle } from 'lucide-react';
 import { AdminTicketRecord, AdminTicketsResponse, getAdminTickets, verifyAdminTicket } from '../utils/adminApi';
+import { useTranslation } from 'react-i18next';
 
 export default function AdminPanel() {
+  const { t } = useTranslation();
   const [data, setData] = useState<AdminTicketsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +19,7 @@ export default function AdminPanel() {
       const nextData = await getAdminTickets();
       setData(nextData);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Тікеттер жүктелмеді');
+      setError(nextError instanceof Error ? nextError.message : t('tickets_load_failed'));
     } finally {
       setIsLoading(false);
     }
@@ -74,7 +76,7 @@ export default function AdminPanel() {
       const response = await verifyAdminTicket(ticket.ticketNumber);
       patchTicket(response.ticket);
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : 'Тікет верификациясы сәтсіз');
+      setError(nextError instanceof Error ? nextError.message : t('ticket_verification_failed'));
     } finally {
       setBusyTicketNumber(null);
     }
@@ -107,7 +109,7 @@ export default function AdminPanel() {
             className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-bold transition hover:bg-blue-700"
           >
             <RefreshCcw className="w-4 h-4" />
-            Жаңарту
+            {t('refresh')}
           </button>
         </div>
 
@@ -168,7 +170,7 @@ export default function AdminPanel() {
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }`}
                 >
-                  {status === 'all' ? 'Барлығы' : status}
+                  {status === 'all' ? t('all') : status}
                 </button>
               ))}
             </div>
@@ -188,23 +190,23 @@ export default function AdminPanel() {
           {isLoading ? (
             <div className="py-12 text-center text-gray-400">
               <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-              <p>Тікеттер жүктелуде...</p>
+              <p>{t('loading_tickets')}</p>
             </div>
           ) : filteredTickets.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
               <TicketIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
-              <p>Табылған тікет жоқ</p>
+              <p>{t('no_tickets_found')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-700">
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Ticket #</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">User</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Event</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Purchase Date</th>
-                    <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium">{t('ticket_number')}</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium">{t('user')}</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium">{t('event')}</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium">{t('purchase_date')}</th>
+                    <th className="text-left py-3 px-4 text-gray-400 font-medium">{t('status')}</th>
                     <th className="text-left py-3 px-4 text-gray-400 font-medium">Actions</th>
                   </tr>
                 </thead>
@@ -223,8 +225,19 @@ export default function AdminPanel() {
                         </div>
                       </td>
                       <td className="py-4 px-4 text-gray-300">
-                        <p>{ticket.eventName}</p>
-                        <p className="text-xs text-gray-400">{formatDate(ticket.eventDate)}</p>
+                        <div className="flex items-center gap-3">
+                          {ticket.eventName.includes('VIP') || ticket.eventName.includes('Premium') ? (
+                            <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 border border-yellow-500/30">
+                              <img src="/mustang.jpg" alt="Mustang" className="w-full h-full object-cover" />
+                            </div>
+                          ) : (
+                            <TicketIcon className="w-8 h-8 text-gray-500" />
+                          )}
+                          <div>
+                            <p>{ticket.eventName}</p>
+                            <p className="text-xs text-gray-400">{formatDate(ticket.eventDate)}</p>
+                          </div>
+                        </div>
                       </td>
                       <td className="py-4 px-4 text-gray-400">
                         {formatDate(ticket.purchaseDate)}

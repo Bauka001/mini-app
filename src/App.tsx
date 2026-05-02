@@ -17,6 +17,7 @@ const AdminUsers = lazy(() => import('./pages/admin/AdminUsers').then(m => ({ de
 const AdminChat = lazy(() => import('./pages/admin/AdminChat').then(m => ({ default: m.AdminChat })));
 const AdminGames = lazy(() => import('./pages/admin/AdminGames').then(m => ({ default: m.AdminGames })));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
+const AdminTasks = lazy(() => import('./pages/admin/AdminTasks'));
 const AdminPanel = lazy(() => import('./pages/AdminPanel'));
 
 // Lazy loaded pages to reduce initial bundle size
@@ -37,10 +38,6 @@ const MemoryGame = lazy(() => import('./pages/games/MemoryGame'));
 const OddOneOutGame = lazy(() => import('./pages/games/OddOneOutGame'));
 const PairsGame = lazy(() => import('./pages/games/PairsGame'));
 const Merge2048Game = lazy(() => import('./pages/games/Merge2048Game'));
-const AgentSpotGame = lazy(() => import('./pages/games/AgentSpotGame'));
-const AgentSequenceGame = lazy(() => import('./pages/games/AgentSequenceGame'));
-const CodeBreakerGame = lazy(() => import('./pages/games/CodeBreakerGame'));
-const CompassGame = lazy(() => import('./pages/games/CompassGame'));
 
 type HistoryEntry = {
   gameId: string;
@@ -80,9 +77,6 @@ const workoutOnboardingGames: WorkoutOnboardingGame[] = [
   { id: 'odd-one', routeId: 'odd-one', historyIds: ['odd_one_out'] },
   { id: 'stroop', routeId: 'stroop', historyIds: ['stroop'] },
   { id: '2048', routeId: '2048', historyIds: ['2048'] },
-  { id: 'agent-spot', routeId: 'agent-spot', historyIds: ['agent_spot'] },
-  { id: 'agent-sequence', routeId: 'agent-sequence', historyIds: ['agent_sequence'] },
-  { id: 'code-breaker', routeId: 'code-breaker', historyIds: ['code_breaker'] },
 ];
 
 const getTodayKey = () => new Date().toISOString().split('T')[0];
@@ -387,16 +381,12 @@ function AppRoutes() {
             <Route path="/game/odd-one" element={<OddOneOutGame />} />
             <Route path="/game/pairs" element={<PairsGame />} />
             <Route path="/game/2048" element={<Merge2048Game />} />
-            <Route path="/game/agent-spot" element={<AgentSpotGame />} />
-            <Route path="/game/agent-sequence" element={<AgentSequenceGame />} />
-            <Route path="/game/code-breaker" element={<CodeBreakerGame />} />
-            <Route path="/game/compass" element={<CompassGame />} />
 
             <Route path="/admin" element={<AuthGuard adminOnly={true}><AdminLayout /></AuthGuard>}>
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
-              <Route path="chat" element={<AdminChat />} />
               <Route path="games" element={<AdminGames />} />
+              <Route path="tasks" element={<AdminTasks />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="tickets" element={<AdminPanel />} />
             </Route>
@@ -493,12 +483,12 @@ function App() {
     if (isSwitched) {
       // Show native modal/toast to the user
       if (WebApp.isVersionAtLeast('6.2')) {
-        WebApp.showAlert('Аккаунт ауысты, қайта кіріңіз');
+        WebApp.showAlert(i18n.t('account_switched'));
       } else {
-        alert('Аккаунт ауысты, қайта кіріңіз');
+        alert(i18n.t('account_switched'));
       }
     }
-  }, [syncUserFromTelegram, userId]);
+  }, [syncUserFromTelegram, userId, i18n]);
 
   // Sync HTML data-theme attribute with store
   const theme = useStore((state) => state.theme);
@@ -544,14 +534,14 @@ function App() {
       const key = `welcome_shown_${userId}`;
       if (!localStorage.getItem(key)) {
         addNotification({
-          title: 'Қош келдіңіз!',
-          message: 'Профиль құру үшін Profile бөліміне өтіңіз',
+          title: i18n.t('welcome'),
+          message: i18n.t('profile_welcome_message'),
           type: 'success'
         });
         localStorage.setItem(key, '1');
       }
     }
-  }, [userId, addNotification]);
+  }, [userId, addNotification, i18n]);
 
   return (
     <AuthGuard>

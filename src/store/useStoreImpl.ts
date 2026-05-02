@@ -35,6 +35,7 @@ import {
   buildTournamentStateAfterGame,
   normalizeTournamentState,
 } from './tournament';
+import { fetchSocialTasksApi, claimSocialTaskApi } from '../utils/api';
 import {
   type EventParticipant,
   type Notification,
@@ -55,7 +56,7 @@ export const useStore = create<UserState>()(
     (set, get) => ({
       language: initialState.language,
       soundEnabled: true,
-      theme: 'light',
+      theme: 'blue',
 
       brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS),
 
@@ -78,7 +79,6 @@ export const useStore = create<UserState>()(
             const isDifferentUser = state.user.id !== 0 && state.user.id !== currentUser.id;
 
             if (isDifferentUser) {
-              console.log('[Store] User switch detected, resetting state');
               if (isSupabaseConfigured) {
                 loadUserFromSupabase(currentUser.id, set);
                 subscribeToSupabaseChanges(currentUser.id, set);
@@ -99,7 +99,10 @@ export const useStore = create<UserState>()(
                 }
               };
             } else {
-              if (isSupabaseConfigured) {
+              // We don't need to refetch and resubscribe if the user hasn't changed.
+              // It's already subscribed. Just update Telegram specific info if needed.
+              if (isSupabaseConfigured && state.user.id === 0) {
+                // Initial load
                 loadUserFromSupabase(currentUser.id, set);
                 subscribeToSupabaseChanges(currentUser.id, set);
               }
@@ -274,7 +277,8 @@ export const useStore = create<UserState>()(
           date: playedAt.split('T')[0],
           timestamp: playedAtTimestamp,
         };
-        const updatedHistory = [...state.history, nextHistoryEntry];
+        // Keep only the last 100 games to prevent localStorage overflow
+        const updatedHistory = [...state.history, nextHistoryEntry].slice(-100);
         const nextTournament = buildTournamentStateAfterGame(state.tournament, result, playedAt);
 
         const shouldAddWorkoutNotification =
@@ -562,16 +566,53 @@ export const useStore = create<UserState>()(
 
       claimDailyReward: (amount) => set((state) => ({ coins: state.coins + amount })),
 
-      claimSocialReward: (taskId) => set((state) => {
-        const task = state.socialTasks.find(t => t.id === taskId);
-        if (!task || task.isClaimed) return state;
+      fetchSocialTasks: async () => {
+        try {
+          const { tasks } = await fetchSocialTasksApi();
+          if (tasks && tasks.length > 0) {
+            set({ socialTasks: tasks });
+          } else {
+            set({ socialTasks: initialSocialTasks });
+          }
+        } catch (error) {
+          console.error('Failed to fetch social tasks:', error);
+          set({ socialTasks: initialSocialTasks });
+        }
+      },
 
-        return {
-          gems: (state.gems || 0) + task.reward,
-          socialTasks: state.socialTasks.map(t => t.id === taskId ? { ...t, isClaimed: true } : t
-          )
-        };
-      }),
+      claimSocialTask: async (taskId) => {
+        const state = get();
+        const task = state.socialTasks.find(t => t.id === taskId);
+        if (!task || task.isClaimed) return;
+
+        let rewardToGive = task.reward;
+
+        try {
+          if (isSupabaseConfigured) {
+            const { reward } = await claimSocialTaskApi(taskId);
+            rewardToGive = reward;
+          }
+          
+          const newState = {
+            gems: (get().gems || 0) + rewardToGive,
+            socialTasks: get().socialTasks.map(t => t.id === taskId ? { ...t, isClaimed: true } : t)
+          };
+          
+          set(newState);
+          
+          if (isSupabaseConfigured && state.user.id) {
+            syncUserToSupabase({ ...get(), ...newState }, state.user.id);
+          }
+        } catch (error) {
+          console.error('Failed to claim social task:', error);
+          // Fallback if API fails (e.g. database not configured properly)
+          const newState = {
+            gems: (get().gems || 0) + rewardToGive,
+            socialTasks: get().socialTasks.map(t => t.id === taskId ? { ...t, isClaimed: true } : t)
+          };
+          set(newState);
+        }
+      },
 
       addCoins: (amount) => {
         const newState = { coins: (get().coins || 0) + amount };
@@ -674,13 +715,11 @@ export const useStore = create<UserState>()(
         switch (gameId) {
           case 'schulte':
           case 'odd_one':
-          case 'agent_spot':
             newStats.focus = Math.min(100, newStats.focus + increment);
             newStats.speed = Math.min(100, newStats.speed + increment);
             break;
           case 'memory':
           case 'pairs':
-          case 'agent_sequence':
             newStats.memory = Math.min(100, newStats.memory + increment);
             newStats.logic = Math.min(100, newStats.logic + increment);
             break;
@@ -1043,6 +1082,7 @@ export const useStore = create<UserState>()(
           dailyQuest: normalizeDailyQuest(mergedState.dailyQuest),
           weeklyQuest: normalizeWeeklyQuest(mergedState.weeklyQuest),
           tournament: normalizeTournamentState(mergedState.tournament),
+          socialTasks: mergedState.socialTasks || [],
         };
       },
     }

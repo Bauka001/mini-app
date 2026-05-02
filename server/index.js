@@ -556,6 +556,12 @@ app.post('/feedback', async (req, res) => {
     if (error) {
       throw error;
     }
+    
+    // Notify admin
+    for (const adminId of bootstrapAdminIds) {
+       const message = `🚨 <b>Жаңа шағым/ұсыныс түсті!</b>\n\n<b>Пайдаланушы:</b> ${username || `user_${userTelegramId}`}\n<b>ID:</b> ${userTelegramId}\n<b>Мәтін:</b>\n${text}`;
+       sendTelegramMessage(adminId, message);
+    }
 
     return res.json({ ok: true, feedbackId: data.id });
   } catch (error) {
@@ -615,6 +621,17 @@ app.post('/tickets/issue', async (req, res) => {
     if (userTelegramId) {
       const messageText = "Құттықтаймыз! Төлеміңіз қабылданды. Сіздің Premium статусыңыз қосылды";
       sendTelegramMessage(userTelegramId, messageText);
+    }
+    
+    // Notify admin about the purchase
+    for (const adminId of bootstrapAdminIds) {
+       const userName = `${req.body?.userName || ''}`.trim() || `user_${userTelegramId}`;
+       const eventName = `${req.body?.eventName || ''}`.trim() || 'Premium Event';
+       const price = Number(req.body?.price || 0);
+       const sourceText = isPlanUpgrade ? 'Тарифті жаңарту (Premium)' : 'Билет сатып алу';
+       
+       const message = `💰 <b>Жаңа төлем түсті!</b>\n\n<b>Пайдаланушы:</b> ${userName}\n<b>ID:</b> ${userTelegramId}\n<b>Түрі:</b> ${sourceText}\n<b>Атауы:</b> ${eventName}\n<b>Бағасы:</b> ${price} сома`;
+       sendTelegramMessage(adminId, message);
     }
 
     return res.json({ ok: true, ticketId: data.id });
@@ -1284,6 +1301,242 @@ app.post('/admin/feedback/reply', async (req, res) => {
     return res.json({ feedback });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'feedback_reply_error' });
+  }
+});
+
+app.post('/api/tasks', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+
+    const { data: tasks, error: tasksError } = await supabase
+      .from('social_tasks')
+      .select('id, platform, url, reward, is_active')
+      .eq('is_active', true);
+
+    if (tasksError) throw tasksError;
+
+    const { data: userTasks, error: userTasksError } = await supabase
+      .from('user_social_tasks')
+      .select('task_id')
+      .eq('user_telegram_id', access.identity.userId);
+
+    if (userTasksError) throw userTasksError;
+
+    const claimedTaskIds = new Set(userTasks.map((ut) => ut.task_id));
+
+    const result = tasks.map((task) => ({
+      ...task,
+      isClaimed: claimedTaskIds.has(task.id),
+    }));
+
+    return res.json({ tasks: result });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'tasks_error' });
+  }
+});
+
+app.post('/api/tasks/claim', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+
+    const taskId = `${req.body?.taskId || ''}`.trim();
+    if (!taskId) return res.status(400).json({ error: 'Task ID is required' });
+
+    // Check if task exists and is active
+    const { data: task, error: taskError } = await supabase
+      .from('social_tasks')
+      .select('id, reward, is_active')
+      .eq('id', taskId)
+      .single();
+
+    if (taskError || !task) {
+      return res.status(400).json({ error: 'Task not found or not active' });
+    }
+
+    if (!task.is_active) {
+      return res.status(400).json({ error: 'Task is no longer active' });
+    }
+
+    // Insert claim record (fails if already claimed due to UNIQUE constraint)
+    const { error: claimError } = await supabase
+      .from('user_social_tasks')
+      .insert({
+        user_telegram_id: access.identity.userId,
+        task_id: taskId,
+      });
+
+    if (claimError) {
+      if (claimError.code === '23505') {
+        return res.status(400).json({ error: 'Task already claimed' });
+      }
+      throw claimError;
+    }
+
+    // Add gems/coins to user (Assuming gems as per old logic: `gems: (state.gems || 0) + task.reward`)
+    // The previous frontend logic added `gems` for socialTasks. Wait, `reward` is usually `gems`. 
+    // Let's add gems to user table.
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('gems')
+      .eq('telegram_id', access.identity.userId)
+      .single();
+
+    if (!userError && userData) {
+      await supabase
+        .from('users')
+        .update({ gems: Number(userData.gems || 0) + task.reward })
+        .eq('telegram_id', access.identity.userId);
+    }
+
+    return res.json({ ok: true, reward: task.reward });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'task_claim_error' });
+  }
+});
+
+app.post('/api/admin/tasks', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+
+    const access = await resolveRequestAccess(req, res, { adminOnly: true });
+    if (!access) return;
+
+    const { data, error } = await supabase
+      .from('social_tasks')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return res.json({ tasks: data });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'admin_tasks_error' });
+  }
+});
+
+app.post('/api/admin/tasks/add', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+
+    const access = await resolveRequestAccess(req, res, { adminOnly: true });
+    if (!access) return;
+
+    const { id, platform, url, reward, is_active } = req.body;
+
+    if (!id || !platform || !url || typeof reward !== 'number') {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const { data, error } = await supabase
+      .from('social_tasks')
+      .insert({
+        id,
+        platform,
+        url,
+        reward,
+        is_active: is_active !== false, // default true
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await writeAuditLog(
+      access.identity.userId,
+      access.membership.role,
+      'task_added',
+      'social_task',
+      id,
+      { platform, reward }
+    );
+
+    return res.json({ task: data });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'admin_task_add_error' });
+  }
+});
+
+app.post('/api/admin/tasks/update', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+
+    const access = await resolveRequestAccess(req, res, { adminOnly: true });
+    if (!access) return;
+
+    const { id, platform, url, reward, is_active } = req.body;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Task ID is required' });
+    }
+
+    const { data, error } = await supabase
+      .from('social_tasks')
+      .update({
+        platform,
+        url,
+        reward,
+        is_active,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await writeAuditLog(
+      access.identity.userId,
+      access.membership.role,
+      'task_updated',
+      'social_task',
+      id,
+      { platform, reward, is_active }
+    );
+
+    return res.json({ task: data });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'admin_task_update_error' });
+  }
+});
+
+app.post('/api/admin/tasks/delete', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+
+    const access = await resolveRequestAccess(req, res, { adminOnly: true });
+    if (!access) return;
+
+    const id = req.body?.id;
+
+    if (!id) {
+      return res.status(400).json({ error: 'Task ID is required' });
+    }
+
+    const { error } = await supabase
+      .from('social_tasks')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    await writeAuditLog(
+      access.identity.userId,
+      access.membership.role,
+      'task_deleted',
+      'social_task',
+      id,
+      {}
+    );
+
+    return res.json({ ok: true });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'admin_task_delete_error' });
   }
 });
 

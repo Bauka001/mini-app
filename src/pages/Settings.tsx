@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { Language } from '../store/useStore';
 import { useStore } from '../store/useStoreImpl';
-import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut } from 'lucide-react';
+import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut, Instagram } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { InfoGuideModal } from '../components/InfoGuideModal';
 import { FeedbackModal } from '../components/FeedbackModal';
 
@@ -48,7 +48,7 @@ const SocialTaskCard = ({
   isClaimed, 
   onClick 
 }: { 
-  platform: 'youtube' | 'telegram', 
+  platform: 'youtube' | 'telegram' | 'instagram' | 'twitter' | 'other', 
   reward: number, 
   isClaimed: boolean, 
   onClick: () => void 
@@ -59,6 +59,9 @@ const SocialTaskCard = ({
     switch(platform) {
       case 'youtube': return <Youtube size={24} className="text-red-500" />;
       case 'telegram': return <Send size={24} className="text-blue-400" />;
+      case 'instagram': return <Instagram size={24} className="text-pink-500" />;
+      case 'twitter': return <Share2 size={24} className="text-blue-400" />;
+      default: return <Share2 size={24} className="text-gray-400" />;
     }
   };
 
@@ -66,6 +69,9 @@ const SocialTaskCard = ({
     switch(platform) {
       case 'youtube': return t('task_youtube');
       case 'telegram': return t('task_telegram');
+      case 'instagram': return t('task_instagram');
+      case 'twitter': return t('task_twitter');
+      default: return t('social_network');
     }
   };
 
@@ -73,6 +79,8 @@ const SocialTaskCard = ({
     switch(platform) {
       case 'youtube': return 'from-red-500/20 to-orange-500/20 hover:from-red-500/30 hover:to-orange-500/30';
       case 'telegram': return 'from-blue-500/20 to-cyan-500/20 hover:from-blue-500/30 hover:to-cyan-500/30';
+      case 'instagram': return 'from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30';
+      default: return 'from-gray-500/20 to-gray-400/20 hover:from-gray-500/30 hover:to-gray-400/30';
     }
   };
 
@@ -123,10 +131,15 @@ export const SettingsContent = () => {
     theme,
     setTheme,
     socialTasks,
-    claimSocialReward,
+    fetchSocialTasks,
+    claimSocialTask,
     user,
     logout
   } = useStore();
+
+  useEffect(() => {
+    void fetchSocialTasks();
+  }, [fetchSocialTasks]);
 
   const isLight = theme === 'light';
 
@@ -146,7 +159,7 @@ export const SettingsContent = () => {
     
     // Simple verification simulation - claim after delay
     setTimeout(() => {
-        claimSocialReward(taskId);
+        void claimSocialTask(taskId);
         WebApp.HapticFeedback.notificationOccurred('success');
     }, 5000); 
   };
@@ -185,29 +198,25 @@ export const SettingsContent = () => {
         </SettingItem>
 
         <SettingItem icon={MessageSquare} 
-          title="Feedback / Support"
+          title={t('feedback_support')}
           onClick={() => setShowFeedback(true)}
         >
-           <button className="text-xs font-bold text-primary">Write</button>
-        </SettingItem>
+            <button className="text-xs font-bold text-primary">{t('write_btn')}</button>
+          </SettingItem>
 
         <SettingItem icon={Share2} title={t('share_app')}>
-          <button 
+          <button
             onClick={() => {
-              const shareText = i18n.language === 'kz' 
-                ? 'Focus mini app-те көз миін дамытқандай! Мен деңгейім ' + (user?.level || 1) + ' деңгейде. Сен де ойнай аласың ба? 🧠'
-                : i18n.language === 'ru'
-                ? 'Развивай свой мозг в Focus mini app! Мой уровень ' + (user?.level || 1) + '. А ты готов к вызову? 🧠'
-                : 'Boost your brain with Focus mini app! My level is ' + (user?.level || 1) + '. Are you ready? 🧠';
-              
+              const shareText = t(i18n.language === 'kz' ? 'share_text_kz' : i18n.language === 'ru' ? 'share_text_ru' : 'share_text_en', { level: user?.level || 1 });
+
               const shareUrl = 'https://t.me/Focus_game_bot?start=app';
-              
+
               if (WebApp.shareText) {
                 WebApp.shareText(shareText, shareUrl);
               } else {
                 WebApp.openTelegramLink(shareUrl);
               }
-              
+
               WebApp.HapticFeedback.notificationOccurred('success');
             }}
             className="text-xs font-bold text-primary"
@@ -257,15 +266,6 @@ export const SettingsContent = () => {
                 {t('theme_light')}
               </button>
               <button
-                onClick={() => handleThemeChange('gold')}
-                className={clsx(
-                  "px-3 py-1 rounded-lg text-xs font-bold uppercase transition-colors",
-                  theme === 'gold' ? "bg-yellow-400 text-black shadow-[0_0_10px_rgba(250,204,21,0.5)]" : "bg-gray-800/50 text-yellow-500/50"
-                )}
-              >
-                {t('theme_gold')}
-              </button>
-              <button
                 onClick={() => handleThemeChange('blue')}
                 className={clsx(
                   "px-3 py-1 rounded-lg text-xs font-bold uppercase transition-colors",
@@ -277,33 +277,16 @@ export const SettingsContent = () => {
           </div>
         </SettingItem>
 
-        <SettingItem icon={LogOut} title="Log out / Шығу" onClick={() => {
-          if (confirm('Are you sure you want to log out? / Шығуды қалайсыз ба?')) {
+        <SettingItem icon={LogOut} title={t('log_out')} onClick={() => {
+          if (confirm(t('logout_confirm'))) {
             logout();
             WebApp.close();
           }
         }}>
-          <button className="text-xs font-bold text-red-500">Log out</button>
+          <button className="text-xs font-bold text-red-500">{t('log_out')}</button>
         </SettingItem>
       </section>
 
-      {/* Social Tasks Section */}
-      <section className="mb-8">
-        <h2 className="text-sm font-bold text-gray-500 uppercase mb-3 ml-1 flex items-center gap-2">
-          {t('earn_crystals')}
-        </h2>
-        
-        {socialTasks.map(task => (
-           <SocialTaskCard 
-             key={task.id}
-             platform={task.platform}
-             reward={task.reward}
-             isClaimed={task.isClaimed}
-             onClick={() => handleSocialClick(task.id, task.url)}
-           />
-         ))}
-      </section>
-      
       <InfoGuideModal isOpen={showInfo} onClose={() => setShowInfo(false)} />
       <FeedbackModal isOpen={showFeedback} onClose={() => setShowFeedback(false)} />
     </div>
