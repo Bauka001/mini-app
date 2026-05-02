@@ -37,6 +37,8 @@ import {
 } from './tournament';
 import { fetchSocialTasksApi, claimSocialTaskApi } from '../utils/api';
 import { fetchEntitlements as fetchEntitlementsApi } from '../utils/entitlementApi';
+import { AvatarStorage } from '../utils/avatarStorage';
+import { PROFILE_AVATARS } from '../constants/avatars';
 import {
   type EventParticipant,
   type Notification,
@@ -206,6 +208,43 @@ export const useStore = create<UserState>()(
 
         return newState;
       }),
+
+      saveAvatarImage: async (imageData: string) => {
+        const state = get();
+        if (state.user.id) {
+          await AvatarStorage.saveAvatar(state.user.id, imageData);
+        }
+      },
+
+      loadAvatarImage: async () => {
+        const state = get();
+        if (state.user.id) {
+          const savedAvatar = await AvatarStorage.getAvatar(state.user.id);
+          if (savedAvatar && !state.user.photoUrl) {
+            set((currentState) => ({
+              user: { ...currentState.user, photoUrl: savedAvatar }
+            }));
+          }
+          return savedAvatar;
+        }
+        return null;
+      },
+
+      isPremiumAvatar: (avatarId: string) => {
+        const avatar = PROFILE_AVATARS.find(a => a.id === avatarId);
+        return avatar?.isPremium || false;
+      },
+
+      canUseAvatar: (avatarId: string) => {
+        const state = get();
+        const avatar = PROFILE_AVATARS.find(a => a.id === avatarId);
+        if (!avatar) return false;
+        if (!avatar.isPremium) return true;
+        
+        const isPremium = state.plan === 'premium' || state.plan === 'pro' || state.plan === 'gold' || state.plan === 'silver';
+        const isNotExpired = !state.planExpiry || Date.now() < state.planExpiry;
+        return isPremium && isNotExpired;
+      },
 
       addGameResult: (result) => set((state) => {
         const now = new Date();

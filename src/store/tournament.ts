@@ -34,7 +34,6 @@ export const normalizeTournamentState = (
   weekKey: typeof tournament?.weekKey === 'string' ? tournament.weekKey : null,
   joinedAt: typeof tournament?.joinedAt === 'string' ? tournament.joinedAt : null,
   paymentMethod:
-    tournament?.paymentMethod === 'stars' ||
     tournament?.paymentMethod === 'ton' ||
     tournament?.paymentMethod === 'vip' ||
     tournament?.paymentMethod === 'ticket'
@@ -151,7 +150,7 @@ export const buildJoinTournamentOutcome = (
 
   return {
     success: true,
-    message: `${TOURNAMENT_ENTRY_FEE} ${paymentMethod === 'stars' ? 'Stars' : 'TON'} арқылы кіру дайын. Енді 3 ойын ойнаңыз.`,
+    message: `${TOURNAMENT_ENTRY_FEE} TON арқылы кіру дайын. Енді 3 ойын ойнаңыз.`,
     statePatch: { tournament },
   };
 };

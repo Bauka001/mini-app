@@ -16,7 +16,7 @@ const PaymentModal = ({
   onClose,
   planCode,
   planTitle,
-  price 
+  price
 }: { 
   isOpen: boolean, 
   onClose: () => void,
@@ -26,7 +26,6 @@ const PaymentModal = ({
 }) => {
   const { t } = useTranslation();
   const fetchEntitlements = useStore((state) => state.fetchEntitlements);
-  const [selectedMethod, setSelectedMethod] = useState<'stars' | 'ton'>('stars');
   const [tonUi] = useTonConnectUI();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
@@ -43,6 +42,18 @@ const PaymentModal = ({
       setIsSubmitting(false);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    WebApp.BackButton.show();
+    WebApp.BackButton.onClick(onClose);
+
+    return () => {
+      WebApp.BackButton.offClick(onClose);
+      WebApp.BackButton.hide();
+    };
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!pendingPaymentId) return;
@@ -116,18 +127,6 @@ const PaymentModal = ({
     WebApp.HapticFeedback.notificationOccurred('success');
     setErrorMessage('');
 
-    if (selectedMethod === 'stars') {
-      const url = 'https://t.me/Focus_game_bot?start=' + encodeURIComponent(planTitle.toLowerCase());
-
-      if (WebApp.platform === 'unknown') {
-        window.open(url, '_blank');
-      } else {
-        WebApp.openTelegramLink(url);
-      }
-      onClose();
-      return;
-    }
-
     try {
       setIsSubmitting(true);
       const paymentIntent = await createTonPaymentIntent(planCode);
@@ -175,64 +174,13 @@ const PaymentModal = ({
             )}
           </div>
 
-          <div className="space-y-3">
-            <button
-              onClick={() => setSelectedMethod('stars')}
-              className={`w-full min-h-[44px] rounded-2xl border p-4 text-left transition-all ${
-                selectedMethod === 'stars'
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-base font-bold text-black">Telegram Stars</span>
-                    <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-green-700">
-                      {t('recommended')}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-sm text-gray-600">{t('tg_fast_payment')}</div>
-                </div>
-                <div
-                  className={`mt-1 h-5 w-5 rounded-full border-2 ${
-                    selectedMethod === 'stars' ? 'border-green-500 bg-green-500' : 'border-gray-300'
-                  }`}
-                />
-              </div>
-            </button>
-
-            <button
-              onClick={() => setSelectedMethod('ton')}
-              className={`w-full min-h-[44px] rounded-2xl border p-4 text-left transition-all ${
-                selectedMethod === 'ton'
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-200 bg-white hover:border-gray-300'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-base font-bold text-black">TON (TonConnect)</div>
-                  <div className="mt-1 text-sm text-gray-600">{t('ton_wallet_payment')}</div>
-                </div>
-                <div
-                  className={`mt-1 h-5 w-5 rounded-full border-2 ${
-                    selectedMethod === 'ton' ? 'border-green-500 bg-green-500' : 'border-gray-300'
-                  }`}
-                />
-              </div>
-            </button>
-          </div>
-
-          {selectedMethod === 'ton' && (
-            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-              <div className="mb-3 text-sm font-semibold text-black">TonConnect</div>
-              <TonConnectButton />
-              <div className="mt-3 text-xs text-gray-600">
-                Server creates the exact TON amount and memo. Plan unlocks only after backend verification.
-              </div>
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-3 text-sm font-semibold text-black">TON (TonConnect)</div>
+            <TonConnectButton />
+            <div className="mt-3 text-xs text-gray-600">
+              Server creates the exact TON amount and memo. Plan unlocks only after backend verification.
             </div>
-          )}
+          </div>
 
           {(statusMessage || errorMessage) && (
             <div className={`rounded-2xl border p-3 text-sm ${
@@ -275,16 +223,16 @@ const CountdownTimer = ({ targetDateISO }: { targetDateISO: string }) => {
   const seconds = Math.floor((timeLeft / 1000) % 60);
 
   return (
-    <div className="flex gap-2 justify-center mt-3">
+    <div className="flex gap-1 justify-center mt-1.5">
       {[
         { label: 'КҮН', value: days },
         { label: 'САҒ', value: hours },
         { label: 'МИН', value: minutes },
         { label: 'СЕК', value: seconds },
       ].map((item, idx) => (
-        <div key={idx} className="flex flex-col items-center bg-black/40 rounded-lg p-2 min-w-[50px] border border-amber-500/30">
-          <span className="text-lg font-black text-amber-400">{item.value.toString().padStart(2, '0')}</span>
-          <span className="text-[9px] text-amber-200/70 uppercase font-bold">{item.label}</span>
+        <div key={idx} className="flex flex-col items-center bg-black/40 rounded-md p-1 min-w-[36px] border border-amber-500/30">
+          <span className="text-xs font-black text-amber-400">{item.value.toString().padStart(2, '0')}</span>
+          <span className="text-[7px] text-amber-200/70 uppercase font-bold">{item.label}</span>
         </div>
       ))}
     </div>
@@ -440,11 +388,8 @@ const SkinCard = ({
 type VipPurchaseOption = 'basic' | 'pro' | 'premium';
 
 const BASIC_PRICE = '6 990 ₸';
-const BASIC_STARS = '≈ 140 Stars';
 const PRO_PRICE = '8 590 ₸';
-const PRO_STARS = '≈ 175 Stars';
 const PREMIUM_PRICE = '9 990 ₸';
-const PREMIUM_STARS = '≈ 205 Stars';
 
 const SkinsTab = ({ styles, handleBuySkin, handleEquipSkin, skinInventory, activeSkin }: any) => {
   const { t } = useTranslation();
@@ -636,7 +581,6 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
       duration: '365 days',
       badge: 'BASIC',
       priceLabel: BASIC_PRICE,
-      starsLabel: BASIC_STARS,
       description: t('plan_basic_desc'),
       highlight: 'Жылдық',
       popular: false,
@@ -649,7 +593,6 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
       duration: '365 days',
       badge: t('badge_best'),
       priceLabel: PRO_PRICE,
-      starsLabel: PRO_STARS,
       description: t('plan_pro_desc'),
       highlight: 'Ең танымал',
       popular: true,
@@ -663,7 +606,6 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
       badge: '👑 ' + t('plan_premium'),
       priceLabel: PREMIUM_PRICE,
       originalPrice: '15 990 ₸',
-      starsLabel: PREMIUM_STARS,
       description: t('plan_premium_desc'),
       highlight: '🚗 ' + t('car_raffle'),
       popular: false,
@@ -675,70 +617,70 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
   return (
     <div className="space-y-6">
       <div className={clsx(
-        "p-6 rounded-2xl border relative overflow-hidden",
+        "p-4 rounded-xl border relative overflow-hidden",
         "bg-gradient-to-br from-amber-500/10 to-yellow-500/10 border-amber-500/20"
       )}>
         <div className="absolute inset-0 bg-gradient-to-br from-amber-500/10 via-yellow-400/5 to-transparent" />
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500 text-white">
-              <Crown size={24} fill="currentColor" />
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 rounded-lg bg-amber-500 text-white">
+              <Crown size={18} fill="currentColor" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100">
+              <h3 className="text-sm font-bold text-amber-900 dark:text-amber-100">
                 {t('vip_status') || 'VIP Status'}
               </h3>
-              <p className="text-sm text-amber-700 dark:text-amber-300">
+              <p className="text-[10px] text-amber-700 dark:text-amber-300">
                 {t('vip_membership_desc')}
               </p>
             </div>
           </div>
-          <div className="px-3 py-1 rounded-full bg-amber-500 text-white text-xs font-bold">
+          <div className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-bold">
             {String(currentPlan || 'free').toUpperCase()}
           </div>
         </div>
-        <div className="relative z-10 grid grid-cols-2 gap-3">
-          <div className="rounded-2xl border border-amber-500/20 bg-white/5 px-4 py-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-amber-100/70">Analytics</div>
-            <div className="mt-1 text-sm font-black text-white">VIP only</div>
+        <div className="relative z-10 grid grid-cols-2 gap-2">
+          <div className="rounded-xl border border-amber-500/20 bg-white/5 px-2 py-1.5">
+            <div className="text-[9px] uppercase tracking-[0.18em] text-amber-100/70">Analytics</div>
+            <div className="mt-0.5 text-[10px] font-black text-white">VIP only</div>
           </div>
-          <div className="rounded-2xl border border-amber-500/20 bg-white/5 px-4 py-3">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-amber-100/70">Status</div>
-            <div className="mt-1 text-sm font-black text-white">Gold border</div>
+          <div className="rounded-xl border border-amber-500/20 bg-white/5 px-2 py-1.5">
+            <div className="text-[9px] uppercase tracking-[0.18em] text-amber-100/70">Status</div>
+            <div className="mt-0.5 text-[10px] font-black text-white">Gold border</div>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
-          <div className="flex items-center gap-2 text-cyan-300">
-            <BarChart3 size={18} />
-            <span className="text-xs font-black uppercase tracking-[0.2em]">Analytics</span>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-3">
+          <div className="flex items-center gap-1.5 text-cyan-300">
+            <BarChart3 size={14} />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Analytics</span>
           </div>
-          <div className="mt-3 text-sm font-bold text-white">{t('analytics_desc')}</div>
+          <div className="mt-2 text-[10px] font-bold text-white">{t('analytics_desc')}</div>
         </div>
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4">
-          <div className="flex items-center gap-2 text-amber-300">
-            <Medal size={18} />
-            <span className="text-xs font-black uppercase tracking-[0.2em]">Gold border</span>
+        <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+          <div className="flex items-center gap-1.5 text-amber-300">
+            <Medal size={14} />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Gold border</span>
           </div>
-          <div className="mt-3 text-sm font-bold text-white">{t('gold_border_desc')}</div>
+          <div className="mt-2 text-[10px] font-bold text-white">{t('gold_border_desc')}</div>
         </div>
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
-          <div className="flex items-center gap-2 text-emerald-300">
-            <Sparkles size={18} />
-            <span className="text-xs font-black uppercase tracking-[0.2em]">Tournament</span>
+        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3">
+          <div className="flex items-center gap-1.5 text-emerald-300">
+            <Sparkles size={14} />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Tournament</span>
           </div>
-          <div className="mt-3 text-sm font-bold text-white">{t('tournament_desc')}</div>
+          <div className="mt-2 text-[10px] font-bold text-white">{t('tournament_desc')}</div>
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {vipPlans.map((plan) => (
           <div
             key={plan.id}
             className={clsx(
-              "p-6 rounded-2xl border transition-all duration-300 relative overflow-hidden",
+              "p-4 rounded-2xl border transition-all duration-300 relative overflow-hidden",
               plan.isPremium
                 ? "bg-gradient-to-br from-amber-900 via-stone-900 to-rose-950 border-amber-400 ring-2 ring-amber-300 shadow-xl shadow-amber-500/30"
                 : plan.popular
@@ -755,9 +697,9 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
               </div>
             )}
 
-            <div className="text-center mb-4">
+            <div className="text-center mb-3">
               <div className={clsx(
-                "inline-flex items-center justify-center px-3 py-1 rounded-full text-[10px] font-black tracking-[0.18em] mb-3",
+                "inline-flex items-center justify-center px-2 py-0.5 rounded-full text-[9px] font-black tracking-[0.18em] mb-2",
                 plan.isPremium
                   ? "bg-gradient-to-r from-amber-400 to-yellow-500 text-black shadow-lg shadow-amber-500/30"
                   : plan.popular
@@ -767,86 +709,63 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
                 {plan.badge}
               </div>
               <h3 className={clsx(
-                "text-xl font-black",
+                "text-lg font-black",
                 plan.isPremium ? "text-amber-500 dark:text-amber-300 drop-shadow-sm" : plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100"
               )}>
                 {plan.name}
               </h3>
-              <p className={clsx(
-                "text-sm font-bold",
-                plan.isPremium ? "text-amber-600 dark:text-amber-400" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
-              )}>
-                (365 күн)
-              </p>
-              <p className={clsx(
-                "text-xs mt-2 font-medium",
-                plan.isPremium ? "text-amber-700 dark:text-amber-200" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
-              )}>
-                {plan.description}
-              </p>
             </div>
 
-            <div className="text-center mb-4">
+            <div className="text-center mb-3">
               {plan.isPremium && plan.originalPrice && (
-                <div className="text-lg font-bold text-gray-400 line-through mb-1">
+                <div className="text-sm font-bold text-gray-400 line-through mb-0.5">
                   {plan.originalPrice}
                 </div>
               )}
               <div className={clsx(
-                "text-3xl font-black",
+                "text-2xl font-black",
                 plan.isPremium ? "bg-gradient-to-b from-amber-200 to-yellow-500 bg-clip-text text-transparent drop-shadow-md" : plan.popular ? "text-yellow-600 dark:text-yellow-400" : "text-amber-900 dark:text-amber-100"
               )}>
                 {plan.priceLabel}
               </div>
-              <div className={clsx(
-                "text-xs font-bold mt-1",
-                plan.isPremium ? "text-amber-500 drop-shadow-sm" : plan.popular ? "text-yellow-700 dark:text-yellow-300" : "text-amber-700 dark:text-amber-300"
-              )}>
-                {plan.starsLabel}
-              </div>
-              <div className={clsx(
-                "text-xs font-black mt-1",
-                plan.isPremium ? "text-emerald-400 drop-shadow-sm" : "text-emerald-500"
-              )}>
-                {plan.highlight}
-              </div>
               {plan.isPremium && (
-                <CountdownTimer targetDateISO="2026-05-25T23:59:59.000Z" />
+                <div className="mt-1">
+                  <CountdownTimer targetDateISO="2026-05-25T23:59:59.000Z" />
+                </div>
               )}
             </div>
 
             {plan.isPremium && (
-              <div className="mb-4 space-y-3">
-                {/* Мустанг суреті рамка ішінде */}
-                <div className="relative w-full aspect-video rounded-xl border-2 border-amber-400 p-1 bg-amber-500/10 shadow-[0_0_15px_rgba(251,191,36,0.5)] overflow-hidden group">
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 rounded-lg pointer-events-none" />
+              <div className="mb-3 space-y-2">
+                <div className="relative w-full aspect-video rounded-lg border-2 border-amber-400 p-0.5 bg-amber-500/10 shadow-[0_0_15px_rgba(251,191,36,0.5)] overflow-hidden group">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 rounded pointer-events-none" />
                   <img 
                     src="/mustang.jpg" 
                     alt="Ford Mustang" 
-                    className="w-full h-full object-cover rounded-lg transform group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-cover rounded transform group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute bottom-2 left-3 z-20 flex items-center gap-1.5">
-                    <Car size={16} className="text-amber-400" />
-                    <span className="text-sm font-black text-white uppercase tracking-wider drop-shadow-[0_2px_2px_rgba(0,0,0,1)]">
+                  <div className="absolute bottom-1.5 left-2 z-20 flex items-center gap-1">
+                    <Car size={12} className="text-amber-400" />
+                    <span className="text-[10px] font-black text-white uppercase tracking-wider drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
                       Ford Mustang
                     </span>
                   </div>
-                  <div className="absolute top-2 right-2 z-20">
-                    <div className="px-2 py-0.5 rounded bg-amber-500 text-[10px] font-black text-black uppercase shadow-lg border border-amber-300">
+                  <div className="absolute top-1.5 right-1.5 z-20">
+                    <div className="px-1.5 py-0.5 rounded bg-amber-500 text-[8px] font-black text-black uppercase shadow-lg border border-amber-300">
                       {t('main_prize')}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-start gap-3 rounded-xl border border-amber-400 bg-amber-500/10 p-3">
-                  <div className="rounded-lg bg-amber-500 p-2">
-                    <Gift size={20} className="text-black" />
+                <div className="flex items-start gap-2 rounded-lg border border-amber-400 bg-amber-500/10 p-2">
+                  <div className="rounded bg-amber-500 p-1.5">
+                    <Gift size={14} className="text-black" />
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1 text-[13px] font-black uppercase tracking-wider text-amber-500 drop-shadow-sm">
+                    <div className="flex items-center gap-0.5 text-[10px] font-black uppercase tracking-wider text-amber-500 drop-shadow-sm">
                       {t('car_raffle')}
                     </div>
-                    <div className="mt-0.5 text-xs font-bold leading-tight text-white drop-shadow-sm">
+                    <div className="mt-0.5 text-[9px] font-bold leading-tight text-white drop-shadow-sm">
                       {t('car_raffle_desc')}
                     </div>
                   </div>
@@ -854,13 +773,13 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
               </div>
             )}
 
-            <ul className="space-y-2 mb-4">
+            <ul className="space-y-1 mb-3">
               {plan.features.map((feature, index) => (
                 <li key={index} className={clsx(
-                  "text-xs flex items-start gap-2 font-medium",
+                  "text-[10px] flex items-start gap-1.5 font-medium leading-tight",
                   plan.isPremium ? "text-amber-100 drop-shadow-sm" : plan.popular ? "text-yellow-800 dark:text-yellow-200" : "text-amber-800 dark:text-amber-200"
                 )}>
-                  <span className="mt-0.5 font-black text-amber-400">✓</span>
+                  <span className="font-black text-amber-400 text-[9px]">✓</span>
                   {feature}
                 </li>
               ))}
@@ -869,7 +788,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
             <button
               onClick={() => onBuyPlan(plan.id)}
               className={clsx(
-                "w-full py-3 rounded-xl font-bold text-sm transition-all",
+                "w-full py-2 rounded-lg font-bold text-xs transition-all",
                 plan.isPremium
                   ? "bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 text-stone-950 hover:scale-105 shadow-lg shadow-amber-500/40"
                   : plan.popular

@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Brain, CalendarDays, CheckCircle2, Crown, Lock, Medal, Sparkles, Star, Trophy, Wallet } from 'lucide-react';
+import { Brain, CalendarDays, CheckCircle2, Crown, Lock, Medal, Sparkles, Trophy, Wallet } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
 import { useStore } from '../store/useStoreImpl';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 
-const ENTRY_STARS = 50;
 const MAX_TOURNAMENT_GAMES = 3;
 
 const PRIZE_TIERS = [
@@ -104,7 +103,7 @@ export default function Tournaments() {
 
   const currentUserRank = leaderboard.find((player) => player.isCurrentUser);
 
-  const handleJoin = (paymentMethod: 'stars' | 'ton' | 'vip' | 'ticket') => {
+  const handleJoin = (paymentMethod: 'ton' | 'vip' | 'ticket') => {
     const result = joinTournament(paymentMethod);
     setFeedback(result.message);
 
@@ -141,8 +140,8 @@ export default function Tournaments() {
             <div className={clsx('rounded-2xl p-4', styles.cardClass)}>
               <div className={clsx('text-xs uppercase tracking-[0.2em]', styles.textSecondary)}>{t('entry_fee')}</div>
               <div className={clsx('mt-2 flex items-center gap-2 text-lg font-black', styles.textPrimary)}>
-                <Star size={18} className="text-amber-400" />
-                {ENTRY_STARS} Stars {t('or_ton')}
+                <Wallet size={18} className={styles.textAccent} />
+                TON
               </div>
             </div>
             <div className={clsx('rounded-2xl p-4', styles.cardClass)}>
@@ -178,41 +177,22 @@ export default function Tournaments() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => handleJoin('stars')}
-                disabled={!schedule.isOpen || joinedCurrentWeek}
-                className={clsx(
-                  'rounded-2xl px-4 py-4 min-h-[44px] text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
-                  styles.btnPrimary
-                )}
-              >
-                <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em]">
-                  <Star size={16} />
-                  Stars
-                </div>
-                <div className="mt-2 text-2xl font-black">{ENTRY_STARS}</div>
-                <div className="mt-1 text-xs opacity-80">{t('join_with_stars_desc')}</div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleJoin('ton')}
-                disabled={!schedule.isOpen || joinedCurrentWeek}
-                className={clsx(
-                  'rounded-2xl px-4 py-4 min-h-[44px] text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
-                  styles.btnSecondary
-                )}
-              >
-                <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em]">
-                  <Wallet size={16} />
-                  TON
-                </div>
-                <div className={clsx('mt-2 text-2xl font-black', styles.textPrimary)}>TON</div>
-                <div className={clsx('mt-1 text-xs', styles.textSecondary)}>{t('ton_payment_desc')}</div>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => handleJoin('ton')}
+              disabled={!schedule.isOpen || joinedCurrentWeek}
+              className={clsx(
+                'w-full rounded-2xl px-4 py-4 min-h-[44px] text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
+                styles.btnSecondary
+              )}
+            >
+              <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em]">
+                <Wallet size={16} />
+                TON
+              </div>
+              <div className={clsx('mt-2 text-2xl font-black', styles.textPrimary)}>TON</div>
+              <div className={clsx('mt-1 text-xs', styles.textSecondary)}>{t('ton_payment_desc')}</div>
+            </button>
 
             {tournamentTickets > 0 ? (
               <button
@@ -263,7 +243,7 @@ export default function Tournaments() {
                     {isVip ? t('premium_once_a_week') : t('unlocks_with_premium')}
                   </div>
                   <div className={clsx('mt-1 text-xs', styles.textSecondary)}>
-                    {vipUsedThisWeek ? t('free_entry_used') : t('replaces_stars_or_ton')}
+                    {vipUsedThisWeek ? t('free_entry_used') : t('replaces_ton')}
                   </div>
                 </div>
                 <div className={clsx('rounded-2xl p-3', isVip ? 'bg-emerald-400/15 text-emerald-300' : 'bg-white/5 text-white/60')}>

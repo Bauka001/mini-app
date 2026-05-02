@@ -146,8 +146,7 @@ export interface BrainStats {
   dailyWorkoutModifier?: number;
 }
 
-export type TournamentPaymentMethod = 'stars' | 'ton' | 'vip' | 'ticket';
-
+export type TournamentPaymentMethod = 'ton' | 'vip' | 'ticket';
 export interface TournamentGame {
   gameId: string;
   score: string | number;
@@ -292,6 +291,11 @@ export interface UserState {
   claimWeeklyQuestMilestone: (milestoneIndex: number) => boolean;
   joinTournament: (paymentMethod: TournamentPaymentMethod) => { success: boolean; message: string };
   claimWeeklyChallengeReward: () => boolean;
+
+  saveAvatarImage: (imageData: string) => Promise<void>;
+  loadAvatarImage: () => Promise<string | null>;
+  isPremiumAvatar: (avatarId: string) => boolean;
+  canUseAvatar: (avatarId: string) => boolean;
 }
 
 const tgUser = getTelegramUser();

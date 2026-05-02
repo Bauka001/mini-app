@@ -62,7 +62,7 @@ export interface TonPaymentIntent {
 
 export interface PaymentStatusResponse {
   paymentOrderId: string;
-  provider: 'ton' | 'telegram_stars';
+  provider: 'ton';
   planCode: TonPlanCode;
   status: 'created' | 'pending' | 'paid' | 'failed' | 'expired' | 'canceled';
   amountNano: number;

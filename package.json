@@ -12,7 +12,9 @@
     "deploy:vercel": "powershell -ExecutionPolicy Bypass -File ./deploy-vercel.ps1",
     "post:tg": "powershell -ExecutionPolicy Bypass -File ./post-telegram.ps1",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "setup-webhook": "node setup-webhook.js",
+    "test-stars": "node test-stars.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.101.0",

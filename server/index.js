@@ -2105,6 +2105,280 @@ app.get('/plans', async (_req, res) => {
   }
 });
 
+const STARS_PLAN_CATALOG = {
+  basic: { tierCode: 'basic', durationDays: 365, amountStars: 140 },
+  pro: { tierCode: 'pro', durationDays: 365, amountStars: 175 },
+  premium: { tierCode: 'premium', durationDays: 365, amountStars: 205 },
+};
+
+app.post('/payments/stars/create', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const botToken = process.env.BOT_TOKEN;
+    if (!botToken) {
+      return res.status(503).json({ error: 'Bot token is not configured' });
+    }
+
+    const planCode = normalizePlanCode(req.body?.planCode);
+    if (!planCode) {
+      return res.status(400).json({ error: 'Unsupported plan code' });
+    }
+
+    const planOffer = STARS_PLAN_CATALOG[planCode];
+    if (!planOffer) {
+      return res.status(404).json({ error: 'Plan offer not found' });
+    }
+
+    const paymentOrderId = crypto.randomUUID();
+    const payload = `stars_${planCode}_${paymentOrderId}`;
+
+    const invoiceData = {
+      title: `${planOffer.tierCode.toUpperCase()} Yearly`,
+      description: `VIP membership: ${planOffer.tierCode.toUpperCase()} tier for ${planOffer.durationDays} days`,
+      payload,
+      currency: 'XTR',
+      prices: [
+        {
+          label: planOffer.tierCode.toUpperCase(),
+          amount: planOffer.amountStars,
+        },
+      ],
+      provider_token: '',
+    };
+
+    const invoiceResponse = await fetch(`https://api.telegram.org/bot${botToken}/createInvoiceLink`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(invoiceData),
+    });
+
+    if (!invoiceResponse.ok) {
+      const errorText = await invoiceResponse.text();
+      console.error('[Stars] Telegram API error:', errorText);
+      return res.status(500).json({ error: 'Failed to create invoice link' });
+    }
+
+    const invoiceResult = await invoiceResponse.json();
+    if (!invoiceResult.ok) {
+      console.error('[Stars] Invoice creation failed:', invoiceResult);
+      return res.status(500).json({ error: 'Invoice creation failed' });
+    }
+
+    const { data, error } = await supabase
+      .from('payment_orders')
+      .insert({
+        id: paymentOrderId,
+        user_telegram_id: access.identity.userId,
+        provider: 'telegram_stars',
+        plan_code: planCode,
+        currency: 'XTR',
+        amount_nano: planOffer.amountStars,
+        status: 'created',
+        memo: payload,
+        provider_payload: {
+          invoiceLink: invoiceResult.result,
+        },
+        expires_at: new Date(Date.now() + TON_PAYMENT_TTL_MS).toISOString(),
+      })
+      .select('id, plan_code, amount_nano, currency, status, memo, expires_at, created_at')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({
+      paymentOrderId: data.id,
+      planCode: data.plan_code,
+      provider: 'telegram_stars',
+      invoiceLink: invoiceResult.result,
+      amountStars: planOffer.amountStars,
+      currency: data.currency,
+      memo: data.memo,
+      expiresAt: data.expires_at,
+      createdAt: data.created_at,
+      status: data.status,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'stars_payment_create_error' });
+  }
+});
+
+app.post('/payments/stars/webhook', async (req, res) => {
+  try {
+    const update = req.body;
+    
+    if (!update || !update.pre_checkout_query && !update.successful_payment) {
+      return res.status(200).json({ ok: true });
+    }
+
+    if (update.pre_checkout_query) {
+      const { id: queryId, invoice_payload: payload, total_amount: totalAmount, currency } = update.pre_checkout_query;
+      
+      if (currency !== 'XTR') {
+        await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/answerPreCheckoutQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pre_checkout_query_id: queryId,
+            ok: false,
+            error_message: 'Invalid currency',
+          }),
+        });
+        return res.status(200).json({ ok: true });
+      }
+
+      if (!payload || !payload.startsWith('stars_')) {
+        await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/answerPreCheckoutQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pre_checkout_query_id: queryId,
+            ok: false,
+            error_message: 'Invalid payload',
+          }),
+        });
+        return res.status(200).json({ ok: true });
+      }
+
+      const match = payload.match(/stars_(.+)_(.+)/);
+      if (!match) {
+        await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/answerPreCheckoutQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pre_checkout_query_id: queryId,
+            ok: false,
+            error_message: 'Invalid payload format',
+          }),
+        });
+        return res.status(200).json({ ok: true });
+      }
+
+      const [, planCode, paymentOrderId] = match;
+      
+      if (!supabase) {
+        await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/answerPreCheckoutQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pre_checkout_query_id: queryId,
+            ok: true,
+          }),
+        });
+        return res.status(200).json({ ok: true });
+      }
+
+      const { data: paymentOrder, error: orderError } = await supabase
+        .from('payment_orders')
+        .select('*')
+        .eq('id', paymentOrderId)
+        .single();
+
+      if (orderError || !paymentOrder) {
+        await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/answerPreCheckoutQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pre_checkout_query_id: queryId,
+            ok: false,
+            error_message: 'Payment order not found',
+          }),
+        });
+        return res.status(200).json({ ok: true });
+      }
+
+      const planOffer = STARS_PLAN_CATALOG[planCode];
+      if (!planOffer || planOffer.amountStars !== totalAmount) {
+        await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/answerPreCheckoutQuery`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pre_checkout_query_id: queryId,
+            ok: false,
+            error_message: 'Invalid amount',
+          }),
+        });
+        return res.status(200).json({ ok: true });
+      }
+
+      await fetch(`https://api.telegram.org/bot${process.env.BOT_TOKEN}/answerPreCheckoutQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pre_checkout_query_id: queryId,
+          ok: true,
+        }),
+      });
+
+      return res.status(200).json({ ok: true });
+    }
+
+    if (update.successful_payment) {
+      const payment = update.successful_payment;
+      const payload = payment.invoice_payload;
+      
+      if (!payload || !payload.startsWith('stars_')) {
+        console.warn('[Stars] Invalid payload in successful_payment');
+        return res.status(200).json({ ok: true });
+      }
+
+      const match = payload.match(/stars_(.+)_(.+)/);
+      if (!match) {
+        console.warn('[Stars] Invalid payload format in successful_payment');
+        return res.status(200).json({ ok: true });
+      }
+
+      const [, planCode, paymentOrderId] = match;
+      
+      if (!supabase) {
+        console.warn('[Stars] Supabase not configured');
+        return res.status(200).json({ ok: true });
+      }
+
+      const { data: paymentOrder, error: orderError } = await supabase
+        .from('payment_orders')
+        .select('*')
+        .eq('id', paymentOrderId)
+        .single();
+
+      if (orderError || !paymentOrder) {
+        console.warn('[Stars] Payment order not found for successful_payment');
+        return res.status(200).json({ ok: true });
+      }
+
+      if (paymentOrder.status === 'paid') {
+        console.log('[Stars] Payment already processed, skipping');
+        return res.status(200).json({ ok: true });
+      }
+
+      const verificationPayload = {
+        telegramPaymentChargeId: payment.telegram_payment_charge_id,
+        providerPaymentId: payment.provider_payment_charge_id,
+        currency: payment.currency,
+        totalAmount: payment.total_amount,
+      };
+
+      await applyPaidEntitlement(paymentOrder, verificationPayload);
+
+      return res.status(200).json({ ok: true });
+    }
+
+    return res.status(200).json({ ok: true });
+  } catch (error) {
+    console.error('[Stars] Webhook error:', error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'webhook_error' });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

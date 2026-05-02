@@ -1,11 +1,11 @@
-import { useState, useRef, useMemo, lazy, Suspense } from 'react';
+import { useState, useRef, useMemo, lazy, Suspense, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, Camera, Edit2, Trophy, Gift, 
   Coins, Diamond, Zap, History, Star, 
   Award, TrendingUp, Calendar, LayoutGrid,
   Flame, Shield, Crown, Zap as ZapIcon, Calculator, Target, Lock,
-  Ticket as TicketIcon, Car, CheckCircle, BarChart3
+  Ticket as TicketIcon, Car, CheckCircle, BarChart3, Sparkles
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { buildVipAnalyticsSnapshot, useStore } from '../store/useStoreImpl';
@@ -15,6 +15,7 @@ import WebApp from '@twa-dev/sdk';
 import { Achievements } from '../components/Achievements';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
+import { PROFILE_AVATARS, ProfileAvatar } from '../constants/avatars';
 
 // Lazy load BrainProfile to split recharts dependency
 const BrainProfile = lazy(() => import('../components/BrainProfile').then(m => ({ default: m.BrainProfile })));
@@ -34,39 +35,6 @@ const ACHIEVEMENTS = [
   { id: 'pro_gamer', name: 'Pro Gamer', description: 'Played 50 games', icon: '🏆', color: 'bg-purple-500' },
   { id: 'xp_master', name: 'XP Master', description: 'Earned 5000 XP', icon: '⚡', color: 'bg-yellow-500' },
 ];
-
-const PROFILE_STICKERS = [
-  {
-    id: 'default',
-    name: 'Classic',
-    emoji: '✨',
-    previewClass: 'bg-secondary text-white border border-gray-700',
-  },
-  {
-    id: 'neon_blue',
-    name: 'Neon Blue',
-    emoji: '💙',
-    previewClass: 'bg-blue-900/40 text-blue-100 border border-blue-500 shadow-blue-500/20',
-  },
-  {
-    id: 'royal_purple',
-    name: 'Royal Purple',
-    emoji: '💜',
-    previewClass: 'bg-purple-900/40 text-purple-100 border border-purple-500 shadow-purple-500/20',
-  },
-  {
-    id: 'matrix',
-    name: 'Matrix',
-    emoji: '💚',
-    previewClass: 'bg-green-900/40 text-green-400 border border-green-500',
-  },
-  {
-    id: 'premium_gold',
-    name: 'Premium Gold',
-    emoji: '👑',
-    previewClass: 'bg-amber-500/20 text-amber-100 border border-amber-400/50',
-  },
-] as const;
 
 const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
 
@@ -103,6 +71,11 @@ const ProfilePage = () => {
   const [firstName, setFirstName] = useState(user.firstName);
   const [username, setUsername] = useState(user.username || '');
   const profileInitial = (user.firstName?.trim()?.[0] || user.username?.trim()?.[0] || 'U').toUpperCase();
+  const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+
+  useEffect(() => {
+    loadAvatarImage();
+  }, []);
 
   // Calculate XP progress
   const xpProgress = useMemo(() => {
@@ -140,8 +113,9 @@ const ProfilePage = () => {
     }
 
     const reader = new FileReader();
-    reader.onloadend = () => {
+    reader.onloadend = async () => {
       const base64String = reader.result as string;
+      await saveAvatarImage(base64String);
       updateUserProfile({ photoUrl: base64String });
       WebApp.HapticFeedback.impactOccurred('medium');
       event.target.value = '';
@@ -162,16 +136,37 @@ const ProfilePage = () => {
     return buildVipAnalyticsSnapshot(history || [], brainStats);
   }, [brainStats, history]);
 
-  const ownedProfileStickers = useMemo(
-    () => PROFILE_STICKERS.filter((sticker) => skinInventory.includes(sticker.id)),
-    [skinInventory]
-  );
+  const availableAvatars = useMemo(() => {
+    return PROFILE_AVATARS.filter(avatar => {
+      if (!avatar.isPremium) return true;
+      return canUseAvatar(avatar.id);
+    });
+  }, [plan, planExpiry]);
 
   const isVipAnalyticsUnlocked = plan === 'premium' && !isPlanExpired;
 
   const handleUnlockVipAnalytics = () => {
     WebApp.HapticFeedback.impactOccurred('medium');
     navigate('/shop');
+  };
+
+  const handleAvatarSelect = (avatar: ProfileAvatar) => {
+    if (!canUseAvatar(avatar.id)) {
+      WebApp.showAlert(t('avatar_premium_required'));
+      return;
+    }
+    equipSkin(avatar.id);
+    WebApp.HapticFeedback.notificationOccurred('success');
+  };
+
+  const getAvatarDisplay = (avatar: ProfileAvatar) => {
+    if (avatar.imageUrl) {
+      return <img src={avatar.imageUrl} alt={avatar.name.en} className="w-full h-full object-contain" />;
+    }
+    if (avatar.emoji) {
+      return <span className="text-3xl">{avatar.emoji}</span>;
+    }
+    return <span className="text-3xl">✨</span>;
   };
 
   return (
@@ -524,46 +519,70 @@ const ProfilePage = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                {ownedProfileStickers.map((sticker) => {
-                  const isSelected = activeSkin === sticker.id;
+                {availableAvatars.map((avatar) => {
+                  const isSelected = activeSkin === avatar.id;
+                  const isPremiumAvatar = avatar.isPremium;
+                  const canUse = canUseAvatar(avatar.id);
 
                   return (
                     <div
-                      key={sticker.id}
+                      key={avatar.id}
                       className={clsx(
                         "rounded-3xl border p-4 transition-all duration-300",
                         panelClass,
-                        isSelected && "border-emerald-500 bg-emerald-500/10"
+                        isSelected && "border-emerald-500 bg-emerald-500/10",
+                        isPremiumAvatar && !canUse && "opacity-50"
                       )}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className={clsx("flex h-14 w-14 items-center justify-center rounded-2xl text-2xl shadow-inner", sticker.previewClass)}>
-                          {sticker.emoji}
+                        <div className="relative">
+                          <div className={clsx(
+                            "flex h-14 w-14 items-center justify-center rounded-2xl shadow-inner overflow-hidden",
+                            avatar.previewClass || "bg-gradient-to-br from-primary/10 to-primary/5"
+                          )}>
+                            {getAvatarDisplay(avatar)}
+                          </div>
+                          {isPremiumAvatar && (
+                            <div className="absolute -top-1 -right-1">
+                              <Sparkles size={12} className="text-amber-400 fill-amber-400" />
+                            </div>
+                          )}
                         </div>
                         {isSelected ? (
                           <span className="rounded-full bg-emerald-500 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-white">
                             {t('profile_sticker_selected')}
                           </span>
+                        ) : isPremiumAvatar && !canUse ? (
+                          <Crown size={16} className="text-amber-400" />
                         ) : null}
                       </div>
 
                       <div className="mt-3">
-                        <div className={clsx("text-sm font-black", textPrimary)}>{sticker.name}</div>
+                        <div className={clsx("text-sm font-black", textPrimary)}>{avatar.name[i18n.language] || avatar.name.en}</div>
                         <div className={clsx("mt-1 text-xs", textSecondary)}>
-                          {t('profile_sticker_desc')}
+                          {isPremiumAvatar && !canUse ? t('avatar_premium') : t('profile_sticker_desc')}
                         </div>
                       </div>
 
                       <button
                         type="button"
-                        onClick={() => equipSkin(sticker.id)}
-                        disabled={isSelected}
+                        onClick={() => handleAvatarSelect(avatar)}
+                        disabled={!canUse || isSelected}
                         className={clsx(
-                          "mt-4 w-full rounded-xl px-3 py-2 text-xs font-black transition-colors",
-                          isSelected ? "bg-emerald-600 text-white cursor-default" : styles.btnSecondary
+                          "mt-4 w-full rounded-xl px-3 py-2 text-xs font-black transition-colors flex items-center justify-center gap-1.5",
+                          isSelected 
+                            ? "bg-emerald-600 text-white cursor-default"
+                            : isPremiumAvatar && !canUse
+                            ? "bg-gray-500/20 text-gray-400 cursor-not-allowed"
+                            : styles.btnSecondary
                         )}
                       >
-                        {isSelected ? t('equipped') : t('equip')}
+                        {isSelected ? t('equipped') : isPremiumAvatar && !canUse ? (
+                          <>
+                            <Crown size={12} />
+                            {t('avatar_unlock')}
+                          </>
+                        ) : t('equip')}
                       </button>
                     </div>
                   );
