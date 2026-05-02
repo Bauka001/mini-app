@@ -36,6 +36,7 @@ import {
   normalizeTournamentState,
 } from './tournament';
 import { fetchSocialTasksApi, claimSocialTaskApi } from '../utils/api';
+import { fetchEntitlements as fetchEntitlementsApi } from '../utils/entitlementApi';
 import {
   type EventParticipant,
   type Notification,
@@ -358,57 +359,17 @@ export const useStore = create<UserState>()(
         return newState;
       }),
 
-      upgradePlan: (plan, days) => set((state) => {
-        const currentPlan = state.plan;
-        const currentExpiry = state.planExpiry || Date.now();
-        let newExpiry = currentExpiry;
-
-        if (plan !== currentPlan) {
-          newExpiry = Date.now() + days * 24 * 60 * 60 * 1000;
-        } else {
-          newExpiry = currentExpiry + days * 24 * 60 * 60 * 1000;
+      fetchEntitlements: async () => {
+        try {
+          const response = await fetchEntitlementsApi();
+          set({
+            plan: response.plan,
+            planExpiry: response.planExpiry,
+          });
+        } catch (error) {
+          console.error('Failed to fetch entitlements:', error);
         }
-
-        const ticketNumber = Math.floor(Math.random() * 90000000) + 10000000;
-        const eventName = plan === 'premium' ? 'VIP Tournament Access' : 'VIP Access Event';
-        const newTicket: Ticket = {
-          id: Date.now().toString(),
-          ticketNumber,
-          eventName,
-          eventDate: new Date(newExpiry).toISOString(),
-          price: 0,
-          purchaseDate: new Date().toISOString(),
-          userId: state.user.id,
-          userName: state.user.firstName,
-          isUsed: false
-        };
-
-        const newParticipant: EventParticipant = {
-          ticketId: newTicket.id,
-          ticketNumber,
-          userId: state.user.id,
-          userName: state.user.firstName,
-          userPhoto: state.user.photoUrl,
-          purchaseDate: new Date().toISOString(),
-          isVerified: false
-        };
-
-        const newState = {
-          plan,
-          planExpiry: newExpiry,
-          hp: state.maxHp,
-          tickets: [...state.tickets, newTicket],
-          eventParticipants: [...state.eventParticipants, newParticipant]
-        };
-
-        void persistTicket(newTicket, 'plan_upgrade');
-
-        if (isSupabaseConfigured) {
-          syncUserToSupabase(newState, state.user.id);
-        }
-
-        return newState;
-      }),
+      },
 
       buySkin: (skinId, cost) => {
         const { coins, skinInventory } = get();
@@ -484,27 +445,11 @@ export const useStore = create<UserState>()(
         }
 
         if (normalizedCode === 'STARTUP') {
-          set((state) => {
-            const currentPlan = state.plan;
-            const currentExpiry = state.planExpiry || Date.now();
-            let newExpiry = currentExpiry;
-            let newPlan = currentPlan;
-
-            if (currentPlan === 'free') {
-              newPlan = 'silver';
-              newExpiry = Date.now() + (3 * 24 * 60 * 60 * 1000);
-            } else {
-              newExpiry = currentExpiry + (3 * 24 * 60 * 60 * 1000);
-            }
-
-            return {
-              coins: coins + 500,
-              plan: newPlan,
-              planExpiry: newExpiry,
-              usedPromocodes: [...usedPromocodes, normalizedCode]
-            };
+          set({
+            coins: coins + 500,
+            usedPromocodes: [...usedPromocodes, normalizedCode]
           });
-          return { success: true, message: 'Startup Bonus: 500 Coins + 3 Days Silver!' };
+          return { success: true, message: 'Startup Bonus: 500 Coins!' };
         }
 
         return { success: false, message: 'Invalid promocode' };

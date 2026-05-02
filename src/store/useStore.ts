@@ -200,7 +200,7 @@ export interface UserState {
   weekendEvent: WeekendEvent;
   tournamentTickets: number;
 
-  plan: 'free' | 'silver' | 'gold' | 'premium';
+  plan: 'free' | 'silver' | 'gold' | 'basic' | 'pro' | 'premium';
 
   tickets: Ticket[];
   eventParticipants: EventParticipant[];
@@ -232,7 +232,7 @@ export interface UserState {
   updateUserProfile: (data: Partial<UserProfile>) => void;
   syncUserFromTelegram: () => void;
   addGameResult: (result: Omit<GameResult, 'date' | 'timestamp'>) => void;
-  upgradePlan: (plan: 'silver' | 'gold' | 'premium', days: number) => void;
+  fetchEntitlements: () => Promise<void>;
   buySkin: (skinId: string, cost: number) => boolean;
   equipSkin: (skinId: string) => void;
 
@@ -422,7 +422,7 @@ export const initialState = {
   socialTasks: initialSocialTasks,
   feedbacks: [],
   notifications: [],
-  plan: 'free' as 'free' | 'silver' | 'gold' | 'premium',
+  plan: 'free' as 'free' | 'silver' | 'gold' | 'basic' | 'pro' | 'premium',
   planExpiry: null,
   hp: 100,
   maxHp: 100,

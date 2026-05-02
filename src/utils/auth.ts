@@ -1,7 +1,8 @@
+import { buildApiUrl } from './apiBase';
+
 export async function verifyTelegramInitData(initData: string) {
   try {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-    const resp = await fetch(`${apiUrl}/auth/verify`, {
+    const resp = await fetch(buildApiUrl('/auth/verify'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ initData }),
@@ -12,4 +13,3 @@ export async function verifyTelegramInitData(initData: string) {
     return { ok: false, reason: 'network_error' };
   }
 }
-

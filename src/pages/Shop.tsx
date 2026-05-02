@@ -6,28 +6,115 @@ import { clsx } from 'clsx';
 import { useStore } from '../store/useStoreImpl';
 import WebApp from '@twa-dev/sdk';
 import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
+import { beginCell } from '@ton/core';
 import { TermsModal } from '../components/TermsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import { createTonPaymentIntent, getPaymentStatus, TonPlanCode } from '../utils/paymentApi';
 
 const PaymentModal = ({ 
   isOpen, 
   onClose,
+  planCode,
   planTitle,
   price 
 }: { 
   isOpen: boolean, 
   onClose: () => void,
+  planCode: TonPlanCode,
   planTitle: string,
   price: string
 }) => {
   const { t } = useTranslation();
+  const fetchEntitlements = useStore((state) => state.fetchEntitlements);
   const [selectedMethod, setSelectedMethod] = useState<'stars' | 'ton'>('stars');
   const [tonUi] = useTonConnectUI();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingPaymentId, setPendingPaymentId] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [serverTonAmount, setServerTonAmount] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setPendingPaymentId(null);
+      setStatusMessage('');
+      setErrorMessage('');
+      setServerTonAmount(null);
+      setIsSubmitting(false);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!pendingPaymentId) return;
+
+    let active = true;
+    let timeoutId: number | null = null;
+    let attempts = 0;
+
+    const pollStatus = async () => {
+      try {
+        const status = await getPaymentStatus(pendingPaymentId);
+        if (!active) return;
+
+        setServerTonAmount(status.amountTon);
+
+        if (status.status === 'paid') {
+          setStatusMessage(`Payment confirmed. ${status.entitlement?.tierCode?.toUpperCase() || 'VIP'} is active.`);
+          setErrorMessage('');
+          setPendingPaymentId(null);
+          fetchEntitlements();
+          WebApp.HapticFeedback.notificationOccurred('success');
+          timeoutId = window.setTimeout(() => {
+            if (active) {
+              onClose();
+            }
+          }, 1200);
+          return;
+        }
+
+        if (status.status === 'expired' || status.status === 'failed' || status.status === 'canceled') {
+          setErrorMessage('Payment was not confirmed. Please create a new payment.');
+          setStatusMessage('');
+          setPendingPaymentId(null);
+          return;
+        }
+
+        attempts += 1;
+        setStatusMessage('Transaction sent. Waiting for TON verification on the server...');
+
+        if (attempts >= 24) {
+          setStatusMessage('Payment is still pending. You can close this window and check again later.');
+          return;
+        }
+
+        timeoutId = window.setTimeout(pollStatus, 5000);
+      } catch (error) {
+        if (!active) return;
+
+        attempts += 1;
+        setErrorMessage(error instanceof Error ? error.message : 'Unable to refresh payment status');
+
+        if (attempts < 24) {
+          timeoutId = window.setTimeout(pollStatus, 5000);
+        }
+      }
+    };
+
+    void pollStatus();
+
+    return () => {
+      active = false;
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [pendingPaymentId, onClose]);
 
   if (!isOpen) return null;
 
   const handlePayNow = async () => {
     WebApp.HapticFeedback.notificationOccurred('success');
+    setErrorMessage('');
 
     if (selectedMethod === 'stars') {
       const url = 'https://t.me/Focus_game_bot?start=' + encodeURIComponent(planTitle.toLowerCase());
@@ -41,23 +128,30 @@ const PaymentModal = ({
       return;
     }
 
-    const numericPrice = parseFloat(price.replace(/[^0-9.]/g, '')) || 1;
-    const tonAmount = numericPrice <= 1 ? 0.5 : numericPrice <= 10 ? 5 : 10;
-    const nano = Math.round(tonAmount * 1e9).toString();
-
     try {
+      setIsSubmitting(true);
+      const paymentIntent = await createTonPaymentIntent(planCode);
+      const payload = beginCell().storeUint(0, 32).storeStringTail(paymentIntent.memo).endCell().toBoc().toString('base64');
+
       await tonUi.sendTransaction({
-        validUntil: Math.floor(Date.now() / 1000) + 300,
+        validUntil: Math.floor(new Date(paymentIntent.expiresAt).getTime() / 1000),
         messages: [
           {
-            address: 'EQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM9c',
-            amount: nano
+            address: paymentIntent.address,
+            amount: String(paymentIntent.amountNano),
+            payload,
           }
         ]
       });
-      onClose();
+
+      setServerTonAmount(paymentIntent.amountTon);
+      setStatusMessage('Transaction sent. Waiting for TON verification on the server...');
+      setPendingPaymentId(paymentIntent.paymentOrderId);
     } catch (e) {
+      setErrorMessage(e instanceof Error ? e.message : 'TON payment failed');
       WebApp.HapticFeedback.notificationOccurred('error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -76,6 +170,9 @@ const PaymentModal = ({
             <div className="mb-1 text-sm text-gray-500">{t('item_summary')}</div>
             <div className="text-xl font-bold text-black">{planTitle}</div>
             <div className="mt-2 text-2xl font-black text-black">{price}</div>
+            {serverTonAmount && (
+              <div className="mt-2 text-sm font-semibold text-green-700">Exact TON amount: {serverTonAmount}</div>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -131,14 +228,26 @@ const PaymentModal = ({
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
               <div className="mb-3 text-sm font-semibold text-black">TonConnect</div>
               <TonConnectButton />
+              <div className="mt-3 text-xs text-gray-600">
+                Server creates the exact TON amount and memo. Plan unlocks only after backend verification.
+              </div>
+            </div>
+          )}
+
+          {(statusMessage || errorMessage) && (
+            <div className={`rounded-2xl border p-3 text-sm ${
+              errorMessage ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700'
+            }`}>
+              {errorMessage || statusMessage}
             </div>
           )}
 
           <button
             onClick={handlePayNow}
-            className="w-full min-h-[44px] rounded-2xl bg-green-500 px-4 py-3 text-base font-bold text-white transition-colors hover:bg-green-600"
+            disabled={isSubmitting || Boolean(pendingPaymentId)}
+            className="w-full min-h-[44px] rounded-2xl bg-green-500 px-4 py-3 text-base font-bold text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:bg-green-300"
           >
-            {t('pay_now')}
+            {isSubmitting ? 'Creating payment...' : pendingPaymentId ? 'Waiting for confirmation...' : t('pay_now')}
           </button>
         </div>
       </div>
@@ -336,17 +445,6 @@ const PRO_PRICE = '8 590 ₸';
 const PRO_STARS = '≈ 175 Stars';
 const PREMIUM_PRICE = '9 990 ₸';
 const PREMIUM_STARS = '≈ 205 Stars';
-
-// Purchased tier is tracked in localStorage so game routes can gate access
-// without touching the Supabase user schema.
-export const FOCUS_TIER_KEY = 'focus_tier';
-export type FocusTier = 'free' | 'basic' | 'pro' | 'premium';
-export const setFocusTier = (tier: FocusTier) => {
-  try { localStorage.setItem(FOCUS_TIER_KEY, tier); } catch {}
-};
-export const getFocusTier = (): FocusTier => {
-  try { return (localStorage.getItem(FOCUS_TIER_KEY) as FocusTier) || 'free'; } catch { return 'free'; }
-};
 
 const SkinsTab = ({ styles, handleBuySkin, handleEquipSkin, skinInventory, activeSkin }: any) => {
   const { t } = useTranslation();
@@ -808,7 +906,7 @@ const ShopPage = () => {
   const { coins, skinInventory, activeSkin, buySkin, equipSkin, plan } = useStore();
   const [activeTab, setActiveTab] = useState<'vip' | 'skins'>('vip');
   const [showTerms, setShowTerms] = useState(false);
-  const [paymentModal, setPaymentModal] = useState<{ title: string; price: string } | null>(null);
+  const [paymentModal, setPaymentModal] = useState<{ planCode: TonPlanCode; title: string; price: string } | null>(null);
 
   const styles = useThemeStyles();
   const { bgClass, cardClass } = styles;
@@ -817,12 +915,12 @@ const ShopPage = () => {
     WebApp.HapticFeedback.notificationOccurred('success');
 
     const map = {
-      basic:   { title: 'BASIC YEARLY',   price: BASIC_PRICE },
-      pro:     { title: 'PRO YEARLY',     price: PRO_PRICE },
-      premium: { title: 'PREMIUM YEARLY', price: PREMIUM_PRICE },
+      basic:   { planCode: 'basic' as const, title: 'BASIC YEARLY',   price: BASIC_PRICE },
+      pro:     { planCode: 'pro' as const, title: 'PRO YEARLY',     price: PRO_PRICE },
+      premium: { planCode: 'premium' as const, title: 'PREMIUM YEARLY', price: PREMIUM_PRICE },
     } as const;
     const picked = map[plan];
-    setPaymentModal({ title: picked.title, price: picked.price });
+    setPaymentModal({ planCode: picked.planCode, title: picked.title, price: picked.price });
   };
 
   const handleBuySkin = (id: string, cost: number) => {
@@ -910,6 +1008,7 @@ const ShopPage = () => {
       <PaymentModal
         isOpen={!!paymentModal}
         onClose={() => setPaymentModal(null)}
+        planCode={paymentModal?.planCode || 'basic'}
         planTitle={paymentModal?.title || ''}
         price={paymentModal?.price || ''}
       />

@@ -1,14 +1,13 @@
 import WebApp from '@twa-dev/sdk';
 import { SocialTask } from '../store/useStore';
-
-const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+import { buildApiUrl } from './apiBase';
 
 const getTelegramInitData = () => {
   return window.Telegram?.WebApp?.initData || WebApp?.initData || '';
 };
 
 async function postJson<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, {
+  const response = await fetch(buildApiUrl(path), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

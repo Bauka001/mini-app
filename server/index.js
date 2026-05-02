@@ -26,6 +26,16 @@ const parseIdList = (value = '') =>
 const bootstrapAdminIds = parseIdList(
   process.env.ADMIN_BOOTSTRAP_TELEGRAM_IDS || process.env.VITE_ADMIN_TELEGRAM_IDS || ''
 );
+const TON_WALLET_ADDRESS = `${process.env.TON_WALLET_ADDRESS || ''}`.trim();
+const TONCENTER_RPC_ENDPOINT = `${process.env.TONCENTER_RPC_ENDPOINT || 'https://toncenter.com/api/v2/jsonRPC'}`.trim();
+const TONCENTER_API_KEY = `${process.env.TONCENTER_API_KEY || ''}`.trim();
+const TON_PAYMENT_TTL_MS = 15 * 60 * 1000;
+const TON_MIN_CONFIRMATIONS = Math.max(1, Number(process.env.TON_MIN_CONFIRMATIONS || 1));
+const TON_PLAN_CATALOG = {
+  basic: { tierCode: 'basic', durationDays: 365, amountNano: 10_000_000_000, displayAmount: '10 TON' },
+  pro: { tierCode: 'pro', durationDays: 365, amountNano: 12_500_000_000, displayAmount: '12.5 TON' },
+  premium: { tierCode: 'premium', durationDays: 365, amountNano: 15_000_000_000, displayAmount: '15 TON' },
+};
 
 const isMissingTableError = (error) =>
   Boolean(error && (error.code === '42P01' || `${error.message || ''}`.includes('does not exist')));
@@ -90,6 +100,338 @@ const mapTicketRow = (row) => ({
   verifiedAt: row.verified_at,
   verifiedBy: row.verified_by,
 });
+
+const normalizePlanCode = (value = '') => {
+  const normalized = `${value}`.trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(TON_PLAN_CATALOG, normalized) ? normalized : null;
+};
+
+const formatTonAmount = (amountNano) =>
+  `${(Number(amountNano) / 1_000_000_000).toFixed(6).replace(/\.?0+$/, '')} TON`;
+
+const buildTonMemo = (paymentOrderId) => `FOCUS:${paymentOrderId}`;
+
+const getTonPayloadHeaders = () => ({
+  'Content-Type': 'application/json',
+  ...(TONCENTER_API_KEY ? { 'X-API-Key': TONCENTER_API_KEY } : {}),
+});
+
+async function getTonPlanOffer(planCode) {
+  const normalizedPlanCode = normalizePlanCode(planCode);
+
+  if (!normalizedPlanCode) {
+    return null;
+  }
+
+  const fallbackOffer = TON_PLAN_CATALOG[normalizedPlanCode];
+
+  if (!supabase) {
+    return fallbackOffer;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('plan_prices')
+      .select('amount_nano, display_amount')
+      .eq('plan_code', normalizedPlanCode)
+      .eq('provider', 'ton')
+      .eq('currency', 'TON')
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error && !isMissingTableError(error)) {
+      throw error;
+    }
+
+    if (!data?.amount_nano) {
+      return fallbackOffer;
+    }
+
+    const amountNano = Number(data.amount_nano);
+
+    return {
+      ...fallbackOffer,
+      amountNano,
+      displayAmount: data.display_amount || formatTonAmount(amountNano),
+    };
+  } catch (error) {
+    console.warn('[TON] Falling back to in-code price map:', error instanceof Error ? error.message : error);
+    return fallbackOffer;
+  }
+}
+
+async function writeTonPaymentCheck(checkPayload) {
+  if (!supabase) {
+    return;
+  }
+
+  const { error } = await supabase.from('ton_payment_checks').insert(checkPayload);
+  if (error && !isMissingTableError(error)) {
+    throw error;
+  }
+}
+
+async function fetchRecentTonTransactions(address) {
+  if (!TONCENTER_RPC_ENDPOINT) {
+    return [];
+  }
+
+  const response = await fetch(TONCENTER_RPC_ENDPOINT, {
+    method: 'POST',
+    headers: getTonPayloadHeaders(),
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 'focus-ton-get-transactions',
+      method: 'getTransactions',
+      params: {
+        address,
+        limit: 25,
+        to_lt: 0,
+        archival: false,
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`TON RPC responded with ${response.status}`);
+  }
+
+  const payload = await response.json();
+  if (payload?.error) {
+    throw new Error(payload.error?.message || 'TON RPC returned an error');
+  }
+
+  return Array.isArray(payload?.result) ? payload.result : [];
+}
+
+function extractTonMessageComment(inMsg = {}) {
+  const directMessage = typeof inMsg.message === 'string' ? inMsg.message.trim() : '';
+  if (directMessage) {
+    return directMessage;
+  }
+
+  const msgDataText = typeof inMsg.msg_data?.text === 'string' ? inMsg.msg_data.text.trim() : '';
+  if (msgDataText) {
+    return msgDataText;
+  }
+
+  const messageBody = typeof inMsg.message_content?.body === 'string' ? inMsg.message_content.body.trim() : '';
+  if (messageBody) {
+    return messageBody;
+  }
+
+  return '';
+}
+
+async function applyPaidEntitlement(paymentOrder, verificationPayload = {}) {
+  if (!supabase) {
+    throw new Error('Supabase service role is not configured');
+  }
+
+  const planOffer = await getTonPlanOffer(paymentOrder.plan_code);
+
+  if (!planOffer) {
+    throw new Error('Unknown plan for entitlement apply');
+  }
+
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const userTelegramId = Number(paymentOrder.user_telegram_id);
+  const paymentOrderId = `${paymentOrder.id}`;
+  const activeEntitlementQuery = await supabase
+    .from('user_entitlements')
+    .select('ends_at')
+    .eq('user_telegram_id', userTelegramId)
+    .eq('status', 'active')
+    .gte('ends_at', nowIso)
+    .order('ends_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (activeEntitlementQuery.error && !isMissingTableError(activeEntitlementQuery.error)) {
+    throw activeEntitlementQuery.error;
+  }
+
+  const carryForwardEndsAt = activeEntitlementQuery.data?.ends_at
+    ? Date.parse(activeEntitlementQuery.data.ends_at)
+    : 0;
+  const entitlementStartMs = Math.max(Date.now(), carryForwardEndsAt || 0);
+  const entitlementEndMs =
+    entitlementStartMs + planOffer.durationDays * 24 * 60 * 60 * 1000;
+  const entitlementStartIso = new Date(entitlementStartMs).toISOString();
+  const entitlementEndIso = new Date(entitlementEndMs).toISOString();
+
+  const paymentPayload = {
+    ...(paymentOrder.provider_payload || {}),
+    verification: verificationPayload,
+  };
+
+  const { error: paymentUpdateError } = await supabase
+    .from('payment_orders')
+    .update({
+      status: 'paid',
+      paid_at: nowIso,
+      updated_at: nowIso,
+      provider_charge_id: verificationPayload.txHash || paymentOrder.provider_charge_id || null,
+      provider_payload: paymentPayload,
+    })
+    .eq('id', paymentOrderId)
+    .in('status', ['created', 'pending']);
+
+  if (paymentUpdateError) {
+    throw paymentUpdateError;
+  }
+
+  const { error: entitlementError } = await supabase
+    .from('user_entitlements')
+    .upsert(
+      {
+        id: `ent-${paymentOrderId}`,
+        user_telegram_id: userTelegramId,
+        tier_code: planOffer.tierCode,
+        status: 'active',
+        starts_at: entitlementStartIso,
+        ends_at: entitlementEndIso,
+        source_payment_order_id: paymentOrderId,
+        metadata: {
+          provider: paymentOrder.provider,
+          verification: verificationPayload,
+        },
+        updated_at: nowIso,
+      },
+      { onConflict: 'source_payment_order_id' }
+    );
+
+  if (entitlementError) {
+    throw entitlementError;
+  }
+
+  const { error: userUpdateError } = await supabase
+    .from('users')
+    .update({
+      plan: planOffer.tierCode,
+      plan_expiry: entitlementEndMs,
+      updated_at: nowIso,
+    })
+    .eq('telegram_id', userTelegramId);
+
+  if (userUpdateError && !isMissingTableError(userUpdateError)) {
+    throw userUpdateError;
+  }
+
+  sendTelegramMessage(
+    userTelegramId,
+    `TON payment расталды. Сіздің ${planOffer.tierCode.toUpperCase()} жоспарыңыз ${new Date(entitlementEndMs).toLocaleDateString('en-GB')} дейін белсенді.`
+  );
+
+  return {
+    status: 'paid',
+    paidAt: nowIso,
+    tierCode: planOffer.tierCode,
+    endsAt: entitlementEndIso,
+  };
+}
+
+async function tryVerifyTonPayment(paymentOrder) {
+  if (!supabase) {
+    return { matched: false, reason: 'supabase_missing' };
+  }
+
+  if (!TON_WALLET_ADDRESS) {
+    return { matched: false, reason: 'ton_wallet_missing' };
+  }
+
+  const now = Date.now();
+  const expiresAtMs = Date.parse(paymentOrder.expires_at || '');
+
+  if (Number.isFinite(expiresAtMs) && expiresAtMs > 0 && expiresAtMs < now) {
+    const { error: expireError } = await supabase
+      .from('payment_orders')
+      .update({
+        status: 'expired',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', paymentOrder.id)
+      .in('status', ['created', 'pending']);
+
+    if (expireError) {
+      throw expireError;
+    }
+
+    return { matched: false, reason: 'expired', status: 'expired' };
+  }
+
+  const expectedAmountNano = Number(paymentOrder.amount_nano || 0);
+  const expectedMemo = `${paymentOrder.memo || ''}`.trim();
+  const createdAtMs = Date.parse(paymentOrder.created_at || '');
+  const transactions = await fetchRecentTonTransactions(TON_WALLET_ADDRESS);
+
+  const matchedTransaction = transactions.find((tx) => {
+    const inMsg = tx?.in_msg || {};
+    const destination = `${inMsg.destination || ''}`.trim();
+    const valueNano = Number(inMsg.value || 0);
+    const txTimestampMs = Number(tx?.utime || tx?.now || 0) * 1000;
+    const comment = extractTonMessageComment(inMsg);
+
+    const matchesDestination = !destination || destination === TON_WALLET_ADDRESS;
+    const matchesAmount = valueNano === expectedAmountNano;
+    const matchesMemo = expectedMemo ? comment.includes(expectedMemo) : true;
+    const matchesTimeWindow =
+      (!Number.isFinite(createdAtMs) || txTimestampMs >= createdAtMs - 60_000) &&
+      (!Number.isFinite(expiresAtMs) || txTimestampMs <= expiresAtMs + 10 * 60_000);
+
+    return matchesDestination && matchesAmount && matchesMemo && matchesTimeWindow;
+  });
+
+  if (!matchedTransaction) {
+    await writeTonPaymentCheck({
+      payment_order_id: paymentOrder.id,
+      amount_nano: expectedAmountNano,
+      destination_address: TON_WALLET_ADDRESS,
+      memo: expectedMemo,
+      confirmations: 0,
+      check_status: 'not_found',
+      raw_payload: {},
+    });
+
+    return { matched: false, reason: 'not_found' };
+  }
+
+  const verificationPayload = {
+    txHash:
+      matchedTransaction?.transaction_id?.hash ||
+      matchedTransaction?.hash ||
+      matchedTransaction?.in_msg?.hash ||
+      null,
+    txLt: matchedTransaction?.transaction_id?.lt || matchedTransaction?.lt || null,
+    sourceAddress: matchedTransaction?.in_msg?.source || null,
+    destinationAddress: matchedTransaction?.in_msg?.destination || TON_WALLET_ADDRESS,
+    amountNano: Number(matchedTransaction?.in_msg?.value || expectedAmountNano),
+    memo: extractTonMessageComment(matchedTransaction?.in_msg || {}),
+    confirmations: TON_MIN_CONFIRMATIONS,
+    rawPayload: matchedTransaction,
+  };
+
+  await writeTonPaymentCheck({
+    payment_order_id: paymentOrder.id,
+    tx_hash: verificationPayload.txHash,
+    tx_lt: verificationPayload.txLt,
+    source_address: verificationPayload.sourceAddress,
+    destination_address: verificationPayload.destinationAddress,
+    amount_nano: verificationPayload.amountNano,
+    memo: verificationPayload.memo,
+    confirmations: verificationPayload.confirmations,
+    check_status: verificationPayload.confirmations >= TON_MIN_CONFIRMATIONS ? 'matched' : 'pending',
+    raw_payload: verificationPayload.rawPayload,
+  });
+
+  if (verificationPayload.confirmations < TON_MIN_CONFIRMATIONS) {
+    return { matched: false, reason: 'confirmations_pending' };
+  }
+
+  const applied = await applyPaidEntitlement(paymentOrder, verificationPayload);
+  return { matched: true, ...applied };
+}
 
 function validateTelegramInitData(initData, botToken) {
   if (!initData || !botToken) return { ok: false, reason: 'missing_initdata_or_token' };
@@ -616,10 +958,10 @@ app.post('/tickets/issue', async (req, res) => {
       throw error;
     }
 
-    // Send confirmation message to the user via Telegram Bot
+    // Never send a premium success message from this endpoint.
     const isPlanUpgrade = req.body?.source !== 'ticket_purchase';
-    if (userTelegramId) {
-      const messageText = "Құттықтаймыз! Төлеміңіз қабылданды. Сіздің Premium статусыңыз қосылды";
+    if (userTelegramId && !isPlanUpgrade) {
+      const messageText = 'Құттықтаймыз! Сіздің билетті сатып алу төлеміңіз тіркелді.';
       sendTelegramMessage(userTelegramId, messageText);
     }
     
@@ -637,6 +979,165 @@ app.post('/tickets/issue', async (req, res) => {
     return res.json({ ok: true, ticketId: data.id });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'ticket_issue_error' });
+  }
+});
+
+app.post('/payments/ton/create', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    if (!TON_WALLET_ADDRESS) {
+      return res.status(503).json({ error: 'TON wallet receiver is not configured' });
+    }
+
+    const planCode = normalizePlanCode(req.body?.planCode);
+    if (!planCode) {
+      return res.status(400).json({ error: 'Unsupported plan code' });
+    }
+
+    const planOffer = await getTonPlanOffer(planCode);
+    if (!planOffer) {
+      return res.status(404).json({ error: 'Plan offer not found' });
+    }
+
+    const paymentOrderId = crypto.randomUUID();
+    const amountNano = planOffer.amountNano + crypto.randomInt(1_000, 950_000);
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + TON_PAYMENT_TTL_MS);
+    const memo = buildTonMemo(paymentOrderId);
+
+    const { data, error } = await supabase
+      .from('payment_orders')
+      .insert({
+        id: paymentOrderId,
+        user_telegram_id: access.identity.userId,
+        provider: 'ton',
+        plan_code: planCode,
+        currency: 'TON',
+        amount_nano: amountNano,
+        status: 'pending',
+        memo,
+        provider_payload: {
+          receiverAddress: TON_WALLET_ADDRESS,
+          baseAmountNano: planOffer.amountNano,
+          displayAmount: planOffer.displayAmount,
+        },
+        expires_at: expiresAt.toISOString(),
+      })
+      .select('id, plan_code, amount_nano, currency, status, memo, expires_at, created_at')
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({
+      paymentOrderId: data.id,
+      planCode: data.plan_code,
+      provider: 'ton',
+      address: TON_WALLET_ADDRESS,
+      amountNano: Number(data.amount_nano),
+      amountTon: formatTonAmount(data.amount_nano),
+      currency: data.currency,
+      memo: data.memo,
+      expiresAt: data.expires_at,
+      createdAt: data.created_at,
+      status: data.status,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'ton_payment_create_error' });
+  }
+});
+
+app.get('/payments/:paymentOrderId/status', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const paymentOrderId = `${req.params?.paymentOrderId || ''}`.trim();
+    if (!paymentOrderId) {
+      return res.status(400).json({ error: 'Payment order id is required' });
+    }
+
+    const { data: paymentOrder, error } = await supabase
+      .from('payment_orders')
+      .select('*')
+      .eq('id', paymentOrderId)
+      .eq('user_telegram_id', access.identity.userId)
+      .single();
+
+    if (error) {
+      if (error.code === 'PGRST116') {
+        return res.status(404).json({ error: 'Payment order not found' });
+      }
+      throw error;
+    }
+
+    let resolvedPaymentOrder = paymentOrder;
+
+    if (resolvedPaymentOrder.provider === 'ton' && ['created', 'pending'].includes(resolvedPaymentOrder.status)) {
+      const verification = await tryVerifyTonPayment(resolvedPaymentOrder);
+
+      if (verification.status === 'paid' || verification.status === 'expired') {
+        const refreshed = await supabase
+          .from('payment_orders')
+          .select('*')
+          .eq('id', paymentOrderId)
+          .single();
+
+        if (refreshed.error) {
+          throw refreshed.error;
+        }
+
+        resolvedPaymentOrder = refreshed.data;
+      }
+    }
+
+    const entitlementQuery = await supabase
+      .from('user_entitlements')
+      .select('tier_code, status, starts_at, ends_at')
+      .eq('source_payment_order_id', paymentOrderId)
+      .maybeSingle();
+
+    if (entitlementQuery.error && !isMissingTableError(entitlementQuery.error)) {
+      throw entitlementQuery.error;
+    }
+
+    return res.json({
+      paymentOrderId: resolvedPaymentOrder.id,
+      provider: resolvedPaymentOrder.provider,
+      planCode: resolvedPaymentOrder.plan_code,
+      status: resolvedPaymentOrder.status,
+      amountNano: Number(resolvedPaymentOrder.amount_nano),
+      amountTon: formatTonAmount(resolvedPaymentOrder.amount_nano),
+      currency: resolvedPaymentOrder.currency,
+      memo: resolvedPaymentOrder.memo,
+      paidAt: resolvedPaymentOrder.paid_at,
+      expiresAt: resolvedPaymentOrder.expires_at,
+      entitlement: entitlementQuery.data
+        ? {
+            tierCode: entitlementQuery.data.tier_code,
+            status: entitlementQuery.data.status,
+            startsAt: entitlementQuery.data.starts_at,
+            endsAt: entitlementQuery.data.ends_at,
+          }
+        : null,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'payment_status_error' });
   }
 });
 
@@ -1537,6 +2038,70 @@ app.post('/api/admin/tasks/delete', async (req, res) => {
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'admin_task_delete_error' });
+  }
+});
+
+app.get('/me/entitlements', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const nowIso = new Date().toISOString();
+
+    const { data: entitlements, error } = await supabase
+      .from('user_entitlements')
+      .select('tier_code, status, starts_at, ends_at, source_payment_order_id')
+      .eq('user_telegram_id', access.identity.userId)
+      .eq('status', 'active')
+      .gte('ends_at', nowIso)
+      .order('ends_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error && !isMissingTableError(error)) {
+      throw error;
+    }
+
+    const activeEntitlement = entitlements
+      ? {
+          tierCode: entitlements.tier_code,
+          status: entitlements.status,
+          startsAt: entitlements.starts_at,
+          endsAt: entitlements.ends_at,
+          sourcePaymentOrderId: entitlements.source_payment_order_id,
+        }
+      : null;
+
+    return res.json({
+      userId: access.identity.userId,
+      activeEntitlement,
+      plan: activeEntitlement ? activeEntitlement.tierCode : 'free',
+      planExpiry: activeEntitlement ? Date.parse(activeEntitlement.endsAt) : null,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'entitlements_error' });
+  }
+});
+
+app.get('/plans', async (_req, res) => {
+  try {
+    const plans = Object.entries(TON_PLAN_CATALOG).map(([code, offer]) => ({
+      code,
+      tierCode: offer.tierCode,
+      amountNano: offer.amountNano,
+      displayAmount: offer.displayAmount,
+      durationDays: offer.durationDays,
+    }));
+
+    return res.json({ plans });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'plans_error' });
   }
 });
 

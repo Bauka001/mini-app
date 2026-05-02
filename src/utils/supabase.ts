@@ -40,7 +40,7 @@ export interface DatabaseUser {
   };
   skin_inventory: string[];
   active_skin: string;
-  plan: 'free' | 'silver' | 'gold' | 'premium';
+  plan: 'free' | 'silver' | 'gold' | 'basic' | 'pro' | 'premium';
   plan_expiry: number | null;
   hp: number;
   max_hp: number;

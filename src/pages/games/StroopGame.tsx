@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ReviveModal } from '../../components/modals/ReviveModal';
 import { SKIN_STYLES } from '../../utils/skins';
 import { useNavigate } from 'react-router-dom';
-import { getFocusTier } from '../Shop';
 import { Lock, Zap } from 'lucide-react';
 
 const STROOP_FREE_PLAYS_KEY = 'stroop_free_plays';
@@ -35,8 +34,8 @@ const StroopLocked = () => {
 
 const StroopGameInner = () => {
   const { t } = useTranslation();
-  const { addGameResult } = useStore();
-  useEffect(() => { const tier = getFocusTier(); if (tier === 'free' || tier === 'basic') incStroopPlays(); }, []);
+  const { addGameResult, plan } = useStore();
+  useEffect(() => { if (plan === 'free' || plan === 'silver' || plan === 'gold' || plan === 'basic') incStroopPlays(); }, [plan]);
   
   return (
     <GameWrapper
@@ -268,7 +267,7 @@ const StroopBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins:
 };
 
 export const StroopGame = () => {
-  const [tier] = useState(() => getFocusTier());
+  const tier = useStore((state) => state.plan);
   const [plays] = useState(() => getStroopPlays());
   const unlimited = tier === 'pro' || tier === 'premium';
   if (!unlimited && plays >= STROOP_FREE_LIMIT) return <StroopLocked />;
@@ -276,4 +275,3 @@ export const StroopGame = () => {
 };
 
 export default StroopGame;
-

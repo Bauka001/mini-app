@@ -5,7 +5,6 @@ import { clsx } from 'clsx';
 import { useStore } from '../../store/useStoreImpl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { getFocusTier } from '../Shop';
 import { Lock, Crown } from 'lucide-react';
 
 const SchulteLocked = () => {
@@ -203,10 +202,9 @@ export const SchulteBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string
 };
 
 export const SchulteGame = () => {
-  const [tier] = useState<'free' | 'basic' | 'pro' | 'premium'>(() => getFocusTier());
+  const tier = useStore((state) => state.plan);
   if (tier !== 'premium') return <SchulteLocked />;
   return <SchulteGameInner />;
 };
 
 export default SchulteGame;
-

@@ -421,6 +421,7 @@ function AppRoutes() {
 
 function App() {
   const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
+  const fetchEntitlements = useStore((state) => state.fetchEntitlements);
   const addNotification = useStore((state) => state.addNotification);
   const userId = useStore((state) => state.user.id);
   const language = useStore((state) => state.language);
@@ -477,8 +478,8 @@ function App() {
 
     const isSwitched = checkAccount();
     
-    // Sync user data for the new account without reloading the page
     syncUserFromTelegram();
+    fetchEntitlements();
 
     if (isSwitched) {
       // Show native modal/toast to the user
@@ -503,6 +504,7 @@ function App() {
       if (now - lastSyncTime > SYNC_THROTTLE_MS) {
         lastSyncTime = now;
         syncUserFromTelegram();
+        fetchEntitlements();
       }
     };
 

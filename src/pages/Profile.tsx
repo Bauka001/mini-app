@@ -23,6 +23,8 @@ const PLAN_CONFIG = {
   free: { icon: Star, name: 'Free', color: 'from-gray-500 to-gray-600', borderColor: 'border-gray-500' },
   silver: { icon: Shield, name: 'Silver', color: 'from-blue-500 to-blue-600', borderColor: 'border-blue-500' },
   gold: { icon: ZapIcon, name: 'Gold', color: 'from-orange-500 to-red-500', borderColor: 'border-orange-500' },
+  basic: { icon: Shield, name: 'Basic', color: 'from-sky-500 to-cyan-600', borderColor: 'border-sky-500' },
+  pro: { icon: ZapIcon, name: 'Pro', color: 'from-fuchsia-500 to-purple-600', borderColor: 'border-fuchsia-500' },
   premium: { icon: Crown, name: 'Premium', color: 'from-yellow-400 to-yellow-600', borderColor: 'border-yellow-400' }
 };
 
