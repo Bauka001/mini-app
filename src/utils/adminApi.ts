@@ -168,7 +168,7 @@ export interface TicketIssuePayload {
   eventDate: string;
   price: number;
   purchaseDate: string;
-  source: 'plan_upgrade' | 'ticket_purchase';
+  source: 'plan_upgrade' | 'ticket_purchase' | 'case_reward';
 }
 
 const getTelegramInitData = () => {

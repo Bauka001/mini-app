@@ -53,6 +53,12 @@ export interface TonPaymentIntent {
   address: string;
   amountNano: number;
   amountTon: string;
+  baseAmountNano?: number;
+  baseAmountTon?: string;
+  promoCode?: string | null;
+  discountPercent?: number;
+  discountAmountNano?: number;
+  discountAmountTon?: string;
   currency: 'TON';
   memo: string;
   expiresAt: string;
@@ -79,8 +85,32 @@ export interface PaymentStatusResponse {
   };
 }
 
-export const createTonPaymentIntent = (planCode: TonPlanCode) =>
-  postJson<TonPaymentIntent>('/payments/ton/create', { planCode });
+export interface WheelTopupTonIntent {
+  topupId: string;
+  provider: 'ton';
+  packageId: string;
+  crystals: number;
+  amountKzt: number;
+  address: string;
+  amountNano: number;
+  amountTon: string;
+  currency: 'TON';
+  memo: string;
+  expiresAt: string;
+  createdAt: string;
+  metadata?: {
+    conversionRateKztPerTon?: number;
+  };
+}
+
+export const createTonPaymentIntent = (planCode: TonPlanCode, promoCode?: string) =>
+  postJson<TonPaymentIntent>('/payments/ton/create', {
+    planCode,
+    ...(promoCode ? { promoCode } : {}),
+  });
 
 export const getPaymentStatus = (paymentOrderId: string) =>
   getJson<PaymentStatusResponse>(`/payments/${encodeURIComponent(paymentOrderId)}/status`);
+
+export const createWheelTopupTonIntent = (packageId: string) =>
+  postJson<WheelTopupTonIntent>('/wheel/topups/ton/create', { packageId });

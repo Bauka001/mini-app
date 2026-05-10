@@ -2,6 +2,8 @@ import { buildApiUrl } from './apiBase';
 
 const getTelegramInitData = () =>
   window.Telegram?.WebApp?.initData || '';
+const isLocalDevHost = () =>
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
@@ -49,8 +51,22 @@ export interface PlansResponse {
   plans: PlanInfo[];
 }
 
-export const fetchEntitlements = () =>
-  getJson<EntitlementsResponse>('/me/entitlements');
+export const fetchEntitlements = async () => {
+  try {
+    return await getJson<EntitlementsResponse>('/me/entitlements');
+  } catch (error) {
+    if (isLocalDevHost()) {
+      return {
+        userId: 0,
+        activeEntitlement: null,
+        plan: 'free',
+        planExpiry: null,
+      };
+    }
+
+    throw error;
+  }
+};
 
 export const fetchPlans = () =>
   getJson<PlansResponse>('/plans');

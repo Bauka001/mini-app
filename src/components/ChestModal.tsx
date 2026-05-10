@@ -4,6 +4,7 @@ import { Coins, Gem, Gift, Sparkles } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useStore } from '../store/useStoreImpl';
 import WebApp from '@twa-dev/sdk';
+import { soundManager } from '../utils/soundManager';
 
 interface ChestModalProps {
   isOpen: boolean;
@@ -13,12 +14,16 @@ interface ChestModalProps {
 
 export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
   const { t } = useTranslation();
-  const { addFec, addCoins, theme } = useStore(); // Using addCoins to add coins easily
+  const { addFec, addCoins, theme, soundEnabled } = useStore(); // Using addCoins to add coins easily
   const [chestState, setChestState] = useState<'closed' | 'shaking' | 'opening' | 'opened'>('closed');
   const [reward, setReward] = useState<{ type: 'coins' | 'fec' | 'gem', amount: number } | null>(null);
 
   const isLight = theme === 'light';
   const isBlue = theme === 'blue';
+
+  useEffect(() => {
+    soundManager.setEnabled(soundEnabled);
+  }, [soundEnabled]);
 
   useEffect(() => {
     if (isOpen) {
@@ -31,11 +36,13 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
     if (chestState !== 'closed') return;
 
     WebApp.HapticFeedback.impactOccurred('heavy');
+    void soundManager.playClick();
     setChestState('shaking');
 
     setTimeout(() => {
       setChestState('opening');
       WebApp.HapticFeedback.notificationOccurred('success');
+      void soundManager.playTing();
       
       // Calculate Reward
       const rand = Math.random();
@@ -66,7 +73,13 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
 
       setReward(newReward);
       setChestState('opened');
+      void soundManager.playTingTing();
     }, 1000);
+  };
+
+  const handleClose = () => {
+    void soundManager.playClick();
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -137,7 +150,7 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
 
         {chestState === 'opened' && (
           <button 
-            onClick={onClose}
+            onClick={handleClose}
           className={clsx(
             "mt-12 w-full min-h-[44px] py-4 font-black text-xl rounded-2xl hover:scale-105 transition-transform",
               isLight ? "bg-blue-600 text-white shadow-lg" : "bg-primary text-black shadow-[0_0_20px_rgba(255,215,0,0.3)]"

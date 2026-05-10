@@ -35,6 +35,7 @@ type WorkoutGame = {
   icon: ElementType;
   accentClass: string;
   historyIds: string[];
+  isVip?: boolean;
 };
 
 type WorkoutSession = {
@@ -51,6 +52,21 @@ type HistoryEntry = {
 };
 
 const DAILY_WORKOUT_STORAGE_KEY = 'focus-daily-workout-v1';
+const VIP_TRIAL_LIMIT = 3;
+
+const getStoredPlays = (key: string) => {
+  try {
+    return parseInt(localStorage.getItem(key) || '0', 10) || 0;
+  } catch {
+    return 0;
+  }
+};
+
+const getVipTrialsLeft = (routeId: string) => {
+  if (routeId === 'schulte') return Math.max(0, VIP_TRIAL_LIMIT - getStoredPlays('schulte_free_plays_v2'));
+  if (routeId === 'stroop') return Math.max(0, VIP_TRIAL_LIMIT - getStoredPlays('stroop_free_plays_v2'));
+  return VIP_TRIAL_LIMIT;
+};
 
 const workoutGamesCatalog: WorkoutGame[] = [
   {
@@ -69,7 +85,8 @@ const workoutGamesCatalog: WorkoutGame[] = [
     description: 'Фокус пен коз қозғалысын жылдамдатады.',
     icon: Brain,
     accentClass: 'from-blue-500/20 to-cyan-500/20 border-blue-400/30',
-    historyIds: ['schulte']
+    historyIds: ['schulte'],
+    isVip: true
   },
   {
     id: 'math',
@@ -105,7 +122,8 @@ const workoutGamesCatalog: WorkoutGame[] = [
     description: 'Икемділік пен реакцияны сынайды.',
     icon: Type,
     accentClass: 'from-red-500/20 to-rose-500/20 border-red-400/30',
-    historyIds: ['stroop']
+    historyIds: ['stroop'],
+    isVip: true
   },
   {
     id: '2048',
@@ -200,6 +218,7 @@ export default function DailyWorkoutPage() {
   const navigate = useNavigate();
   const styles = useThemeStyles();
   const history = useStore((state) => state.history as HistoryEntry[]);
+  const plan = useStore((state) => state.plan);
   const [session, setSession] = useState<WorkoutSession | null>(null);
 
   const { bgClass, panelClass, headerClass, textPrimary, textSecondary } = styles;
@@ -384,6 +403,8 @@ export default function DailyWorkoutPage() {
           {workoutResults.map((item, index) => {
             const Icon = item.game.icon;
             const isDone = Boolean(item.result);
+            const isUnlimitedVipGame = Boolean(item.game.isVip) && (plan === 'pro' || plan === 'premium');
+            const trialsLeft = item.game.isVip ? getVipTrialsLeft(item.game.routeId) : null;
 
             return (
               <motion.div
@@ -403,13 +424,26 @@ export default function DailyWorkoutPage() {
                       <Icon size={24} className={styles.textAccent} />
                     </div>
                     <div className="min-w-0">
-                      <div className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", textSecondary)}>
-                        Game {index + 1}
+                      <div className="flex items-center gap-2">
+                        <div className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", textSecondary)}>
+                          Game {index + 1}
+                        </div>
+                        {item.game.isVip ? (
+                          <div className="inline-flex items-center gap-1 rounded-full border border-amber-300/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-300">
+                            <Trophy size={10} />
+                            <span>VIP</span>
+                          </div>
+                        ) : null}
                       </div>
                       <h3 className={clsx("text-base sm:text-lg font-bold mt-1 break-words", textPrimary)}>{t(item.game.titleKey)}</h3>
                       <p className={clsx("text-sm mt-1 leading-relaxed", textSecondary)}>
                         {item.game.description}
                       </p>
+                      {item.game.isVip ? (
+                        <p className={clsx("text-xs mt-2 font-semibold", textSecondary)}>
+                          {isUnlimitedVipGame ? 'VIP: Шексіз қолжетімді' : `Пробный: ${trialsLeft}/${VIP_TRIAL_LIMIT}`}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
 

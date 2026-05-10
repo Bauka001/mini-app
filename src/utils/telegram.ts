@@ -1,4 +1,5 @@
 import WebApp from '@twa-dev/sdk';
+import { getDefaultAvatarUrl } from '../constants/avatars';
 
 export type HapticType = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error';
 
@@ -54,5 +55,5 @@ export const MOCK_USER = {
   first_name: 'Traveler',
   last_name: '',
   username: 'traveler',
-  photo_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+  photo_url: getDefaultAvatarUrl('Traveler')
 };

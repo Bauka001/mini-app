@@ -85,10 +85,44 @@ export interface WeeklyQuest {
 
 export interface MysteryBox {
   id: string;
-  type: 'coins' | 'crystals' | 'fec' | 'skin' | 'booster';
+  type: 'coins' | 'crystals' | 'fec' | 'skin' | 'booster' | 'raffle_ticket' | 'iphone_17';
   amount: number;
   skinId?: string;
   boosterType?: 'freezes' | 'hints' | 'shields';
+  prizeTitle?: string;
+  prizeImageUrl?: string;
+  eventName?: string;
+  eventDate?: string;
+  ticketNumber?: number;
+}
+
+export type CaseId = 'basic_case' | 'rare_case' | 'legendary_case';
+export type CasePriceCurrency = 'coins' | 'gems';
+
+export interface CaseRewardProbability {
+  type: MysteryBox['type'];
+  probability: number;
+}
+
+export interface CaseDefinition {
+  id: CaseId;
+  titleKey: string;
+  subtitleKey: string;
+  descriptionKey: string;
+  price: number;
+  priceCurrency: CasePriceCurrency;
+  probabilities: CaseRewardProbability[];
+  previewRewardTypes: MysteryBox['type'][];
+}
+
+export interface CaseOpenResult {
+  success: boolean;
+  reward: MysteryBox | null;
+  error?: 'not_enough_coins' | 'not_enough_crystals' | 'case_unavailable';
+  spentCoins?: number;
+  spentGems?: number;
+  usedFreeOpen?: boolean;
+  caseId?: CaseId;
 }
 
 export interface DailyRewardStreak {
@@ -204,6 +238,7 @@ export interface UserState {
   tickets: Ticket[];
   eventParticipants: EventParticipant[];
   planExpiry: number | null;
+  claimedPlanRewardKeys: string[];
 
   promotionEndISO: string | null;
 
@@ -221,6 +256,8 @@ export interface UserState {
   maxEnergy: number;
   lastEnergyRegenTime: number | null;
   streakProtection: number;
+  freeMysteryBoxes: number;
+  premiumGiftMysteryBoxes: number;
   mysteryBoxAvailable: boolean;
   mysteryBoxPrice: number;
   tournament: TournamentState;
@@ -239,7 +276,21 @@ export interface UserState {
   consumeBooster: (type: 'freezes' | 'hints' | 'shields') => boolean;
 
   claimDailyReward: (amount: number) => void;
-  claimDailyLoginReward: () => { success: boolean; reward: { coins: number; gems: number; xp: number; tournamentTickets: number } };
+  claimDailyLoginReward: () => {
+    success: boolean;
+    reward: {
+      coins: number;
+      gems: number;
+      xp: number;
+      tournamentTickets: number;
+      milestoneDay: number;
+      milestoneTitle: string;
+      milestoneDescription: string;
+      nextMilestoneDay: number | null;
+      isMilestoneReached: boolean;
+      streakPreservedByVip: boolean;
+    };
+  };
   redeemPromocode: (code: string) => { success: boolean; message: string };
 
   refreshChallenges: () => void;
@@ -284,6 +335,7 @@ export interface UserState {
   useStreakProtection: () => boolean;
   buyStreakProtection: () => boolean;
 
+  openCase: (caseId: CaseId) => CaseOpenResult;
   openMysteryBox: () => MysteryBox | null;
   setMysteryBoxAvailable: (available: boolean) => void;
 
@@ -434,6 +486,7 @@ export const initialState = {
   tickets: [],
   eventParticipants: [],
   promotionEndISO: '2026-04-26T08:00:00.000Z',
+  claimedPlanRewardKeys: [],
   dailyQuest: {
     id: 'daily_quest_3games',
     gamesPlayed: [],
@@ -459,6 +512,8 @@ export const initialState = {
   maxEnergy: 100,
   lastEnergyRegenTime: Date.now(),
   streakProtection: 0,
+  freeMysteryBoxes: 5,
+  premiumGiftMysteryBoxes: 0,
   mysteryBoxAvailable: true,
   mysteryBoxPrice: 500,
   tournament: {

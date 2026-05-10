@@ -1,5 +1,5 @@
 import { HashRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useMemo, useState, useCallback, lazy, Suspense } from 'react';
+import { useEffect, useMemo, useState, useCallback, Suspense } from 'react';
 import WebApp from '@twa-dev/sdk';
 import { useTranslation } from 'react-i18next';
 import { Layout } from './components/Layout';
@@ -11,33 +11,34 @@ import OnboardingScreen2 from './components/onboarding/OnboardingScreen2';
 import OnboardingScreen3 from './components/onboarding/OnboardingScreen3';
 import { useStore } from './store/useStoreImpl';
 import Home from './pages/Home';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
-const AdminUsers = lazy(() => import('./pages/admin/AdminUsers').then(m => ({ default: m.AdminUsers })));
-const AdminChat = lazy(() => import('./pages/admin/AdminChat').then(m => ({ default: m.AdminChat })));
-const AdminGames = lazy(() => import('./pages/admin/AdminGames').then(m => ({ default: m.AdminGames })));
-const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
-const AdminTasks = lazy(() => import('./pages/admin/AdminTasks'));
-const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const AdminUsers = lazyWithRetry(() => import('./pages/admin/AdminUsers').then(m => ({ default: m.AdminUsers })));
+const AdminChat = lazyWithRetry(() => import('./pages/admin/AdminChat').then(m => ({ default: m.AdminChat })));
+const AdminGames = lazyWithRetry(() => import('./pages/admin/AdminGames').then(m => ({ default: m.AdminGames })));
+const AdminSettings = lazyWithRetry(() => import('./pages/admin/AdminSettings'));
+const AdminTasks = lazyWithRetry(() => import('./pages/admin/AdminTasks'));
+const AdminPanel = lazyWithRetry(() => import('./pages/AdminPanel'));
 
 // Lazy loaded pages to reduce initial bundle size
-const ShopPage = lazy(() => import('./pages/Shop'));
-const SettingsPage = lazy(() => import('./pages/Settings'));
-const ProfilePage = lazy(() => import('./pages/Profile'));
-const LeaderboardPage = lazy(() => import('./pages/Leaderboard'));
-const DailyWorkoutPage = lazy(() => import('./pages/DailyWorkout'));
-const AirdropPage = lazy(() => import('./pages/Airdrop'));
-const TournamentsPage = lazy(() => import('./pages/Tournaments'));
-const AnalyticsPage = lazy(() => import('./pages/Analytics'));
+const ShopPage = lazyWithRetry(() => import('./pages/Shop'));
+const SettingsPage = lazyWithRetry(() => import('./pages/Settings'));
+const ProfilePage = lazyWithRetry(() => import('./pages/Profile'));
+const LeaderboardPage = lazyWithRetry(() => import('./pages/Leaderboard'));
+const DailyWorkoutPage = lazyWithRetry(() => import('./pages/DailyWorkout'));
+const AirdropPage = lazyWithRetry(() => import('./pages/Airdrop'));
+const TournamentsPage = lazyWithRetry(() => import('./pages/Tournaments'));
+const AnalyticsPage = lazyWithRetry(() => import('./pages/Analytics'));
 
 // Games
-const SchulteGame = lazy(() => import('./pages/games/SchulteGame'));
-const MathGame = lazy(() => import('./pages/games/MathGame'));
-const StroopGame = lazy(() => import('./pages/games/StroopGame'));
-const MemoryGame = lazy(() => import('./pages/games/MemoryGame'));
-const OddOneOutGame = lazy(() => import('./pages/games/OddOneOutGame'));
-const PairsGame = lazy(() => import('./pages/games/PairsGame'));
-const Merge2048Game = lazy(() => import('./pages/games/Merge2048Game'));
+const SchulteGame = lazyWithRetry(() => import('./pages/games/SchulteGame'));
+const MathGame = lazyWithRetry(() => import('./pages/games/MathGame'));
+const StroopGame = lazyWithRetry(() => import('./pages/games/StroopGame'));
+const MemoryGame = lazyWithRetry(() => import('./pages/games/MemoryGame'));
+const OddOneOutGame = lazyWithRetry(() => import('./pages/games/OddOneOutGame'));
+const PairsGame = lazyWithRetry(() => import('./pages/games/PairsGame'));
+const Merge2048Game = lazyWithRetry(() => import('./pages/games/Merge2048Game'));
 
 type HistoryEntry = {
   gameId: string;

@@ -31,10 +31,19 @@ const TONCENTER_RPC_ENDPOINT = `${process.env.TONCENTER_RPC_ENDPOINT || 'https:/
 const TONCENTER_API_KEY = `${process.env.TONCENTER_API_KEY || ''}`.trim();
 const TON_PAYMENT_TTL_MS = 15 * 60 * 1000;
 const TON_MIN_CONFIRMATIONS = Math.max(1, Number(process.env.TON_MIN_CONFIRMATIONS || 1));
+const TON_TOPUP_KZT_PER_TON = Math.max(1, Number(process.env.TON_TOPUP_KZT_PER_TON || 1000));
 const TON_PLAN_CATALOG = {
   basic: { tierCode: 'basic', durationDays: 365, amountNano: 10_000_000_000, displayAmount: '10 TON' },
   pro: { tierCode: 'pro', durationDays: 365, amountNano: 12_500_000_000, displayAmount: '12.5 TON' },
   premium: { tierCode: 'premium', durationDays: 365, amountNano: 15_000_000_000, displayAmount: '15 TON' },
+};
+const DEFAULT_TON_PROMO_CODE_CATALOG = {
+  FOCUS10: { code: 'FOCUS10', discountPercent: 10, planCodes: ['basic', 'pro', 'premium'] },
+};
+const WHEEL_TOPUP_PACKAGE_CATALOG = {
+  starter: { packageId: 'starter', crystals: 300, amountKzt: 300 },
+  wheel_boost: { packageId: 'wheel_boost', crystals: 1000, amountKzt: 1000 },
+  power_pack: { packageId: 'power_pack', crystals: 2500, amountKzt: 2500 },
 };
 
 const isMissingTableError = (error) =>
@@ -106,10 +115,88 @@ const normalizePlanCode = (value = '') => {
   return Object.prototype.hasOwnProperty.call(TON_PLAN_CATALOG, normalized) ? normalized : null;
 };
 
+const normalizePromoCode = (value = '') => `${value}`.trim().toUpperCase();
+
 const formatTonAmount = (amountNano) =>
   `${(Number(amountNano) / 1_000_000_000).toFixed(6).replace(/\.?0+$/, '')} TON`;
 
 const buildTonMemo = (paymentOrderId) => `FOCUS:${paymentOrderId}`;
+const buildWheelTopupMemo = (topupId) => `WHEEL:${topupId}`;
+
+function parseTonPromoCodeCatalog(rawValue = '') {
+  if (!rawValue) {
+    return DEFAULT_TON_PROMO_CODE_CATALOG;
+  }
+
+  try {
+    const parsed = JSON.parse(rawValue);
+    const entries = Array.isArray(parsed)
+      ? parsed.map((item) => [item?.code, item])
+      : Object.entries(parsed || {}).map(([code, value]) => [code, value]);
+
+    const catalog = entries.reduce((accumulator, [rawCode, rawConfig]) => {
+      const code = normalizePromoCode(rawCode);
+      if (!code) {
+        return accumulator;
+      }
+
+      const config = typeof rawConfig === 'number'
+        ? { discountPercent: rawConfig }
+        : rawConfig || {};
+      const discountPercent = Math.max(1, Math.min(90, Number(config.discountPercent || 0)));
+
+      if (!Number.isFinite(discountPercent) || discountPercent <= 0) {
+        return accumulator;
+      }
+
+      const planCodes = Array.isArray(config.planCodes)
+        ? config.planCodes.map(normalizePlanCode).filter(Boolean)
+        : ['basic', 'pro', 'premium'];
+
+      accumulator[code] = {
+        code,
+        discountPercent,
+        planCodes: planCodes.length ? planCodes : ['basic', 'pro', 'premium'],
+      };
+
+      return accumulator;
+    }, {});
+
+    return Object.keys(catalog).length ? catalog : DEFAULT_TON_PROMO_CODE_CATALOG;
+  } catch (error) {
+    console.warn('[TON] Failed to parse promo catalog, using defaults:', error instanceof Error ? error.message : error);
+    return DEFAULT_TON_PROMO_CODE_CATALOG;
+  }
+}
+
+const TON_PROMO_CODE_CATALOG = parseTonPromoCodeCatalog(process.env.TON_PROMO_CODES || '');
+
+function getTonPromoOffer(planCode, promoCode) {
+  const normalizedPlanCode = normalizePlanCode(planCode);
+  const normalizedPromoCode = normalizePromoCode(promoCode);
+
+  if (!normalizedPlanCode || !normalizedPromoCode) {
+    return null;
+  }
+
+  const promoOffer = TON_PROMO_CODE_CATALOG[normalizedPromoCode];
+  if (!promoOffer) {
+    return null;
+  }
+
+  return promoOffer.planCodes.includes(normalizedPlanCode) ? promoOffer : null;
+}
+
+function applyDiscountToNano(amountNano, discountPercent = 0) {
+  const normalizedAmount = Number(amountNano || 0);
+  const normalizedDiscount = Math.max(0, Math.min(90, Number(discountPercent || 0)));
+
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0 || normalizedDiscount <= 0) {
+    return normalizedAmount;
+  }
+
+  return Math.max(1, Math.round(normalizedAmount * ((100 - normalizedDiscount) / 100)));
+}
 
 const getTonPayloadHeaders = () => ({
   'Content-Type': 'application/json',
@@ -158,6 +245,22 @@ async function getTonPlanOffer(planCode) {
     console.warn('[TON] Falling back to in-code price map:', error instanceof Error ? error.message : error);
     return fallbackOffer;
   }
+}
+
+function getWheelTopupPackage(packageId) {
+  const normalizedPackageId = `${packageId || ''}`.trim();
+  return Object.prototype.hasOwnProperty.call(WHEEL_TOPUP_PACKAGE_CATALOG, normalizedPackageId)
+    ? WHEEL_TOPUP_PACKAGE_CATALOG[normalizedPackageId]
+    : null;
+}
+
+function convertKztToTonNano(amountKzt) {
+  const normalizedAmount = Number(amountKzt || 0);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+    return 0;
+  }
+
+  return Math.max(1, Math.round((normalizedAmount / TON_TOPUP_KZT_PER_TON) * 1_000_000_000));
 }
 
 async function writeTonPaymentCheck(checkPayload) {
@@ -1007,8 +1110,17 @@ app.post('/payments/ton/create', async (req, res) => {
       return res.status(404).json({ error: 'Plan offer not found' });
     }
 
+    const requestedPromoCode = normalizePromoCode(req.body?.promoCode);
+    const promoOffer = requestedPromoCode ? getTonPromoOffer(planCode, requestedPromoCode) : null;
+    if (requestedPromoCode && !promoOffer) {
+      return res.status(400).json({ error: 'Promo code is invalid or not available for this plan' });
+    }
+
+    const baseAmountNano = Number(planOffer.amountNano);
+    const discountedBaseAmountNano = applyDiscountToNano(baseAmountNano, promoOffer?.discountPercent || 0);
+    const discountAmountNano = Math.max(0, baseAmountNano - discountedBaseAmountNano);
     const paymentOrderId = crypto.randomUUID();
-    const amountNano = planOffer.amountNano + crypto.randomInt(1_000, 950_000);
+    const amountNano = discountedBaseAmountNano + crypto.randomInt(1_000, 950_000);
     const createdAt = new Date();
     const expiresAt = new Date(createdAt.getTime() + TON_PAYMENT_TTL_MS);
     const memo = buildTonMemo(paymentOrderId);
@@ -1026,7 +1138,11 @@ app.post('/payments/ton/create', async (req, res) => {
         memo,
         provider_payload: {
           receiverAddress: TON_WALLET_ADDRESS,
-          baseAmountNano: planOffer.amountNano,
+          baseAmountNano,
+          discountedBaseAmountNano,
+          discountAmountNano,
+          discountPercent: promoOffer?.discountPercent || 0,
+          promoCode: promoOffer?.code || null,
           displayAmount: planOffer.displayAmount,
         },
         expires_at: expiresAt.toISOString(),
@@ -1045,6 +1161,12 @@ app.post('/payments/ton/create', async (req, res) => {
       address: TON_WALLET_ADDRESS,
       amountNano: Number(data.amount_nano),
       amountTon: formatTonAmount(data.amount_nano),
+      baseAmountNano,
+      baseAmountTon: formatTonAmount(baseAmountNano),
+      promoCode: promoOffer?.code || null,
+      discountPercent: promoOffer?.discountPercent || 0,
+      discountAmountNano,
+      discountAmountTon: formatTonAmount(discountAmountNano),
       currency: data.currency,
       memo: data.memo,
       expiresAt: data.expires_at,
@@ -2038,6 +2160,781 @@ app.post('/api/admin/tasks/delete', async (req, res) => {
     return res.json({ ok: true });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'admin_task_delete_error' });
+  }
+});
+
+const WHEEL_BIG_PRIZE_RARITIES = new Set(['rare', 'epic', 'legendary']);
+
+const WHEEL_PRIZE_CATALOG = [
+  {
+    id: 'wheel-iphone',
+    title: 'iPhone 17 Pro Max 1TB',
+    type: 'physical',
+    value: 1,
+    rarity: 'legendary',
+    probability: 0.0004,
+    weight: 4,
+    accentColor: '#fde047',
+    metadata: { card: 'gold', rewardKind: 'physical', displayOrder: 1 },
+  },
+  {
+    id: 'wheel-balance-200',
+    title: '1000 монета',
+    type: 'balance',
+    value: 1000,
+    rarity: 'common',
+    probability: 0.24,
+    weight: 2400,
+    accentColor: '#f59e0b',
+    metadata: { card: 'amber', rewardKind: 'coins', displayOrder: 2 },
+  },
+  {
+    id: 'wheel-smartwatch',
+    title: 'Смарт сағат',
+    type: 'physical',
+    value: 1,
+    rarity: 'epic',
+    probability: 0.0018,
+    weight: 18,
+    accentColor: '#c084fc',
+    metadata: { card: 'purple', rewardKind: 'physical', displayOrder: 3 },
+  },
+  {
+    id: 'wheel-balance-100',
+    title: '50 кристалл',
+    type: 'balance',
+    value: 50,
+    rarity: 'common',
+    probability: 0.34,
+    weight: 3400,
+    accentColor: '#22d3ee',
+    metadata: { card: 'cyan', rewardKind: 'crystals', displayOrder: 4 },
+  },
+  {
+    id: 'wheel-airpods',
+    title: 'AirPods',
+    type: 'physical',
+    value: 1,
+    rarity: 'rare',
+    probability: 0.003,
+    weight: 30,
+    accentColor: '#f8fafc',
+    metadata: { card: 'silver', rewardKind: 'physical', displayOrder: 5 },
+  },
+  {
+    id: 'wheel-balance-500',
+    title: '2500 монета',
+    type: 'balance',
+    value: 2500,
+    rarity: 'uncommon',
+    probability: 0.17,
+    weight: 1700,
+    accentColor: '#fb7185',
+    metadata: { card: 'rose', rewardKind: 'coins', displayOrder: 6 },
+  },
+  {
+    id: 'wheel-balance-1000',
+    title: '100 кристалл',
+    type: 'balance',
+    value: 100,
+    rarity: 'rare',
+    probability: 0.08,
+    weight: 800,
+    accentColor: '#60a5fa',
+    metadata: { card: 'sky', rewardKind: 'crystals', displayOrder: 7 },
+  },
+  {
+    id: 'wheel-powerbank',
+    title: '5000 монета',
+    type: 'balance',
+    value: 5000,
+    rarity: 'rare',
+    probability: 0.005,
+    weight: 50,
+    accentColor: '#f97316',
+    metadata: { card: 'orange', rewardKind: 'coins', displayOrder: 8 },
+  },
+  {
+    id: 'wheel-balance-2000',
+    title: '250 кристалл',
+    type: 'balance',
+    value: 250,
+    rarity: 'epic',
+    probability: 0.03,
+    weight: 300,
+    accentColor: '#818cf8',
+    metadata: { card: 'violet', rewardKind: 'crystals', displayOrder: 9 },
+  },
+  {
+    id: 'wheel-balance-5000',
+    title: '10000 монета',
+    type: 'balance',
+    value: 10000,
+    rarity: 'epic',
+    probability: 0.008,
+    weight: 80,
+    accentColor: '#ef4444',
+    metadata: { card: 'red', rewardKind: 'coins', displayOrder: 10 },
+  },
+];
+
+const getWheelPrizeRewardKind = (prizeRow = {}) => {
+  if (prizeRow.type === 'physical') {
+    return 'physical';
+  }
+
+  return prizeRow.metadata?.rewardKind === 'coins' ? 'coins' : 'crystals';
+};
+
+const getWheelPrizeDisplayOrder = (prizeRow = {}) => {
+  const displayOrder = Number(prizeRow.metadata?.displayOrder || 999);
+  return Number.isFinite(displayOrder) ? displayOrder : 999;
+};
+
+const mapWheelPrizeRow = (row) => ({
+  id: row.id,
+  title: row.title,
+  type: row.type,
+  rewardKind: getWheelPrizeRewardKind(row),
+  value: Number(row.value || 0),
+  rarity: row.rarity,
+  probability: Number(row.probability || 0),
+  status: row.status,
+  createdAt: row.created_at,
+  accentColor: row.accent_color || null,
+  displayOrder: getWheelPrizeDisplayOrder(row),
+});
+
+const mapWheelSpinRow = (row) => {
+  const prize = row.prize_snapshot || {};
+
+  return {
+    id: row.id,
+    spinSource: row.spin_source,
+    costCrystals: Number(row.cost_gems || 0),
+    createdAt: row.created_at,
+    claimedAt: row.claimed_at,
+    status: row.status,
+    prize: {
+      id: prize.id || row.prize_id || '',
+      title: prize.title || 'Prize',
+      type: prize.type || 'physical',
+      rewardKind: prize.rewardKind || (prize.type === 'balance' ? 'crystals' : 'physical'),
+      value: Number(prize.value || 0),
+      rarity: prize.rarity || 'common',
+      probability: Number(prize.probability || 0),
+      status: prize.status || 'active',
+      createdAt: prize.createdAt || row.created_at,
+      accentColor: prize.accentColor || null,
+      displayOrder: Number(prize.displayOrder || 999),
+    },
+  };
+};
+
+async function getActiveWheelCampaign() {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from('wheel_campaigns')
+    .select('*')
+    .eq('status', 'active')
+    .or(`starts_at.is.null,starts_at.lte.${nowIso}`)
+    .or(`ends_at.is.null,ends_at.gte.${nowIso}`)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error('Active wheel campaign not found');
+  }
+
+  return data;
+}
+
+async function getWheelUserState(userTelegramId) {
+  const { data, error } = await supabase
+    .from('wheel_user_state')
+    .select('*')
+    .eq('user_telegram_id', userTelegramId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (data) {
+    return data;
+  }
+
+  const insertPayload = {
+    user_telegram_id: userTelegramId,
+    free_spins: 0,
+    total_spins: 0,
+    paid_spins: 0,
+    total_topup_kzt: 0,
+    daily_spin_count: 0,
+    daily_spin_date: null,
+    last_rare_win_at: null,
+  };
+
+  const inserted = await supabase
+    .from('wheel_user_state')
+    .insert(insertPayload)
+    .select('*')
+    .single();
+
+  if (inserted.error) {
+    throw inserted.error;
+  }
+
+  return inserted.data;
+}
+
+async function getUserCrystalBalance(userTelegramId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('gems')
+    .eq('telegram_id', userTelegramId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return Number(data?.gems || 0);
+}
+
+async function getUserEconomyBalance(userTelegramId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('gems, coins')
+    .eq('telegram_id', userTelegramId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    gems: Number(data?.gems || 0),
+    coins: Number(data?.coins || 0),
+  };
+}
+
+async function listWheelPrizes(campaignId) {
+  const catalogRows = WHEEL_PRIZE_CATALOG.map((prize) => ({
+    id: prize.id,
+    campaign_id: campaignId,
+    title: prize.title,
+    type: prize.type,
+    value: prize.value,
+    rarity: prize.rarity,
+    probability: prize.probability,
+    weight: prize.weight,
+    status: 'active',
+    accent_color: prize.accentColor,
+    metadata: prize.metadata,
+  }));
+
+  const syncResult = await supabase.from('wheel_prizes').upsert(catalogRows, { onConflict: 'id' });
+  if (syncResult.error) {
+    throw syncResult.error;
+  }
+
+  const { data, error } = await supabase
+    .from('wheel_prizes')
+    .select('*')
+    .eq('campaign_id', campaignId)
+    .in('status', ['active', 'out_of_stock'])
+    .order('weight', { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+function buildWheelPrizeSnapshot(prizeRow, spinStatus) {
+  return {
+    id: prizeRow.id,
+    title: prizeRow.title,
+    type: prizeRow.type,
+    rewardKind: getWheelPrizeRewardKind(prizeRow),
+    value: Number(prizeRow.value || 0),
+    rarity: prizeRow.rarity,
+    probability: Number(prizeRow.probability || 0),
+    status: prizeRow.status,
+    createdAt: prizeRow.created_at,
+    accentColor: prizeRow.accent_color || null,
+    displayOrder: getWheelPrizeDisplayOrder(prizeRow),
+    claimStatus: spinStatus,
+  };
+}
+
+function isWithinHours(value, hours) {
+  if (!value) return false;
+  const diffMs = Date.now() - Date.parse(value);
+  return Number.isFinite(diffMs) && diffMs >= 0 && diffMs < hours * 60 * 60 * 1000;
+}
+
+function getWheelDailySpinCount(stateRow) {
+  const today = new Date().toISOString().split('T')[0];
+  return stateRow?.daily_spin_date === today ? Number(stateRow.daily_spin_count || 0) : 0;
+}
+
+function pickWeightedWheelPrize(prizes, userState, campaign) {
+  const cooldownHours = Math.max(1, Number(campaign.settings?.bigPrizeCooldownHours || 72));
+  const cooldownActive = isWithinHours(userState?.last_rare_win_at, cooldownHours);
+
+  const weightedEntries = prizes
+    .filter((prize) => prize.status === 'active')
+    .filter((prize) => prize.stock_remaining === null || prize.stock_remaining === undefined || Number(prize.stock_remaining) > 0)
+    .map((prize) => {
+      let effectiveWeight = Math.max(1, Number(prize.weight || 1));
+
+      if (cooldownActive && prize.rarity === 'rare') {
+        effectiveWeight = Math.max(1, Math.floor(effectiveWeight * 0.35));
+      }
+
+      if (cooldownActive && prize.rarity === 'epic') {
+        effectiveWeight = Math.max(1, Math.floor(effectiveWeight * 0.18));
+      }
+
+      if (cooldownActive && prize.rarity === 'legendary') {
+        effectiveWeight = Math.max(1, Math.floor(effectiveWeight * 0.02));
+      }
+
+      return {
+        prize,
+        effectiveWeight,
+      };
+    });
+
+  if (!weightedEntries.length) {
+    throw new Error('No active wheel prizes available');
+  }
+
+  const totalWeight = weightedEntries.reduce((sum, entry) => sum + entry.effectiveWeight, 0);
+  let cursor = crypto.randomInt(0, totalWeight);
+
+  for (const entry of weightedEntries) {
+    if (cursor < entry.effectiveWeight) {
+      return entry.prize;
+    }
+    cursor -= entry.effectiveWeight;
+  }
+
+  return weightedEntries[weightedEntries.length - 1].prize;
+}
+
+function randomSuspenseMs(campaign) {
+  const min = Math.max(2500, Number(campaign.suspense_min_ms || 5200));
+  const max = Math.max(min, Number(campaign.suspense_max_ms || 7600));
+  return min === max ? min : crypto.randomInt(min, max + 1);
+}
+
+app.get('/wheel/fortune', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const campaign = await getActiveWheelCampaign();
+    const [userState, economyBalance, prizeRows, historyRows] = await Promise.all([
+      getWheelUserState(access.identity.userId),
+      getUserEconomyBalance(access.identity.userId),
+      listWheelPrizes(campaign.id),
+      supabase
+        .from('wheel_spins')
+        .select('*')
+        .eq('user_telegram_id', access.identity.userId)
+        .order('created_at', { ascending: false })
+        .limit(20),
+    ]);
+
+    if (historyRows.error) {
+      throw historyRows.error;
+    }
+
+    return res.json({
+      campaign: {
+        id: campaign.id,
+        title: campaign.title,
+        spinCostCrystals: Number(campaign.spin_cost_gems || 100),
+        topupFreeSpinThresholdKzt: Number(campaign.topup_free_spin_threshold_kzt || 1000),
+        dailySpinLimit: campaign.daily_spin_limit ? Number(campaign.daily_spin_limit) : null,
+        suspenseMinMs: Number(campaign.suspense_min_ms || 5200),
+        suspenseMaxMs: Number(campaign.suspense_max_ms || 7600),
+      },
+      balance: {
+        crystals: economyBalance.gems,
+        freeSpins: Number(userState.free_spins || 0),
+        totalTopupKzt: Number(userState.total_topup_kzt || 0),
+        spinsToday: getWheelDailySpinCount(userState),
+        dailySpinLimit: campaign.daily_spin_limit ? Number(campaign.daily_spin_limit) : null,
+      },
+      prizes: prizeRows.filter((row) => row.status !== 'hidden').map(mapWheelPrizeRow),
+      history: (historyRows.data || []).map(mapWheelSpinRow),
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'wheel_overview_error' });
+  }
+});
+
+app.post('/wheel/spin', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const campaign = await getActiveWheelCampaign();
+    const [userState, economyBalance, prizeRows] = await Promise.all([
+      getWheelUserState(access.identity.userId),
+      getUserEconomyBalance(access.identity.userId),
+      listWheelPrizes(campaign.id),
+    ]);
+
+    const crystalsBefore = economyBalance.gems;
+    const coinsBefore = economyBalance.coins;
+    const dailyLimitEnabled = Boolean(campaign.settings?.dailyLimitEnabled);
+    const spinsToday = getWheelDailySpinCount(userState);
+    const dailyLimit = campaign.daily_spin_limit ? Number(campaign.daily_spin_limit) : null;
+
+    if (dailyLimitEnabled && dailyLimit && spinsToday >= dailyLimit) {
+      return res.status(400).json({ error: 'Daily spin limit reached' });
+    }
+
+    const freeSpinsBefore = Number(userState.free_spins || 0);
+    const spinCost = Number(campaign.spin_cost_gems || 100);
+    const spinSource = freeSpinsBefore > 0 ? 'free' : 'paid';
+    const costGems = spinSource === 'free' ? 0 : spinCost;
+
+    if (spinSource === 'paid' && crystalsBefore < costGems) {
+      return res.status(400).json({ error: 'Not enough crystals for a paid spin' });
+    }
+
+    const selectedPrize = pickWeightedWheelPrize(prizeRows, userState, campaign);
+    const prizeStatus = selectedPrize.type === 'balance' ? 'used' : 'waiting_review';
+    const prizeSnapshot = buildWheelPrizeSnapshot(selectedPrize, prizeStatus);
+    const freeSpinsAfter = spinSource === 'free' ? freeSpinsBefore - 1 : freeSpinsBefore;
+    const rewardKind = getWheelPrizeRewardKind(selectedPrize);
+    const prizeCrystalValue = rewardKind === 'crystals' ? Number(selectedPrize.value || 0) : 0;
+    const prizeCoinValue = rewardKind === 'coins' ? Number(selectedPrize.value || 0) : 0;
+    const crystalsAfter = crystalsBefore - costGems + prizeCrystalValue;
+    const coinsAfter = coinsBefore + prizeCoinValue;
+    const suspenseMs = randomSuspenseMs(campaign);
+    const spinId = crypto.randomUUID();
+    const resolvedAt = new Date().toISOString();
+    const today = new Date().toISOString().split('T')[0];
+    const nextDailySpinCount = getWheelDailySpinCount(userState) + 1;
+    const wonRarePrize = WHEEL_BIG_PRIZE_RARITIES.has(selectedPrize.rarity);
+
+    const insertSpin = await supabase
+      .from('wheel_spins')
+      .insert({
+        id: spinId,
+        campaign_id: campaign.id,
+        user_telegram_id: access.identity.userId,
+        prize_id: selectedPrize.id,
+        spin_source: spinSource,
+        cost_gems: costGems,
+        gems_before: crystalsBefore,
+        gems_after: crystalsAfter,
+        free_spins_before: freeSpinsBefore,
+        free_spins_after: freeSpinsAfter,
+        status: prizeStatus,
+        prize_snapshot: prizeSnapshot,
+        result_seed: crypto.randomUUID(),
+        suspense_ms: suspenseMs,
+        resolved_at: resolvedAt,
+        claimed_at: prizeStatus === 'used' ? resolvedAt : null,
+      })
+      .select('*')
+      .single();
+
+    if (insertSpin.error) {
+      throw insertSpin.error;
+    }
+
+    const userUpdate = await supabase
+      .from('users')
+      .update({
+        gems: crystalsAfter,
+        coins: coinsAfter,
+        updated_at: resolvedAt,
+      })
+      .eq('telegram_id', access.identity.userId);
+
+    if (userUpdate.error) {
+      throw userUpdate.error;
+    }
+
+    const wheelStateUpdate = await supabase
+      .from('wheel_user_state')
+      .update({
+        free_spins: freeSpinsAfter,
+        total_spins: Number(userState.total_spins || 0) + 1,
+        paid_spins: Number(userState.paid_spins || 0) + (spinSource === 'paid' ? 1 : 0),
+        daily_spin_count: nextDailySpinCount,
+        daily_spin_date: today,
+        last_rare_win_at: wonRarePrize ? resolvedAt : userState.last_rare_win_at,
+        updated_at: resolvedAt,
+      })
+      .eq('user_telegram_id', access.identity.userId);
+
+    if (wheelStateUpdate.error) {
+      throw wheelStateUpdate.error;
+    }
+
+    if (selectedPrize.stock_remaining !== null && selectedPrize.stock_remaining !== undefined) {
+      const nextStock = Math.max(0, Number(selectedPrize.stock_remaining || 0) - 1);
+      const nextPrizeStatus = nextStock > 0 ? selectedPrize.status : 'out_of_stock';
+      const prizeUpdate = await supabase
+        .from('wheel_prizes')
+        .update({
+          stock_remaining: nextStock,
+          status: nextPrizeStatus,
+          updated_at: resolvedAt,
+        })
+        .eq('id', selectedPrize.id);
+
+      if (prizeUpdate.error) {
+        throw prizeUpdate.error;
+      }
+    }
+
+    await writeAuditLog(
+      access.identity.userId,
+      access.membership.role,
+      'wheel_spin_created',
+      'wheel_spin',
+      spinId,
+      {
+        campaignId: campaign.id,
+        prizeId: selectedPrize.id,
+        spinSource,
+        costGems,
+      }
+    );
+
+    const mappedSpin = mapWheelSpinRow(insertSpin.data);
+
+    return res.json({
+      spin: {
+        ...mappedSpin,
+        suspenseMs,
+        crystalsBefore,
+        crystalsAfter,
+        coinsBefore,
+        coinsAfter,
+        freeSpinsBefore,
+        freeSpinsAfter,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'wheel_spin_error' });
+  }
+});
+
+app.post('/wheel/topups/ton/create', async (req, res) => {
+  try {
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    if (!TON_WALLET_ADDRESS) {
+      return res.status(503).json({ error: 'TON wallet receiver is not configured' });
+    }
+
+    const packageOffer = getWheelTopupPackage(req.body?.packageId);
+    if (!packageOffer) {
+      return res.status(400).json({ error: 'Unsupported crystal package' });
+    }
+
+    const topupId = crypto.randomUUID();
+    const createdAt = new Date();
+    const expiresAt = new Date(createdAt.getTime() + TON_PAYMENT_TTL_MS);
+    const amountNano = convertKztToTonNano(packageOffer.amountKzt);
+    const memo = buildWheelTopupMemo(topupId);
+
+    return res.json({
+      topupId,
+      provider: 'ton',
+      packageId: packageOffer.packageId,
+      crystals: packageOffer.crystals,
+      amountKzt: packageOffer.amountKzt,
+      address: TON_WALLET_ADDRESS,
+      amountNano,
+      amountTon: formatTonAmount(amountNano),
+      currency: 'TON',
+      memo,
+      expiresAt: expiresAt.toISOString(),
+      createdAt: createdAt.toISOString(),
+      metadata: {
+        conversionRateKztPerTon: TON_TOPUP_KZT_PER_TON,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'wheel_topup_ton_create_error' });
+  }
+});
+
+app.post('/wheel/topups/apply', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const topupId = `${req.body?.topupId || ''}`.trim();
+    const amountKzt = Number(req.body?.amountKzt || 0);
+    const source = ['manual', 'ton', 'telegram_stars', 'admin'].includes(req.body?.source)
+      ? req.body.source
+      : 'manual';
+    const metadata = req.body?.metadata && typeof req.body.metadata === 'object' ? req.body.metadata : {};
+
+    if (!topupId) {
+      return res.status(400).json({ error: 'Top-up id is required' });
+    }
+
+    if (!Number.isInteger(amountKzt) || amountKzt <= 0) {
+      return res.status(400).json({ error: 'Top-up amount must be a positive integer' });
+    }
+
+    const existingTopup = await supabase
+      .from('wheel_topups')
+      .select('*')
+      .eq('id', topupId)
+      .eq('user_telegram_id', access.identity.userId)
+      .maybeSingle();
+
+    if (existingTopup.error) {
+      throw existingTopup.error;
+    }
+
+    const campaign = await getActiveWheelCampaign();
+    const userState = await getWheelUserState(access.identity.userId);
+    const freeSpinsAwarded = amountKzt >= Number(campaign.topup_free_spin_threshold_kzt || 1000) ? 1 : 0;
+    const crystalsAdded = amountKzt;
+    const processedAt = new Date().toISOString();
+
+    if (!existingTopup.data) {
+      const crystalsBefore = await getUserCrystalBalance(access.identity.userId);
+      const crystalsAfter = crystalsBefore + crystalsAdded;
+
+      const insertTopup = await supabase
+        .from('wheel_topups')
+        .insert({
+          id: topupId,
+          user_telegram_id: access.identity.userId,
+          source,
+          amount_kzt: amountKzt,
+          crystals_added: crystalsAdded,
+          free_spins_awarded: freeSpinsAwarded,
+          status: 'applied',
+          metadata,
+          processed_at: processedAt,
+        })
+        .select('*')
+        .single();
+
+      if (insertTopup.error) {
+        throw insertTopup.error;
+      }
+
+      const userUpdate = await supabase
+        .from('users')
+        .update({
+          gems: crystalsAfter,
+          updated_at: processedAt,
+        })
+        .eq('telegram_id', access.identity.userId);
+
+      if (userUpdate.error) {
+        throw userUpdate.error;
+      }
+
+      const wheelStateUpdate = await supabase
+        .from('wheel_user_state')
+        .update({
+          free_spins: Number(userState.free_spins || 0) + freeSpinsAwarded,
+          total_topup_kzt: Number(userState.total_topup_kzt || 0) + amountKzt,
+          updated_at: processedAt,
+        })
+        .eq('user_telegram_id', access.identity.userId);
+
+      if (wheelStateUpdate.error) {
+        throw wheelStateUpdate.error;
+      }
+
+      await writeAuditLog(
+        access.identity.userId,
+        access.membership.role,
+        'wheel_topup_applied',
+        'wheel_topup',
+        topupId,
+        {
+          amountKzt,
+          crystalsAdded,
+          freeSpinsAwarded,
+          source,
+        }
+      );
+    }
+
+    const [finalState, finalCrystals, finalTopup] = await Promise.all([
+      getWheelUserState(access.identity.userId),
+      getUserCrystalBalance(access.identity.userId),
+      supabase
+        .from('wheel_topups')
+        .select('*')
+        .eq('id', topupId)
+        .eq('user_telegram_id', access.identity.userId)
+        .single(),
+    ]);
+
+    if (finalTopup.error) {
+      throw finalTopup.error;
+    }
+
+    return res.json({
+      topup: {
+        id: finalTopup.data.id,
+        amountKzt: Number(finalTopup.data.amount_kzt || 0),
+        crystalsAdded: Number(finalTopup.data.crystals_added || 0),
+        freeSpinsAwarded: Number(finalTopup.data.free_spins_awarded || 0),
+        status: finalTopup.data.status,
+        createdAt: finalTopup.data.created_at,
+      },
+      balance: {
+        crystals: finalCrystals,
+        freeSpins: Number(finalState.free_spins || 0),
+        totalTopupKzt: Number(finalState.total_topup_kzt || 0),
+        spinsToday: getWheelDailySpinCount(finalState),
+        dailySpinLimit: campaign.daily_spin_limit ? Number(campaign.daily_spin_limit) : null,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'wheel_topup_apply_error' });
   }
 });
 

@@ -1,14 +1,15 @@
 import { Trophy, Crown, Medal } from 'lucide-react';
 import { useStore } from '../store/useStoreImpl';
 import { useMemo } from 'react';
+import { getDefaultAvatarUrl } from '../constants/avatars';
 
 // Mock Leaderboard Data
 const MOCK_LEADERBOARD = [
-  { id: 101, name: 'Alice', xp: 15400, level: 15, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice' },
-  { id: 102, name: 'Bob', xp: 12300, level: 12, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob' },
-  { id: 103, name: 'Charlie', xp: 11200, level: 11, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie' },
-  { id: 104, name: 'David', xp: 9500, level: 9, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David' },
-  { id: 105, name: 'Eve', xp: 8700, level: 8, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Eve' },
+  { id: 101, name: 'Alice', xp: 15400, level: 15, avatar: getDefaultAvatarUrl('Alice') },
+  { id: 102, name: 'Bob', xp: 12300, level: 12, avatar: getDefaultAvatarUrl('Bob') },
+  { id: 103, name: 'Charlie', xp: 11200, level: 11, avatar: getDefaultAvatarUrl('Charlie') },
+  { id: 104, name: 'David', xp: 9500, level: 9, avatar: getDefaultAvatarUrl('David') },
+  { id: 105, name: 'Eve', xp: 8700, level: 8, avatar: getDefaultAvatarUrl('Eve') },
 ];
 
 const LeaderboardPage = () => {
@@ -105,7 +106,7 @@ const LeaderboardPage = () => {
                 <div className="flex items-center gap-4">
                   <span className="text-lg font-bold text-white w-6 text-center">?</span>
                   <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden border-2 border-primary">
-                    <img src={user.photoUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="Me" className="w-full h-full" />
+                    <img src={user.photoUrl || getDefaultAvatarUrl('Felix')} alt="Me" className="w-full h-full" />
                   </div>
                   <div>
                     <div className="font-bold text-white">{user.firstName} (You)</div>

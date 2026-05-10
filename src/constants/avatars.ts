@@ -11,6 +11,29 @@ export interface ProfileAvatar {
   previewClass?: string;
 }
 
+type DicebearStyle =
+  | 'adventurer-neutral'
+  | 'avataaars-neutral'
+  | 'big-smile'
+  | 'lorelei-neutral'
+  | 'micah'
+  | 'notionists-neutral'
+  | 'open-peeps'
+  | 'personas';
+
+export const buildDicebearAvatar = (style: DicebearStyle, seed: string) =>
+  `https://api.dicebear.com/9.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
+
+export const getDefaultAvatarUrl = (seed: string) => buildDicebearAvatar('adventurer-neutral', seed);
+
+export const getProfileAvatarImage = (avatar: ProfileAvatar) => {
+  if (avatar.imageUrl) {
+    return avatar.imageUrl;
+  }
+
+  return getDefaultAvatarUrl(avatar.name.en || avatar.id || 'Player');
+};
+
 export const PROFILE_AVATARS: ProfileAvatar[] = [
   {
     id: 'default',
@@ -20,6 +43,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       kz: 'Классика'
     },
     emoji: '✨',
+    imageUrl: buildDicebearAvatar('adventurer-neutral', 'classic-focus'),
     previewClass: 'bg-secondary text-white border border-gray-700',
     isPremium: false
   },
@@ -31,6 +55,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       kz: 'Неон көк'
     },
     emoji: '💙',
+    imageUrl: buildDicebearAvatar('micah', 'neon-blue-focus'),
     previewClass: 'bg-blue-900/40 text-blue-100 border border-blue-500 shadow-blue-500/20',
     isPremium: false
   },
@@ -42,6 +67,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       kz: 'Патша күлгін'
     },
     emoji: '💜',
+    imageUrl: buildDicebearAvatar('lorelei-neutral', 'royal-purple-focus'),
     previewClass: 'bg-purple-900/40 text-purple-100 border border-purple-500 shadow-purple-500/20',
     isPremium: false
   },
@@ -53,6 +79,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       kz: 'Матрица'
     },
     emoji: '💚',
+    imageUrl: buildDicebearAvatar('personas', 'matrix-focus'),
     previewClass: 'bg-green-900/40 text-green-400 border border-green-500',
     isPremium: false
   },
@@ -63,7 +90,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       ru: 'Кибер-кот',
       kz: 'Кибер мысық'
     },
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iY3liZXJHcmFkIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzAwZmZmZmYiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMDBiY2ZmIi8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0idXJsKCNjeWJlckdyYWQpIi8+CiAgPGVsbGlwc2UgY3g9IjM1IiBjeT0iNDAiIHJ4PSI4IiByeT0iMTIiIGZpbGw9IiNmZmZmZmYiLz4KICA8ZWxsaXBzZSBjeD0iNjUiIGN5PSI0MCIgcng9IjgiIHJ5PSIxMiIgZmlsbD0iI2ZmZmZmZiIvPgogIDxjaXJjbGUgY3g9IjM1IiBjeT0iNDAiIHI9IjQiIGZpbGw9IiMwMDAiLz4KICA8Y2lyY2xlIGN4PSI2NSIgY3k9IjQwIiByPSI0IiBmaWxsPSIjMDAwIi8+CiAgPGNpcmNsZSBjeD0iMzciIGN5PSIzOCIgcj0iMS41IiBmaWxsPSIjZmZmIi8+CiAgPGNpcmNsZSBjeD0iNjciIGN5PSIzOCIgcj0iMS41IiBmaWxsPSIjZmZmIi8+CiAgPHBhdGggZD0iTTM1IDU1IFE0NSA2NSA1MCA2NSBRNTUgNjUgNjUgNTUiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CiAgPGNpcmNsZSBjeD0iMjUiIGN5PSI1MCIgcj0iOCIgZmlsbD0iIzAwZmZmZmYiLz4KICA8Y2lyY2xlIGN4PSI3NSIgY3k9IjUwIiByPSI4IiBmaWxsPSIjMDBmZmZmZiIvPgogIDxwYXRoIGQ9Ik0zNSA0NSBMMjUgMzUiIHN0cm9rZT0iIzAwZmZmZiIgc3Ryb2tlLXdpZHRoPSIyIi8+CiAgPHBhdGggZD0iTTY1IDQ1IEw3NSAzNSIgc3Ryb2tlPSIjMDBmZmZmIiBzdHJva2Utd2lkdGg9IjIiLz4KPC9zdmc+',
+    imageUrl: buildDicebearAvatar('big-smile', 'cyber-cat-focus'),
     isPremium: false
   },
   {
@@ -73,7 +100,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       ru: 'Огненный дракон',
       kz: 'Отты айдаһар'
     },
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8ZGVmcz4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0iZmlyZUdyYWQiIGN4PSI1MCUiIGN5PSI1MCUiIHI9IjUwJSIgZng9IjUwJSIgZnk9IjUwJSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZmYwMDAiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojZmY2NjAwIi8+CiAgICA8L3JhZGlhbEdyYWRpZW50PgogIDwvZGVmcz4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0idXJsKCNmaXJlR3JhZCkiLz4KICA8ZWxsaXBzZSBjeD0iMzUiIGN5PSI0MCIgcng9IjYiIHJ5PSI5IiBmaWxsPSIjZmZmZmZmIi8+CiAgPGVsbGlwc2UgY3g9IjY1IiBjeT0iNDAiIHJ4PSI2IiByeT0iOSIgZmlsbD0iI2ZmZmZmZiIvPgogIDxjaXJjbGUgY3g9IjM1IiBjeT0iNDAiIHI9IjMiIGZpbGw9IiNmZjQ0MDAiLz4KICA8Y2lyY2xlIGN4PSI2NSIgY3k9IjQwIiByPSIzIiBmaWxsPSIjZmY0NDAwIi8+CiAgPHBhdGggZD0iTTMwIDYwIFE0NSA3MCA1MCA2NSBRNTUgNjAgNzAgNjAiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CiAgPHBhdGggZD0iTTIwIDMwIEwzMCAyMCBMMTAgMjUiIGZpbGw9IiNmZmYwMDAiLz4KICA8cGF0aCBkPSJNODAgMzAgTzcwIDIwIEw5MCAyNSIgZmlsbD0iI2ZmZTAwMCIvPgogIDxwYXRoIGQ9Ik0xNSA1MCBMMCA0NSBMMTAgNTUiIGZpbGw9IiNmZjY2MDAiLz4KICA8cGF0aCBkPSJNODUgNTAgTDEwMCA0NSBMMTAgNTUiIGZpbGw9IiNmZjY2MDAiLz4KPC9zdmc+',
+    imageUrl: buildDicebearAvatar('adventurer-neutral', 'fire-dragon-focus'),
     isPremium: false
   },
   {
@@ -83,7 +110,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       ru: 'Галактика',
       kz: 'Галактика'
     },
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8ZGVmcz4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0iZ2FsYXh5R3JhZCIgY3g9IjUwJSIgY3k9IjUwJSIgcj0iNjAlIiBmeD0iNTAlIiBmeT0iNTAlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzFhMjA2NSIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjUwJSIgc3R5bGU9InN0b3AtY29sb3I6IzZkNWJmNyIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZjY2ZmYiLz4KICAgIDwvcmFkaWFsR3JhZGllbnQ+CiAgPC9kZWZzPgogIDxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSJ1cmwoI2dhbGF4eUdyYWQpIi8+CiAgPGVsbGlwc2UgY3g9IjM1IiBjeT0iNDAiIHJ4PSI2IiByeT0iOSIgZmlsbD0iI2ZmZmZmZiIvPgogIDxlbGxpcHNlIGN4PSI2NSIgY3k9IjQwIiByeD0iNiIgcnk9IjkiIGZpbGw9IiNmZmZmZmYiLz4KICA8Y2lyY2xlIGN4PSIzNSIgY3k9IjQwIiByPSI0IiBmaWxsPSIjNmQ1YmY3Ii8+CiAgPGNpcmNsZSBjeD0iNjUiIGN5PSI0MCIgcj0iNCIgZmlsbD0iIzZkNWJmNyIvPgogIDxjaXJjbGUgY3g9IjM3IiBjeT0iMzgiIHI9IjEuNSIgZmlsbD0iI2ZmZiIvPgogIDxjaXJjbGUgY3g9IjY3IiBjeT0iMzgiIHI9IjEuNSIgZmlsbD0iI2ZmZiIvPgogIDxwYXRoIGQ9Ik0zNSA2MCBRNDUgNzAgNTAgNjUgUTU1IDYwIDY1IDYwIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9uZSIvPgogIDxjaXJjbGUgY3g9IjI1IiBjeT0iNzAiIHI9IjEiIGZpbGw9IiNmZmZmZmYgb3BhY2l0eT0wLjUiLz4KICA8Y2lyY2xlIGN4PSI3NSIgY3k9Ijc1IiByPSIxIiBmaWxsPSIjZmZmZmZmIG9wYWNpdHk9MC41Ii8+CiAgPGNpcmNsZSBjeD0iODUiIGN5PSIzMCIgcj0iMS41IiBmaWxsPSIjZmZmZmZmIG9wYWNpdHk9MC41Ii8+CiAgPGNpcmNsZSBjeD0iMTUiIGN5PSI4MCIgcj0iMiIgZmlsbD0iI2ZmZmZmZiBvcGFjaXR5PTAuNSIvPgo8L3N2Zz4=',
+    imageUrl: buildDicebearAvatar('personas', 'galaxy-focus'),
     isPremium: false
   },
   {
@@ -93,7 +120,51 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       ru: 'Океанская жемчужина',
       kz: 'Мұхит перлесі'
     },
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ib2NlYW5HcmFkIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzAwN2JlMyIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMwMGQyY2MiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgogIDxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSJ1cmwoI29jZWFuR3JhZCkiLz4KICA8ZWxsaXBzZSBjeD0iMzUiIGN5PSI0MCIgcng9IjciIHJ5PSIxMCIgZmlsbD0iI2ZmZmZmZiIvPgogIDxlbGxpcHNlIGN4PSI2NSIgY3k9IjQwIiByeD0iNyIgcnk9IjEwIiBmaWxsPSIjZmZmZmZmIi8+CiAgPGNpcmNsZSBjeD0iMzUiIGN5PSI0MCIgcj0iNCIgZmlsbD0iIzAwN2JlMyIvPgogIDxjaXJjbGUgY3g9IjY1IiBjeT0iNDAiIHI9IjQiIGZpbGw9IiMwMDdiZTMiLz4KICA8Y2lyY2xlIGN4PSIzNyIgY3k9IjM4IiByPSIxLjUiIGZpbGw9IiNmZmYiLz4KICA8Y2lyY2xlIGN4PSI2NyIgY3k9IjM4IiByPSIxLjUiIGZpbGw9IiNmZmYiLz4KICA8cGF0aCBkPSJNMzAgNjAgUTQ1IDczIDUwIDY5IFE1NSA2NSA3MCA2MCIgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjMiIGZpbGw9Im5vbmUiLz4KICA8Y2lyY2xlIGN4PSI4MCIgY3k9IjIwIiByPSI2IiBmaWxsPSIjZmZmZmZmIG9wYWNpdHk9MC4zIi8+CiAgPGNpcmNsZSBjeD0iMjAiIGN5PSI4MCIgcj0iNCIgZmlsbD0iI2ZmZmZmZiBvcGFjaXR5PTAuMyIvPgo8L3N2Zz4=',
+    imageUrl: buildDicebearAvatar('open-peeps', 'ocean-pearl-focus'),
+    isPremium: false
+  },
+  {
+    id: 'midnight_coder',
+    name: {
+      en: 'Midnight Coder',
+      ru: 'Ночной кодер',
+      kz: 'Түнгі кодер'
+    },
+    imageUrl: buildDicebearAvatar('micah', 'midnight-coder-focus'),
+    previewClass: 'bg-slate-900/40 border border-slate-500/40',
+    isPremium: false
+  },
+  {
+    id: 'sunset_vibe',
+    name: {
+      en: 'Sunset Vibe',
+      ru: 'Закатный вайб',
+      kz: 'Кешкі vibe'
+    },
+    imageUrl: buildDicebearAvatar('lorelei-neutral', 'sunset-vibe-focus'),
+    previewClass: 'bg-rose-500/20 border border-orange-400/30',
+    isPremium: false
+  },
+  {
+    id: 'aqua_beats',
+    name: {
+      en: 'Aqua Beats',
+      ru: 'Аква бит',
+      kz: 'Аква бит'
+    },
+    imageUrl: buildDicebearAvatar('notionists-neutral', 'aqua-beats-focus'),
+    previewClass: 'bg-cyan-500/20 border border-cyan-300/30',
+    isPremium: false
+  },
+  {
+    id: 'cloud_runner',
+    name: {
+      en: 'Cloud Runner',
+      ru: 'Облачный раннер',
+      kz: 'Бұлт runner'
+    },
+    imageUrl: buildDicebearAvatar('avataaars-neutral', 'cloud-runner-focus'),
+    previewClass: 'bg-violet-500/20 border border-violet-300/30',
     isPremium: false
   },
   {
@@ -103,7 +174,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       ru: 'Золотая корона',
       kz: 'Алтын тәж'
     },
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0iZ29sZEdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdHlsZT0ic3RvcC1jb2xvcjojZmZkNzAwIi8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3R5bGU9InN0b3AtY29sb3I6I2ZmYTAwMCIvPgogICAgPC9saW5lYXJHcmFkaWVudD4KICA8L2RlZnM+CiAgPGNpcmNsZSBjeD0iNTAiIGN5PSI1MCIgcj0iNDUiIGZpbGw9InVybCgjZ29sZEdyYWQpIi8+CiAgPGVsbGlwc2UgY3g9IjM1IiBjeT0iNDAiIHJ4PSI3IiByeT0iMTAiIGZpbGw9IiNmZmZmZmYiLz4KICA8ZWxsaXBzZSBjeD0iNjUiIGN5PSI0MCIgcng9IjciIHJ5PSIxMCIgZmlsbD0iI2ZmZmZmZiIvPgogIDxjaXJjbGUgY3g9IjM1IiBjeT0iNDAiIHI9IjQuNSIgZmlsbD0iI2ZmYTAwMCIvPgogIDxjaXJjbGUgY3g9IjY1IiBjeT0iNDAiIHI9IjQuNSIgZmlsbD0iI2ZmYTAwMCIvPgogIDxjaXJjbGUgY3g9IjM3IiBjeT0iMzgiIHI9IjIiIGZpbGw9IiNmZmYiLz4KICA8Y2lyY2xlIGN4PSI2NyIgY3k9IjM4IiByPSIyIiBmaWxsPSIjZmZmIi8+CiAgPHBhdGggZD0iTTMwIDYwIFE0NSA3NSA1MCA3MCBRNTUgNjUgNzAgNjAiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CiAgPHBhdGggZD0iTTUwIDIwIEw1NSAzMCBMNTAgMjUgTDQ1IDMwIFoiIGZpbGw9IiNmZmQ3MDAiLz4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjI1IiByPSI0IiBmaWxsPSIjZmZmIi8+CiAgPHBhdGggZD0iTTMwIDMwIEwzNSA0MCBMMzAgMzUgTDI1IDQwIFoiIGZpbGw9IiNmZmQ3MDAiLz4KICA8cGF0aCBkPSJNNzAgMzAgTDc1IDQwIEw3MCAzNSBMODUgNDAgWiIgZmlsbD0iI2ZmZDcwMCIvPgo8L3N2Zz4=',
+    imageUrl: buildDicebearAvatar('micah', 'golden-crown-focus'),
     isPremium: true
   },
   {
@@ -113,7 +184,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       ru: 'Восстание феникса',
       kz: 'Феникс көтерілуі'
     },
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8ZGVmcz4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0icGhvZW5peEdyYWQiIGN4PSI1MCUiIGN5PSI1MCUiIHI9IjYwJSIgZng9IjUwJSIgZnk9IjUwJSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZjM3MDAiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSI1MCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZjk1MDAiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojZmZkNzAwIi8+CiAgICA8L3JhZGlhbEdyYWRpZW50PgogIDwvZGVmcz4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0idXJsKCNwaG9lbml4R3JhZCkiLz4KICA8ZWxsaXBzZSBjeD0iMzUiIGN5PSI0MCIgcng9IjciIHJ5PSI5IiBmaWxsPSIjZmZmZmZmIi8+CiAgPGVsbGlwc2UgY3g9IjY1IiBjeT0iNDAiIHJ4PSI3IiByeT0iOSIgZmlsbD0iI2ZmZmZmZiIvPgogIDxjaXJjbGUgY3g9IjM1IiBjeT0iNDAiIHI9IjQiIGZpbGw9IiNmZjk1MDAiLz4KICA8Y2lyY2xlIGN4PSI2NSIgY3k9IjQwIiByPSI0IiBmaWxsPSIjZmY5NTAwIi8+CiAgPGNpcmNsZSBjeD0iMzciIGN5PSIzOCIgcj0iMS41IiBmaWxsPSIjZmZmIi8+CiAgPGNpcmNsZSBjeD0iNjciIGN5PSIzOCIgcj0iMS41IiBmaWxsPSIjZmZmIi8+CiAgPHBhdGggZD0iTTMwIDYwIFE0NSA3NSA1MCA3MCBRNTUgNjUgNzAgNjAiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CiAgPHBhdGggZD0iTTUwIDE1IEw1NSAyNSBMNTAgMjAgTDQ1IDI1IFoiIGZpbGw9IiNmZmQ3MDAiLz4KICA8cGF0aCBkPSJNMzAgMjUgTDM1IDM1IEwzMCAzMCBMMjUgMzUgWiIgZmlsbD0iI2ZmZDcwMCIvPgogIDxwYXRoIGQ9Ik03MCAyNSBMODUgMzUgTDcwIDMwIEw1NSAzNSBaIiBmaWxsPSIjZmZkNzAwIi8+CiAgPHBhdGggZD0iTTUwIDgwIFE1NSA5MCA1MCA4NSBRNDUgOTAgNDAgODAiIHN0cm9rZT0iI2ZmZjMwMCIgc3Ryb2tlLXdpZHRoPSIyIiBmaWxsPSJub25lIiBvcGFjaXR5PSIwLjUiLz4KPC9zdmc+',
+    imageUrl: buildDicebearAvatar('open-peeps', 'phoenix-rise-focus'),
     isPremium: true
   },
   {
@@ -123,7 +194,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       ru: 'Бриллиантовая роскошь',
       kz: 'Алмас luxurious'
     },
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8ZGVmcz4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0iZGlhbW9uZEdyYWQiIGN4PSI1MCUiIGN5PSI1MCUiIHI9IjYwJSIgZng9IjUwJSIgZnk9IjUwJSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMxZTkwZmYiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSI1MCUiIHN0eWxlPSJzdG9wLWNvbG9yOiM4YjNmZmYiLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdHlsZT0ic3RvcC1jb2xvcjojMDBiZmZmIi8+CiAgICA8L3JhZGlhbEdyYWRpZW50PgogIDwvZGVmcz4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0NSIgZmlsbD0idXJsKCNkaWFtb25kR3JhZCkiLz4KICA8ZWxsaXBzZSBjeD0iMzUiIGN5PSI0MCIgcng9IjciIHJ5PSI5IiBmaWxsPSIjZmZmZmZmIi8+CiAgPGVsbGlwc2UgY3g9IjY1IiBjeT0iNDAiIHJ4PSI3IiByeT0iOSIgZmlsbD0iI2ZmZmZmZiIvPgogIDxjaXJjbGUgY3g9IjM1IiBjeT0iNDAiIHI9IjQiIGZpbGw9IiM4YjNmZmYiLz4KICA8Y2lyY2xlIGN4PSI2NSIgY3k9IjQwIiByPSI0IiBmaWxsPSIjOGIzZmZmIi8+CiAgPGNpcmNsZSBjeD0iMzciIGN5PSIzOCIgcj0iMS41IiBmaWxsPSIjZmZmIi8+CiAgPGNpcmNsZSBjeD0iNjciIGN5PSIzOCIgcj0iMS41IiBmaWxsPSIjZmZmIi8+CiAgPHBhdGggZD0iTTMwIDYwIFE0NSA3NSA1MCA3MCBRNTUgNjUgNzAgNjAiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CiAgPHBvbHlnb24gcG9pbnRzPSI1MCwxNSA2MCwyNSA1MCwyMCA0MCwyNSIgZmlsbD0iI2ZmZmZmZiIvPgogIDxwb2x5Z29uIHBvaW50cz0iMzAsMjUgNDAsMzUgMzMsMzAgMjYsMzUiIGZpbGw9IiNmZmZmZmYiLz4KICA8cG9seWdvbiBwb2ludHM9IjcwLDI1IDgwLDM1IDczLDMwIDc0LDM1IiBmaWxsPSIjZmZmZmZmIi8+CiAgPHBvbHlnb24gcG9pbnRzPSI1MCw4NSA2NSw3NSA1MCw3MCAzNSw3NSIgZmlsbD0iIzAwYmZmZiIgb3BhY2l0eT0iMC41Ii8+Cjwvc3ZnPg==',
+    imageUrl: buildDicebearAvatar('notionists-neutral', 'diamond-luxury-focus'),
     isPremium: true
   },
   {
@@ -133,7 +204,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       ru: 'Королевский дракон',
       kz: 'Патша айдаһары'
     },
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0icm95YWxHcmFkIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6IzZkNDNmZiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiMwMDA5ZmYiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgogIDxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSJ1cmwoI3JveWFsR3JhZCkiLz4KICA8ZWxsaXBzZSBjeD0iMzUiIGN5PSI0MCIgcng9IjYiIHJ5PSI4IiBmaWxsPSIjZmZmZmZmIi8+CiAgPGVsbGlwc2UgY3g9IjY1IiBjeT0iNDAiIHJ4PSI2IiByeT0iOCIgZmlsbD0iI2ZmZmZmZiIvPgogIDxjaXJjbGUgY3g9IjM1IiBjeT0iNDAiIHI9IjMiIGZpbGw9IiM2ZDQzZmYiLz4KICA8Y2lyY2xlIGN4PSI2NSIgY3k9IjQwIiByPSIzIiBmaWxsPSIjNmQ0M2ZmIi8+CiAgPGNpcmNsZSBjeD0iMzciIGN5PSIzOCIgcj0iMS41IiBmaWxsPSIjZmZmIi8+CiAgPGNpcmNsZSBjeD0iNjciIGN5PSIzOCIgcj0iMS41IiBmaWxsPSIjZmZmIi8+CiAgPHBhdGggZD0iTTMwIDYwIFE0NSA3MCA1MCA2NSBRNTUgNjAgNzAgNjAiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIzIiBmaWxsPSJub25lIi8+CiAgPHBhdGggZD0iTTIwIDMwIEwzMCAyMCBMMTUgMjUiIGZpbGw9IiM2ZDQzZmYiLz4KICA8cGF0aCBkPSJNODAgMzAgTDcwIDIwIEw4NSAyNSIgZmlsbD0iIzZkNDNmZiIvPgogIDxwYXRoIGQ9Ik0xNSA1MCBMMCA0NSBMMTAgNTUiIGZpbGw9IiM2ZDQzZmYiLz4KICA8cGF0aCBkPSJNODUgNTAgTDEwMCA0NSBMOTAgNTUiIGZpbGw9IiM2ZDQzZmYiLz4KICA8Y2lyY2xlIGN4PSI1MCIgY3k9IjI1IiByPSI2IiBmaWxsPSIjZmZkNzAwIi8+Cjwvc3ZnPg==',
+    imageUrl: buildDicebearAvatar('avataaars-neutral', 'royal-dragon-focus'),
     isPremium: true
   },
   {
@@ -143,7 +214,7 @@ export const PROFILE_AVATARS: ProfileAvatar[] = [
       ru: 'Радужное чудо',
       kz: 'Күнбағыс ғажайып'
     },
-    imageUrl: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0icmFpbmJvd0dyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiIGdyYWRpZW50VW5pdHM9InVzZXJTcGFjZU9uVXNlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3R5bGU9InN0b3AtY29sb3I6I2ZmMDAwMCIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjE3JSIgc3R5bGU9InN0b3AtY29sb3I6I2ZmODgwMCIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjMzJSIgc3R5bGU9InN0b3AtY29sb3I9I2ZmZmYwMCIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjUwJSIgc3R5bGU9InN0b3AtY29sb3I9IzAwZmYwMCIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjY3JSIgc3R5bGU9InN0b3AtY29sb3I9IzAwMDBmZiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjgzJSIgc3R5bGU9InN0b3AtY29sb3I9Izg4MDBmZiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0eWxlPSJzdG9wLWNvbG9yOiNmZjAwZmYiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgogIDxjaXJjbGUgY3g9IjUwIiBjeT0iNTAiIHI9IjQ1IiBmaWxsPSJ1cmwoI3JhaW5ib3dHcmFkKSIvPgogIDxlbGxpcHNlIGN4PSIzNSIgY3k9IjQwIiByeD0iNyIgcnk9IjEwIiBmaWxsPSIjZmZmZmZmIi8+CiAgPGVsbGlwc2UgY3g9IjY1IiBjeT0iNDAiIHJ4PSI3IiByeT0iMTAiIGZpbGw9IiNmZmZmZmYiLz4KICA8Y2lyY2xlIGN4PSIzNSIgY3k9IjQwIiByPSI0IiBmaWxsPSIjZmYwMDAwIi8+CiAgPGNpcmNsZSBjeD0iNjUiIGN5PSI0MCIgcj0iNCIgZmlsbD0iIzAwMDBmZiIvPgogIDxjaXJjbGUgY3g9IjM3IiBjeT0iMzgiIHI9IjEuNSIgZmlsbD0iI2ZmZiIvPgogIDxjaXJjbGUgY3g9IjY3IiBjeT0iMzgiIHI9IjEuNSIgZmlsbD0iI2ZmZiIvPgogIDxwYXRoIGQ9Ik0zMCA2MCBRNDUgNzUgNTAgNzAgUTU1IDY1IDcwIDYwIiBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMyIgZmlsbD0ibm9uZSIvPgogIDxjaXJjbGUgY3g9IjI1IiBjeT0iNzAiIHI9IjMiIGZpbGw9IiNmZmYwMDAgb3BhY2l0eT0wLjUiLz4KICA8Y2lyY2xlIGN4PSI3NSIgY3k9Ijc1IiByPSIzIiBmaWxsPSIjMDAwMGZmIG9wYWNpdHk9MC41Ii8+Cjwvc3ZnPg==',
+    imageUrl: buildDicebearAvatar('lorelei-neutral', 'rainbow-wonder-focus'),
     isPremium: true
   }
 ] as const;

@@ -15,7 +15,7 @@
 5. Токенді `.env` файлында `BOT_TOKEN` переменныене орнатыңыз
 
 ```env
-BOT_TOKEN=1234567890:ABCdefGHIjklMNOpqrsTUVwxyz
+BOT_TOKEN=your_telegram_bot_token_here
 ```
 
 ### 2-қадам: BotFather-де Stars қосу

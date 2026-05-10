@@ -21,6 +21,7 @@ import {
   normalizeWeeklyQuest,
   rollMysteryBoxOutcome,
 } from './economy';
+import { rollCaseOutcome } from './cases';
 import {
   getWeekendEvent,
   loadUserFromSupabase,
@@ -36,11 +37,12 @@ import {
   normalizeTournamentState,
 } from './tournament';
 import { fetchSocialTasksApi, claimSocialTaskApi } from '../utils/api';
-import { fetchEntitlements as fetchEntitlementsApi } from '../utils/entitlementApi';
+import { fetchEntitlements as fetchEntitlementsApi, type EntitlementsResponse } from '../utils/entitlementApi';
 import { AvatarStorage } from '../utils/avatarStorage';
-import { PROFILE_AVATARS } from '../constants/avatars';
+import { getDefaultAvatarUrl, PROFILE_AVATARS } from '../constants/avatars';
 import {
   type EventParticipant,
+  type MysteryBox,
   type Notification,
   type Ticket,
   type UserState,
@@ -52,6 +54,185 @@ import {
 } from './useStore';
 
 export { buildVipAnalyticsSnapshot, TELEGRAM_AVERAGE_BRAIN_PROFILE } from './analytics';
+
+const CLAIMED_PLAN_REWARD_HISTORY_LIMIT = 64;
+const PREMIUM_PLAN_REWARD_KEY_PREFIX = 'premium-once-v1';
+const PRO_WEEKLY_TICKET_KEY_PREFIX = 'pro-weekly-ticket-v1';
+const PREMIUM_RAFFLE_EVENT_NAME = 'Premium Car Raffle';
+const PREMIUM_PLAN_REWARD = {
+  coins: 10_000,
+  gems: 10_000,
+  premiumGiftMysteryBoxes: 10,
+} as const;
+
+const trimClaimedPlanRewardKeys = (keys: string[]) =>
+  Array.from(new Set(keys)).slice(-CLAIMED_PLAN_REWARD_HISTORY_LIMIT);
+
+const buildPremiumRaffleTicket = (
+  state: Pick<UserState, 'user' | 'promotionEndISO'>,
+  now: Date
+): { ticket: Ticket; participant: EventParticipant } => {
+  const ticketNumber = Math.floor(Math.random() * 90000000) + 10000000;
+  const ticketId = `premium-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
+  const purchaseDate = now.toISOString();
+  const eventDate = state.promotionEndISO || now.toISOString();
+  const userName = state.user.firstName || 'Premium User';
+
+  const ticket: Ticket = {
+    id: ticketId,
+    ticketNumber,
+    eventName: PREMIUM_RAFFLE_EVENT_NAME,
+    eventDate,
+    price: 0,
+    purchaseDate,
+    userId: state.user.id,
+    userName,
+    isUsed: false,
+  };
+
+  return {
+    ticket,
+    participant: {
+      ticketId,
+      ticketNumber,
+      userId: state.user.id,
+      userName,
+      userPhoto: state.user.photoUrl,
+      purchaseDate,
+      isVerified: false,
+    },
+  };
+};
+
+const buildPlanRewardPatch = (
+  state: UserState,
+  response: EntitlementsResponse,
+  now = new Date()
+): {
+  statePatch: Partial<UserState>;
+  grantedTicket?: Ticket;
+} | null => {
+  const nowTs = now.getTime();
+  const hasActivePaidPlan = response.plan !== 'free' && (!response.planExpiry || response.planExpiry > nowTs);
+  if (!hasActivePaidPlan) {
+    return null;
+  }
+
+  let nextCoins = state.coins;
+  let nextGems = state.gems;
+  let nextFreeMysteryBoxes = state.freeMysteryBoxes;
+  let nextPremiumGiftMysteryBoxes = state.premiumGiftMysteryBoxes;
+  let nextTournamentTickets = state.tournamentTickets;
+  let nextTickets = state.tickets;
+  let nextEventParticipants = state.eventParticipants;
+  let nextNotifications = state.notifications;
+  let nextClaimedRewardKeys = [...(state.claimedPlanRewardKeys || [])];
+  let grantedTicket: Ticket | undefined;
+
+  const entitlementSeed =
+    response.activeEntitlement?.sourcePaymentOrderId ||
+    response.activeEntitlement?.startsAt ||
+    String(response.planExpiry || response.plan);
+
+  const pushNotification = (message: string) => {
+    const notification: Notification = {
+      id: Math.random().toString(36).slice(2, 11),
+      title: 'Plan rewards',
+      message,
+      date: now.toISOString(),
+      isRead: false,
+      type: 'success',
+    };
+    nextNotifications = [notification, ...nextNotifications];
+  };
+
+  if (response.plan === 'premium') {
+    const premiumClaimKey = `${PREMIUM_PLAN_REWARD_KEY_PREFIX}:${entitlementSeed}`;
+    if (!nextClaimedRewardKeys.includes(premiumClaimKey)) {
+      nextCoins += PREMIUM_PLAN_REWARD.coins;
+      nextGems += PREMIUM_PLAN_REWARD.gems;
+      nextPremiumGiftMysteryBoxes += PREMIUM_PLAN_REWARD.premiumGiftMysteryBoxes;
+
+      const { ticket, participant } = buildPremiumRaffleTicket(state, now);
+      grantedTicket = ticket;
+      nextTickets = [...nextTickets, ticket];
+      nextEventParticipants = [...nextEventParticipants, participant];
+      nextClaimedRewardKeys.push(premiumClaimKey);
+
+      pushNotification('Premium бонустары берілді: +10000 crystals, +10000 coins, +10 cases және raffle ticket.');
+    }
+  }
+
+  if (response.plan === 'pro') {
+    const currentWeekKey = getWeekKeyMonday(now);
+    const weeklyTicketClaimKey = `${PRO_WEEKLY_TICKET_KEY_PREFIX}:${currentWeekKey}`;
+    if (!nextClaimedRewardKeys.includes(weeklyTicketClaimKey)) {
+      nextTournamentTickets += 1;
+      nextClaimedRewardKeys.push(weeklyTicketClaimKey);
+      pushNotification('Pro бонусы берілді: осы аптаға 1 tournament ticket қосылды.');
+    }
+  }
+
+  const claimKeysChanged = nextClaimedRewardKeys.length !== (state.claimedPlanRewardKeys || []).length;
+  const notificationsChanged = nextNotifications.length !== state.notifications.length;
+
+  if (
+    !claimKeysChanged &&
+    !notificationsChanged &&
+    nextCoins === state.coins &&
+    nextGems === state.gems &&
+    nextFreeMysteryBoxes === state.freeMysteryBoxes &&
+    nextPremiumGiftMysteryBoxes === state.premiumGiftMysteryBoxes &&
+    nextTournamentTickets === state.tournamentTickets &&
+    nextTickets === state.tickets &&
+    nextEventParticipants === state.eventParticipants
+  ) {
+    return null;
+  }
+
+  return {
+    grantedTicket,
+    statePatch: {
+      coins: nextCoins,
+      gems: nextGems,
+      freeMysteryBoxes: nextFreeMysteryBoxes,
+      premiumGiftMysteryBoxes: nextPremiumGiftMysteryBoxes,
+      tournamentTickets: nextTournamentTickets,
+      tickets: nextTickets,
+      eventParticipants: nextEventParticipants,
+      notifications: nextNotifications,
+      claimedPlanRewardKeys: trimClaimedPlanRewardKeys(nextClaimedRewardKeys),
+    },
+  };
+};
+
+const isLegendaryJackpotReward = (reward: MysteryBox) =>
+  reward.type === 'raffle_ticket' || reward.type === 'iphone_17';
+
+const buildCaseRewardAdminMessage = (state: UserState, reward: MysteryBox) => {
+  const prizeName = reward.prizeTitle || (reward.type === 'raffle_ticket' ? 'Car Raffle Ticket' : 'iPhone 17');
+  const userLabel = state.user.username ? `@${state.user.username}` : state.user.firstName || 'player';
+  const ticketPart = reward.ticketNumber ? ` Ticket #${reward.ticketNumber}.` : '';
+  return `[LEGENDARY CASE JACKPOT] ${userLabel} (ID: ${state.user.id}) won ${prizeName}. Drop chance: 1%.${ticketPart}`;
+};
+
+const buildCaseRewardTicket = (state: UserState, reward: MysteryBox): Ticket | null => {
+  if (reward.type !== 'raffle_ticket' || !reward.ticketNumber || !reward.eventName || !reward.eventDate) {
+    return null;
+  }
+
+  return {
+    id: reward.id,
+    ticketNumber: reward.ticketNumber,
+    eventName: reward.eventName,
+    eventDate: reward.eventDate,
+    price: 0,
+    purchaseDate: new Date().toISOString(),
+    userId: state.user.id,
+    userName: state.user.firstName,
+    isUsed: false,
+  };
+};
 
 
 export const useStore = create<UserState>()(
@@ -69,7 +250,7 @@ export const useStore = create<UserState>()(
         firstName: initialUserRaw.first_name || 'Guest',
         lastName: initialUserRaw.last_name || '',
         username: initialUserRaw.username || '',
-        photoUrl: initialUserRaw.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${initialUserRaw.first_name || 'Guest'}`,
+        photoUrl: initialUserRaw.photo_url || getDefaultAvatarUrl(initialUserRaw.first_name || 'Guest'),
         level: 1,
         xp: 0,
         achievements: []
@@ -89,13 +270,15 @@ export const useStore = create<UserState>()(
               return {
                 ...initialState,
                 brainStats: normalizeBrainStats(initialState.brainStats, []),
+                freeMysteryBoxes: 5,
+                premiumGiftMysteryBoxes: 0,
                 user: {
                   id: currentUser.id,
                   gameId: generateGameId(),
                   firstName: currentUser.first_name,
                   lastName: currentUser.last_name,
                   username: currentUser.username,
-                  photoUrl: currentUser.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${currentUser.first_name}`,
+                  photoUrl: currentUser.photo_url || getDefaultAvatarUrl(currentUser.first_name || 'Guest'),
                   level: 1,
                   xp: 0,
                   achievements: []
@@ -159,6 +342,9 @@ export const useStore = create<UserState>()(
       weeklyChallenge: { weekKey: null, dayProgress: {}, completedDays: [], isClaimed: false, reward: { coins: 250 } },
       weekendEvent: { weekendKey: null, isActive: false, multiplier: 1 },
       tournamentTickets: 0,
+      freeMysteryBoxes: 5,
+      premiumGiftMysteryBoxes: 0,
+      claimedPlanRewardKeys: [],
 
       tickets: [],
       eventParticipants: [],
@@ -401,10 +587,26 @@ export const useStore = create<UserState>()(
       fetchEntitlements: async () => {
         try {
           const response = await fetchEntitlementsApi();
-          set({
-            plan: response.plan,
-            planExpiry: response.planExpiry,
+          let grantedTicket: Ticket | undefined;
+
+          set((state) => {
+            const rewardPatch = buildPlanRewardPatch(state, response);
+            grantedTicket = rewardPatch?.grantedTicket;
+
+            return {
+              plan: response.plan,
+              planExpiry: response.planExpiry,
+              ...(rewardPatch?.statePatch || {}),
+            };
           });
+
+          if (grantedTicket) {
+            void persistTicket(grantedTicket, 'plan_upgrade');
+          }
+
+          if (isSupabaseConfigured && get().user.id) {
+            syncUserToSupabase(get(), get().user.id);
+          }
         } catch (error) {
           console.error('Failed to fetch entitlements:', error);
         }
@@ -905,6 +1107,7 @@ export const useStore = create<UserState>()(
           notifications: [],
           plan: 'free',
           planExpiry: null,
+          claimedPlanRewardKeys: [],
           hp: 100,
           maxHp: 100,
           dailyRewardStreak: { count: 0, lastClaimDate: null, claimedDates: [] },
@@ -922,6 +1125,8 @@ export const useStore = create<UserState>()(
           maxEnergy: 100,
           lastEnergyRegenTime: Date.now(),
           streakProtection: 0,
+          freeMysteryBoxes: 5,
+          premiumGiftMysteryBoxes: 0,
           mysteryBoxAvailable: true,
           mysteryBoxPrice: 500
         };
@@ -993,16 +1198,43 @@ export const useStore = create<UserState>()(
         return true;
       },
 
-      openMysteryBox: () => {
+      openCase: (caseId) => {
         const state = get();
-        const outcome = rollMysteryBoxOutcome(state, Math.random(), Math.random());
-        if (!outcome.mysteryBox) return null;
+        const outcome = rollCaseOutcome(state, caseId, Math.random(), Math.random(), Math.random());
+
+        if (!outcome.success || !outcome.reward) {
+          return outcome;
+        }
 
         if (outcome.statePatch) {
           set(outcome.statePatch);
+          const nextState = { ...state, ...outcome.statePatch };
+          if (isSupabaseConfigured) {
+            syncUserToSupabase(nextState, state.user.id);
+          }
+
+          if (caseId === 'legendary_case' && isLegendaryJackpotReward(outcome.reward)) {
+            void persistFeedbackEntry({
+              userId: state.user.id,
+              username: state.user.username || state.user.firstName || 'legendary_case',
+              text: buildCaseRewardAdminMessage(state, outcome.reward),
+              imageUrl: outcome.reward.prizeImageUrl,
+            });
+          }
+
+          const rewardTicket = buildCaseRewardTicket(nextState, outcome.reward);
+          if (rewardTicket) {
+            void persistTicket(rewardTicket, 'case_reward');
+          }
         }
 
-        return outcome.mysteryBox;
+        return outcome;
+      },
+
+      openMysteryBox: () => {
+        const outcome = get().openCase('basic_case');
+        if (!outcome.success) return null;
+        return outcome.reward;
       },
 
       setMysteryBoxAvailable: (available) => set({ mysteryBoxAvailable: available }),
@@ -1055,6 +1287,8 @@ export const useStore = create<UserState>()(
       name: `focus-app-v31-prod`,
       storage: createJSONStorage(() => telegramStorage),
       merge: (persistedState, currentState) => {
+        const persisted = persistedState as Partial<UserState> | undefined;
+        const hasPersistedState = Boolean(persisted && typeof persisted === 'object');
         const mergedState: UserState = {
           ...currentState,
           ...(persistedState as object),
@@ -1067,6 +1301,18 @@ export const useStore = create<UserState>()(
           weeklyQuest: normalizeWeeklyQuest(mergedState.weeklyQuest),
           tournament: normalizeTournamentState(mergedState.tournament),
           socialTasks: mergedState.socialTasks || [],
+          freeMysteryBoxes:
+            typeof persisted?.freeMysteryBoxes === 'number'
+              ? Math.max(persisted.freeMysteryBoxes, 0)
+              : hasPersistedState
+                ? currentState.freeMysteryBoxes
+                : currentState.freeMysteryBoxes,
+          premiumGiftMysteryBoxes:
+            typeof persisted?.premiumGiftMysteryBoxes === 'number'
+              ? Math.max(persisted.premiumGiftMysteryBoxes, 0)
+              : hasPersistedState
+                ? currentState.premiumGiftMysteryBoxes
+                : currentState.premiumGiftMysteryBoxes,
         };
       },
     }

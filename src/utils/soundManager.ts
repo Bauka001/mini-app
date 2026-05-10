@@ -52,6 +52,12 @@ class SoundManager {
     osc.stop(startTime + duration);
   }
 
+  private playBellTone(freq: number, startTime: number, duration: number, volume: number) {
+    this.playOscillator(freq, 'sine', startTime, duration, volume);
+    this.playOscillator(freq * 2, 'sine', startTime, duration * 0.9, volume * 0.45);
+    this.playOscillator(freq * 3, 'triangle', startTime, duration * 0.75, volume * 0.18);
+  }
+
   async playClick() {
     if (!this.enabled || !await this.ensureContext()) return;
     const t = this.context!.currentTime;
@@ -80,6 +86,21 @@ class SoundManager {
     // Pleasant "Ding" (Two sine waves harmonizing)
     this.playOscillator(880, 'sine', t, 0.4, 0.1); // A5
     this.playOscillator(1760, 'sine', t, 0.4, 0.05); // A6 (Harmonic)
+  }
+
+  async playTing() {
+    if (!this.enabled || !await this.ensureContext()) return;
+    const t = this.context!.currentTime;
+
+    this.playBellTone(1318.51, t, 0.36, 0.12); // E6
+  }
+
+  async playTingTing() {
+    if (!this.enabled || !await this.ensureContext()) return;
+    const t = this.context!.currentTime;
+
+    this.playBellTone(1318.51, t, 0.28, 0.11); // E6
+    this.playBellTone(1567.98, t + 0.18, 0.34, 0.12); // G6
   }
 
   async playError() {

@@ -23,26 +23,26 @@ export const DEFAULT_WEEKLY_QUEST: UserState['weeklyQuest'] = {
   lastResetDate: null,
 };
 
-export const DAILY_ANALYTICS_REWARDS = [
+export const DAILY_STREAK_MILESTONES = [
   {
     day: 1,
-    title: 'Ертеңгі нәтиже',
-    description: 'Ертеңгі нәтижені көре аласыз',
+    title: 'Серия басталды',
+    description: 'Күнделікті кіру сериясы басталды',
   },
   {
     day: 7,
-    title: 'Апталық график',
-    description: 'Апталық график ашылады',
+    title: 'Апталық бонус',
+    description: '+200 coins бонусын аласыз',
   },
   {
     day: 14,
-    title: 'Орташа білім деңгейі',
-    description: 'Орташа білім деңгейін көре аласыз',
+    title: 'Турнир билеті',
+    description: '+1 tournament ticket аласыз',
   },
   {
     day: 30,
-    title: 'Қоғамдық салыстырма',
-    description: 'Айлық көпшілік салыстырма ашылады',
+    title: '30 күндік серия',
+    description: 'Ұзақ серия milestone-ына жетесіз',
   },
 ] as const;
 
@@ -94,28 +94,28 @@ export const isVipDailyRewardGraceActive = (
   planExpiry: UserState['planExpiry']
 ) => plan === 'premium' && (!planExpiry || planExpiry > Date.now());
 
-export const getAnalyticsRewardForStreak = (streak: number) => {
-  const exactReward = DAILY_ANALYTICS_REWARDS.find((entry) => entry.day === streak);
-  const nextReward = DAILY_ANALYTICS_REWARDS.find((entry) => entry.day > streak) || null;
+export const getStreakMilestoneForDay = (streak: number) => {
+  const exactReward = DAILY_STREAK_MILESTONES.find((entry) => entry.day === streak);
+  const nextReward = DAILY_STREAK_MILESTONES.find((entry) => entry.day > streak) || null;
 
   if (exactReward) {
     return {
-      analyticsDay: streak,
-      analyticsTitle: exactReward.title,
-      analyticsDescription: exactReward.description,
-      nextUnlockDay: nextReward?.day || null,
-      isNewUnlock: true,
+      milestoneDay: streak,
+      milestoneTitle: exactReward.title,
+      milestoneDescription: exactReward.description,
+      nextMilestoneDay: nextReward?.day || null,
+      isMilestoneReached: true,
     };
   }
 
   return {
-    analyticsDay: streak,
-    analyticsTitle: nextReward ? `${nextReward.day}-күнге қадам` : 'Барлық аналитика ашық',
-    analyticsDescription: nextReward
-      ? `${nextReward.day}-күнге жетсеңіз, ${nextReward.title.toLowerCase()} ашылады`
-      : 'Analytics бөліміндегі барлық daily unlock ашылып тұр',
-    nextUnlockDay: nextReward?.day || null,
-    isNewUnlock: false,
+    milestoneDay: streak,
+    milestoneTitle: nextReward ? `${nextReward.day}-күнге қадам` : 'Барлық milestone алынды',
+    milestoneDescription: nextReward
+      ? `${nextReward.day}-күнге жетсеңіз, ${nextReward.title.toLowerCase()} аласыз`
+      : 'Күнделікті серияның барлық негізгі milestone-дары алынды',
+    nextMilestoneDay: nextReward?.day || null,
+    isMilestoneReached: false,
   };
 };
 
@@ -202,11 +202,11 @@ type DailyLoginReward = {
   gems: number;
   xp: number;
   tournamentTickets: number;
-  analyticsDay: number;
-  analyticsTitle: string;
-  analyticsDescription: string;
-  nextUnlockDay: number | null;
-  isNewUnlock: boolean;
+  milestoneDay: number;
+  milestoneTitle: string;
+  milestoneDescription: string;
+  nextMilestoneDay: number | null;
+  isMilestoneReached: boolean;
   streakPreservedByVip: boolean;
 };
 
@@ -223,7 +223,18 @@ export const buildClaimDailyLoginRewardResult = (
 ):
   | {
       success: false;
-      reward: { coins: 0; gems: 0; xp: 0; tournamentTickets: 0 };
+      reward: {
+        coins: 0;
+        gems: 0;
+        xp: 0;
+        tournamentTickets: 0;
+        milestoneDay: 0;
+        milestoneTitle: '';
+        milestoneDescription: '';
+        nextMilestoneDay: null;
+        isMilestoneReached: false;
+        streakPreservedByVip: false;
+      };
     }
   | {
       success: true;
@@ -233,7 +244,21 @@ export const buildClaimDailyLoginRewardResult = (
   const lastDailyRewardDate = state.dailyRewardStreak?.lastClaimDate || null;
 
   if (lastDailyRewardDate === today) {
-    return { success: false, reward: { coins: 0, gems: 0, xp: 0, tournamentTickets: 0 } };
+    return {
+      success: false,
+      reward: {
+        coins: 0,
+        gems: 0,
+        xp: 0,
+        tournamentTickets: 0,
+        milestoneDay: 0,
+        milestoneTitle: '',
+        milestoneDescription: '',
+        nextMilestoneDay: null,
+        isMilestoneReached: false,
+        streakPreservedByVip: false,
+      },
+    };
   }
 
   let newStreak = 1;
@@ -258,7 +283,7 @@ export const buildClaimDailyLoginRewardResult = (
 
   const streakCoinsReward = newStreak === 7 ? 200 : 0;
   const streakTicketReward = newStreak === 14 ? 1 : 0;
-  const analyticsRewardMeta = getAnalyticsRewardForStreak(newStreak);
+  const milestoneRewardMeta = getStreakMilestoneForDay(newStreak);
 
   return {
     success: true,
@@ -267,7 +292,7 @@ export const buildClaimDailyLoginRewardResult = (
       gems: 0,
       xp: 0,
       tournamentTickets: streakTicketReward,
-      ...analyticsRewardMeta,
+      ...milestoneRewardMeta,
       streakPreservedByVip,
     },
     statePatch: {
@@ -284,7 +309,7 @@ export const buildClaimDailyLoginRewardResult = (
 
 type MysteryBoxState = Pick<
   UserState,
-  'mysteryBoxAvailable' | 'coins' | 'mysteryBoxPrice' | 'gems' | 'fecBalance' | 'inventory'
+  'mysteryBoxAvailable' | 'coins' | 'mysteryBoxPrice' | 'gems' | 'fecBalance' | 'inventory' | 'freeMysteryBoxes'
 >;
 
 export const rollMysteryBoxOutcome = (
@@ -292,11 +317,10 @@ export const rollMysteryBoxOutcome = (
   randomValue: number,
   bonusRandomValue: number
 ): { mysteryBox: MysteryBox | null; statePatch?: Partial<UserState> } => {
-  if (!state.mysteryBoxAvailable || state.coins < state.mysteryBoxPrice) {
-    return { mysteryBox: null };
-  }
+  const hasFreeOpen = state.freeMysteryBoxes > 0 || !state.mysteryBoxAvailable || state.coins < state.mysteryBoxPrice;
 
-  const price = state.mysteryBoxPrice;
+  const price = hasFreeOpen ? 0 : state.mysteryBoxPrice;
+  const nextFreeMysteryBoxes = state.freeMysteryBoxes > 0 ? state.freeMysteryBoxes - 1 : state.freeMysteryBoxes;
 
   if (randomValue > 0.9) {
     return {
@@ -306,7 +330,7 @@ export const rollMysteryBoxOutcome = (
         amount: 1,
         skinId: 'neon_blue',
       },
-      statePatch: { coins: state.coins - price },
+      statePatch: { coins: state.coins - price, freeMysteryBoxes: nextFreeMysteryBoxes },
     };
   }
 
@@ -318,7 +342,7 @@ export const rollMysteryBoxOutcome = (
         type: 'crystals',
         amount,
       },
-      statePatch: { coins: state.coins - price, gems: state.gems + amount },
+      statePatch: { coins: state.coins - price, gems: state.gems + amount, freeMysteryBoxes: nextFreeMysteryBoxes },
     };
   }
 
@@ -333,6 +357,7 @@ export const rollMysteryBoxOutcome = (
       statePatch: {
         coins: state.coins - price,
         inventory: { ...state.inventory, hints: state.inventory.hints + 3 },
+        freeMysteryBoxes: nextFreeMysteryBoxes,
       },
     };
   }
@@ -345,7 +370,7 @@ export const rollMysteryBoxOutcome = (
         type: 'fec',
         amount,
       },
-      statePatch: { coins: state.coins - price, fecBalance: state.fecBalance + amount },
+      statePatch: { coins: state.coins - price, fecBalance: state.fecBalance + amount, freeMysteryBoxes: nextFreeMysteryBoxes },
     };
   }
 
@@ -356,6 +381,6 @@ export const rollMysteryBoxOutcome = (
       type: 'coins',
       amount,
     },
-    statePatch: { coins: state.coins - price + amount },
+    statePatch: { coins: state.coins - price + amount, freeMysteryBoxes: nextFreeMysteryBoxes },
   };
 };

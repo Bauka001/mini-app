@@ -116,8 +116,8 @@ export const mapDbUserToState = (dbUser: DatabaseUser): PersistedStatePatch => (
   maxEnergy: dbUser.max_energy,
   lastEnergyRegenTime: dbUser.last_energy_regen_time,
   streakProtection: dbUser.streak_protection,
-  mysteryBoxAvailable: dbUser.mystery_box_available,
-  mysteryBoxPrice: dbUser.mystery_box_price,
+  mysteryBoxAvailable: typeof dbUser.mystery_box_available === 'boolean' ? dbUser.mystery_box_available : true,
+  mysteryBoxPrice: typeof dbUser.mystery_box_price === 'number' ? dbUser.mystery_box_price : 500,
 });
 
 type SupabaseStoreState = Pick<
@@ -294,7 +294,7 @@ export const persistFeedbackEntry = async (
   }
 };
 
-export const persistTicket = async (ticket: Ticket, source: 'plan_upgrade' | 'ticket_purchase') => {
+export const persistTicket = async (ticket: Ticket, source: 'plan_upgrade' | 'ticket_purchase' | 'case_reward') => {
   try {
     await issueTicketRecord({
       id: ticket.id,

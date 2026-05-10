@@ -3,10 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
-  Brain, Calculator, Type, Trophy, Bell,
+  Brain, Calculator, Type, Bell,
   Zap, Eye, Copy,
   Settings, Gift, User, ChevronRight,
-  Grid, Grid2x2, Target, Crown, BarChart3,
+  Grid, Grid2x2, Target, Crown, BarChart3, Trophy,
   Youtube, Send, Instagram, Share2, CheckCircle, Gem, Lock, Car
 } from 'lucide-react';
 import { useStore } from '../store/useStoreImpl';
@@ -30,14 +30,31 @@ const itemVariants = {
 };
 
 const gameButtons = [
-  { title: 'game_memory', icon: Grid, path: '/game/memory' },
   { title: 'game_schulte', icon: Brain, path: '/game/schulte' },
+  { title: 'game_stroop', icon: Type, path: '/game/stroop' },
+  { title: 'game_memory', icon: Grid, path: '/game/memory' },
   { title: 'game_math', icon: Calculator, path: '/game/math' },
   { title: 'game_pairs', icon: Copy, path: '/game/pairs' },
   { title: 'game_odd_one', icon: Eye, path: '/game/odd-one' },
-  { title: 'game_stroop', icon: Type, path: '/game/stroop' },
   { title: 'game_2048', icon: Grid2x2, path: '/game/2048' },
 ];
+
+const vipGamePaths = new Set(['/game/schulte', '/game/stroop']);
+const VIP_TRIAL_LIMIT = 3;
+
+const getStoredPlays = (key: string) => {
+  try {
+    return parseInt(localStorage.getItem(key) || '0', 10) || 0;
+  } catch {
+    return 0;
+  }
+};
+
+const getVipTrialsLeft = (path: string) => {
+  if (path === '/game/schulte') return Math.max(0, VIP_TRIAL_LIMIT - getStoredPlays('schulte_free_plays_v2'));
+  if (path === '/game/stroop') return Math.max(0, VIP_TRIAL_LIMIT - getStoredPlays('stroop_free_plays_v2'));
+  return VIP_TRIAL_LIMIT;
+};
 
 const Home = () => {
   const { t } = useTranslation();
@@ -50,6 +67,7 @@ const Home = () => {
   const tournamentTickets = useStore(state => state.tournamentTickets);
   const claimWeeklyChallengeReward = useStore(state => state.claimWeeklyChallengeReward);
   const user = useStore(state => state.user);
+  const plan = useStore(state => state.plan);
   const socialTasks = useStore(state => state.socialTasks);
   const claimSocialTask = useStore(state => state.claimSocialTask);
   const fetchSocialTasks = useStore(state => state.fetchSocialTasks);
@@ -181,6 +199,9 @@ const Home = () => {
         >
           {gameButtons.map((game) => {
             const Icon = game.icon;
+            const isVipGame = vipGamePaths.has(game.path);
+            const isUnlimitedVipGame = isVipGame && (plan === 'pro' || plan === 'premium');
+            const trialsLeft = isVipGame ? getVipTrialsLeft(game.path) : null;
             return (
               <motion.button
                 key={game.title}
@@ -188,13 +209,19 @@ const Home = () => {
                 onClick={() => handleGameClick(game.path)}
                 variants={itemVariants}
                 className={clsx(
-                  "flex flex-col items-center gap-2 p-3 rounded-2xl min-h-[112px] transition-all duration-300",
+                  "relative flex flex-col items-center gap-2 p-3 rounded-2xl min-h-[112px] transition-all duration-300",
                   styles.isLight ? "hover:bg-slate-100 active:bg-slate-200" :
                   styles.isBlue ? "hover:bg-blue-800/30 active:bg-blue-800/50" :
                   styles.isGold ? "hover:bg-stone-800/50 active:bg-stone-800/70" :
                   "hover:bg-zinc-800/50 active:bg-zinc-800"
                 )}
               >
+                {isVipGame ? (
+                  <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full border border-amber-300/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-300">
+                    <Crown size={10} />
+                    <span>VIP</span>
+                  </div>
+                ) : null}
                 <div className={clsx(
                   "w-14 h-14 flex items-center justify-center rounded-2xl shadow-sm transition-colors duration-300",
                   styles.cardClass
@@ -202,6 +229,11 @@ const Home = () => {
                   <Icon size={26} className={styles.textAccent} />
                 </div>
                 <span className={clsx("text-sm text-center font-medium leading-tight", styles.textPrimary)}>{t(game.title)}</span>
+                {isVipGame ? (
+                  <span className={clsx("text-[11px] font-semibold text-center leading-tight", styles.textSecondary)}>
+                    {isUnlimitedVipGame ? 'Шексіз' : `Пробный: ${trialsLeft}/${VIP_TRIAL_LIMIT}`}
+                  </span>
+                ) : null}
               </motion.button>
             );
           })}

@@ -18,7 +18,7 @@ export default function AnalyticsPage() {
   const planExpiry = useStore((state) => state.planExpiry);
 
   const isPlanExpired = planExpiry ? Date.now() > planExpiry : false;
-  const isVipAnalyticsUnlocked = plan === 'premium' && !isPlanExpired;
+  const isVipAnalyticsUnlocked = (plan === 'pro' || plan === 'premium') && !isPlanExpired;
   const analytics = useMemo(() => buildVipAnalyticsSnapshot(history || [], brainStats), [brainStats, history]);
 
   return (

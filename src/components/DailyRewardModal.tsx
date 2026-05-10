@@ -9,37 +9,37 @@ type AnalyticsClaimReward = {
   gems: number;
   xp: number;
   tournamentTickets: number;
-  analyticsDay: number;
-  analyticsTitle: string;
-  analyticsDescription: string;
-  nextUnlockDay: number | null;
-  isNewUnlock: boolean;
+  milestoneDay: number;
+  milestoneTitle: string;
+  milestoneDescription: string;
+  nextMilestoneDay: number | null;
+  isMilestoneReached: boolean;
   streakPreservedByVip: boolean;
 };
 
-const ANALYTICS_REWARD_STEPS = [
+const DAILY_STREAK_STEPS = [
   {
     day: 1,
-    title: 'Ертеңгі нәтиже',
-    description: 'Ертеңгі нәтижені көре аласыз',
+    title: 'Серия басталды',
+    description: 'Күнделікті кіру сериясы басталады',
     icon: CalendarDays,
   },
   {
     day: 7,
-    title: 'Апталық график',
-    description: 'Апталық график ашылады',
+    title: 'Апталық бонус',
+    description: '+200 coins бонусы беріледі',
     icon: BarChart3,
   },
   {
     day: 14,
-    title: 'Орташа білім деңгейі',
-    description: 'Орташа білім деңгейін көре аласыз',
+    title: 'Турнир билеті',
+    description: '+1 tournament ticket беріледі',
     icon: BrainCircuit,
   },
   {
     day: 30,
-    title: 'Қоғамдық салыстырма',
-    description: 'Айлық көпшілік салыстырма ашылады',
+    title: '30 күндік серия',
+    description: 'Ұзақ серия milestone-ы бекітіледі',
     icon: Users,
   },
 ] as const;
@@ -85,16 +85,16 @@ export const DailyRewardModal = ({
       ? dailyRewardStreak.count + 1
       : 1;
   const unlockedDays = isClaimedToday ? dailyRewardStreak.count : Math.max(dailyRewardStreak.count, 0);
-  const nextMilestone = ANALYTICS_REWARD_STEPS.find((step) => step.day > unlockedDays) || null;
+  const nextMilestone = DAILY_STREAK_STEPS.find((step) => step.day > unlockedDays) || null;
   const currentFocusDay =
-    !isClaimedToday && ANALYTICS_REWARD_STEPS.some((step) => step.day === previewStreak)
+    !isClaimedToday && DAILY_STREAK_STEPS.some((step) => step.day === previewStreak)
       ? previewStreak
-      : nextMilestone?.day || ANALYTICS_REWARD_STEPS[ANALYTICS_REWARD_STEPS.length - 1].day;
+      : nextMilestone?.day || DAILY_STREAK_STEPS[DAILY_STREAK_STEPS.length - 1].day;
 
   const streakMessage = canUseVipGrace
     ? 'VIP мәртебесі бір күн кешіккен серияны сақтап тұр'
     : isClaimedToday
-      ? 'Бүгінгі аналитика прогресі тіркелді'
+      ? 'Бүгінгі серия прогресі тіркелді'
       : 'Серия үзілсе, free қолданушы үшін прогресс 1-күннен қайта басталады';
 
   return (
@@ -121,9 +121,9 @@ export const DailyRewardModal = ({
            <div className="p-5 sm:p-8 text-center relative overflow-y-auto overflow-x-hidden">
              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 bg-primary/20 blur-[80px] rounded-full pointer-events-none" />
 
-             <h2 className="text-2xl sm:text-3xl font-black text-white mb-2 relative z-10 uppercase italic">Күнделікті аналитика</h2>
+             <h2 className="text-2xl sm:text-3xl font-black text-white mb-2 relative z-10 uppercase italic">Күнделікті серия</h2>
              <p className="text-gray-400 text-sm sm:text-base mb-4 relative z-10 font-medium">
-               Күнделікті кіру арқылы аналитика бөлімінің жаңа қабаттарын ашыңыз.
+               Күн сайын кіріп, серияны сақтап, milestone сыйлықтарын ашыңыз.
              </p>
 
              <div className="relative z-10 mb-6 rounded-2xl border border-white/10 bg-white/5 p-4 text-left">
@@ -142,13 +142,13 @@ export const DailyRewardModal = ({
                <p className="text-sm text-gray-400">{streakMessage}</p>
                {!isClaimedToday && nextMilestone ? (
                  <p className="mt-2 text-xs font-semibold text-primary">
-                   Келесі unlock: {nextMilestone.day}-күн, {nextMilestone.title.toLowerCase()}
+                  Келесі milestone: {nextMilestone.day}-күн, {nextMilestone.title.toLowerCase()}
                  </p>
                ) : null}
              </div>
 
              <div className="space-y-3 mb-8 relative z-10">
-               {ANALYTICS_REWARD_STEPS.map((step) => {
+               {DAILY_STREAK_STEPS.map((step) => {
                  const Icon = step.icon;
                  const isUnlocked = unlockedDays >= step.day;
                  const isActive = !isUnlocked && currentFocusDay === step.day;
@@ -217,10 +217,10 @@ export const DailyRewardModal = ({
                >
                  <div className="flex items-center gap-2 text-green-300 font-black text-lg mb-2">
                    <Check size={22} />
-                   {claimedReward.isNewUnlock ? 'Analytics ашылды' : 'Streak жаңартылды'}
+                   {claimedReward.isMilestoneReached ? 'Milestone алынды' : 'Серия жалғасты'}
                  </div>
-                 <div className="text-white font-bold">{claimedReward.analyticsTitle}</div>
-                 <div className="text-sm text-gray-300 mt-1">{claimedReward.analyticsDescription}</div>
+                 <div className="text-white font-bold">{claimedReward.milestoneTitle}</div>
+                 <div className="text-sm text-gray-300 mt-1">{claimedReward.milestoneDescription}</div>
                 {claimedReward.coins > 0 || claimedReward.tournamentTickets > 0 ? (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {claimedReward.coins > 0 ? (
@@ -251,7 +251,7 @@ export const DailyRewardModal = ({
                  onClick={handleClaim}
                  className="w-full min-h-[44px] bg-gradient-to-r from-primary to-orange-500 text-black font-black py-4 rounded-xl text-xl shadow-lg hover:scale-105 transition-transform active:scale-95"
                >
-                 Analytics ашу
+                 Серияны жалғастыру
                </button>
              )}
            </div>

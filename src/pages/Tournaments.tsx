@@ -6,6 +6,7 @@ import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
 import { useStore } from '../store/useStoreImpl';
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import { getDefaultAvatarUrl } from '../constants/avatars';
 
 const MAX_TOURNAMENT_GAMES = 3;
 
@@ -17,14 +18,14 @@ const PRIZE_TIERS = [
 ];
 
 const SEEDED_PLAYERS = [
-  { id: 701, name: 'Aruzhan', score: 286, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Aruzhan' },
-  { id: 702, name: 'Maksat', score: 272, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Maksat' },
-  { id: 703, name: 'Amina', score: 264, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Amina' },
-  { id: 704, name: 'Dias', score: 251, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Dias' },
-  { id: 705, name: 'Nurai', score: 238, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nurai' },
-  { id: 706, name: 'Arman', score: 224, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Arman' },
-  { id: 707, name: 'Saniya', score: 216, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Saniya' },
-  { id: 708, name: 'Nursultan', score: 209, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nursultan' },
+  { id: 701, name: 'Aruzhan', score: 286, avatar: getDefaultAvatarUrl('Aruzhan') },
+  { id: 702, name: 'Maksat', score: 272, avatar: getDefaultAvatarUrl('Maksat') },
+  { id: 703, name: 'Amina', score: 264, avatar: getDefaultAvatarUrl('Amina') },
+  { id: 704, name: 'Dias', score: 251, avatar: getDefaultAvatarUrl('Dias') },
+  { id: 705, name: 'Nurai', score: 238, avatar: getDefaultAvatarUrl('Nurai') },
+  { id: 706, name: 'Arman', score: 224, avatar: getDefaultAvatarUrl('Arman') },
+  { id: 707, name: 'Saniya', score: 216, avatar: getDefaultAvatarUrl('Saniya') },
+  { id: 708, name: 'Nursultan', score: 209, avatar: getDefaultAvatarUrl('Nursultan') },
 ];
 
 const toDateKey = (value: Date) => {
@@ -92,7 +93,7 @@ export default function Tournaments() {
         id: user.id || 999999,
         name: user.firstName || t('you'),
         score: tournament.score,
-        avatar: user.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.firstName || 'player'}`,
+        avatar: user.photoUrl || getDefaultAvatarUrl(user.firstName || 'player'),
       });
     }
 

@@ -5,7 +5,7 @@ import {
   Coins, Diamond, Zap, History, Star, 
   Award, TrendingUp, Calendar, LayoutGrid,
   Flame, Shield, Crown, Zap as ZapIcon, Calculator, Target, Lock,
-  Ticket as TicketIcon, Car, CheckCircle, BarChart3, Sparkles
+  BarChart3, Sparkles
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { buildVipAnalyticsSnapshot, useStore } from '../store/useStoreImpl';
@@ -15,7 +15,7 @@ import WebApp from '@twa-dev/sdk';
 import { Achievements } from '../components/Achievements';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
-import { PROFILE_AVATARS, ProfileAvatar } from '../constants/avatars';
+import { getProfileAvatarImage, PROFILE_AVATARS, ProfileAvatar } from '../constants/avatars';
 
 // Lazy load BrainProfile to split recharts dependency
 const BrainProfile = lazy(() => import('../components/BrainProfile').then(m => ({ default: m.BrainProfile })));
@@ -56,7 +56,9 @@ const ProfilePage = () => {
     streak,
     plan,
     planExpiry,
-    tickets
+    canUseAvatar,
+    loadAvatarImage,
+    saveAvatarImage
   } = useStore();
 
   const styles = useThemeStyles();
@@ -64,6 +66,7 @@ const ProfilePage = () => {
   
   const currentPlan = PLAN_CONFIG[plan];
   const isPlanExpired = planExpiry ? Date.now() > planExpiry : false;
+  const locale = i18n.language === 'ru' || i18n.language === 'kz' ? i18n.language : 'en';
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -132,30 +135,42 @@ const ProfilePage = () => {
     return [...(history || [])].sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
   }, [history]);
 
+  const selectedAvatarPreset = useMemo(
+    () => PROFILE_AVATARS.find((avatar) => avatar.id === activeSkin) || PROFILE_AVATARS[0],
+    [activeSkin]
+  );
+
+  const profileAvatarSrc = user.photoUrl || getProfileAvatarImage(selectedAvatarPreset);
+
   const vipAnalytics = useMemo(() => {
     return buildVipAnalyticsSnapshot(history || [], brainStats);
   }, [brainStats, history]);
 
-  const availableAvatars = useMemo(() => {
-    return PROFILE_AVATARS.filter(avatar => {
-      if (!avatar.isPremium) return true;
-      return canUseAvatar(avatar.id);
-    });
-  }, [plan, planExpiry]);
+  const availableAvatars = useMemo(() => PROFILE_AVATARS, []);
 
-  const isVipAnalyticsUnlocked = plan === 'premium' && !isPlanExpired;
+  const isVipAnalyticsUnlocked = (plan === 'pro' || plan === 'premium') && !isPlanExpired;
 
   const handleUnlockVipAnalytics = () => {
     WebApp.HapticFeedback.impactOccurred('medium');
     navigate('/shop');
   };
 
-  const handleAvatarSelect = (avatar: ProfileAvatar) => {
+  const handleAvatarUploadClick = () => {
+    setShowAvatarSelector(false);
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarSelect = async (avatar: ProfileAvatar) => {
     if (!canUseAvatar(avatar.id)) {
       WebApp.showAlert(t('avatar_premium_required'));
       return;
     }
+
+    const avatarImage = getProfileAvatarImage(avatar);
     equipSkin(avatar.id);
+    await saveAvatarImage(avatarImage);
+    updateUserProfile({ photoUrl: avatarImage });
+    setShowAvatarSelector(false);
     WebApp.HapticFeedback.notificationOccurred('success');
   };
 
@@ -216,7 +231,7 @@ const ProfilePage = () => {
         <div className={clsx(
           "rounded-[32px] p-6 border shadow-2xl relative overflow-hidden transition-colors duration-500",
           panelClass,
-          plan === 'premium' && !isPlanExpired ? "ring-2 ring-yellow-400/40 border-yellow-400/40" : ""
+          isVipAnalyticsUnlocked ? "ring-2 ring-yellow-400/40 border-yellow-400/40" : ""
         )}>
           <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-[80px] pointer-events-none -mr-20 -mt-20" />
           
@@ -236,9 +251,9 @@ const ProfilePage = () => {
                 className="w-24 h-24 rounded-2xl p-1 bg-gradient-to-tr from-primary via-blue-400 to-cyan-300 shadow-lg relative"
               >
                 <div className="w-full h-full rounded-xl bg-[#111] overflow-hidden relative border border-white/10">
-                  {user.photoUrl ? (
+                  {profileAvatarSrc ? (
                     <img
-                      src={user.photoUrl}
+                      src={profileAvatarSrc}
                       alt="Profile"
                       className="w-full h-full object-cover"
                     />
@@ -288,6 +303,24 @@ const ProfilePage = () => {
                     placeholder="username"
                     className="w-full bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-white/70 font-mono text-xs focus:outline-none focus:border-primary/50"
                   />
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowAvatarSelector((prev) => !prev)}
+                      className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
+                    >
+                      <LayoutGrid size={14} />
+                      {showAvatarSelector ? t('hide_avatar_choices', 'Hide avatars') : t('choose_avatar', 'Choose avatar')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAvatarUploadClick}
+                      className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
+                    >
+                      <Camera size={14} />
+                      {user.photoUrl ? t('change_photo') : t('upload_photo')}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
@@ -320,16 +353,24 @@ const ProfilePage = () => {
                   <div className="flex flex-wrap gap-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => setShowAvatarSelector((prev) => !prev)}
+                      className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
+                    >
+                      <LayoutGrid size={14} />
+                      {showAvatarSelector ? t('hide_avatar_choices', 'Hide avatars') : t('choose_avatar', 'Choose avatar')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAvatarUploadClick}
                       className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
                     >
                       <Camera size={14} />
                       {user.photoUrl ? t('change_photo') : t('upload_photo')}
                     </button>
                     {activeSkin !== 'default' ? (
-                      <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] font-black text-emerald-500">
+                        <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] font-black text-emerald-500">
                         <LayoutGrid size={14} />
-                        {i18n.language === 'kz' ? 'Белсенді стикер:' : i18n.language === 'ru' ? 'Активный стикер:' : 'Active Sticker:'} {ownedProfileStickers.find((sticker) => sticker.id === activeSkin)?.name || activeSkin}
+                        {i18n.language === 'kz' ? 'Белсенді стикер:' : i18n.language === 'ru' ? 'Активный аватар:' : 'Active Avatar:'} {PROFILE_AVATARS.find((sticker) => sticker.id === activeSkin)?.name[locale] || activeSkin}
                       </div>
                     ) : null}
                   </div>
@@ -337,6 +378,74 @@ const ProfilePage = () => {
               )}
             </div>
           </div>
+
+          <AnimatePresence>
+            {showAvatarSelector && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 12 }}
+                className={clsx("mt-5 rounded-[28px] border p-4", panelClass)}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className={clsx("text-sm font-black", textPrimary)}>{t('choose_avatar', 'Choose avatar')}</div>
+                    <div className={clsx("mt-1 text-xs", textSecondary)}>
+                      {t('avatar_picker_desc', 'Pick a ready avatar for your profile or keep your uploaded photo')}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAvatarSelector(false)}
+                    className={clsx("rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-widest", styles.btnSecondary)}
+                  >
+                    {t('close', 'Close')}
+                  </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  {availableAvatars.map((avatar) => {
+                    const canUse = canUseAvatar(avatar.id);
+                    const isSelected = activeSkin === avatar.id;
+
+                    return (
+                      <button
+                        key={avatar.id}
+                        type="button"
+                        onClick={() => handleAvatarSelect(avatar)}
+                        disabled={!canUse}
+                        className={clsx(
+                          "rounded-2xl border p-3 text-left transition-all",
+                          panelClass,
+                          isSelected && "border-emerald-500 bg-emerald-500/10",
+                          !canUse && "opacity-50"
+                        )}
+                      >
+                        <div className="relative mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-black/10">
+                          {getAvatarDisplay(avatar)}
+                          {avatar.isPremium ? (
+                            <div className="absolute right-1 top-1">
+                              <Crown size={12} className="text-amber-400" />
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className={clsx("mt-3 text-center text-[11px] font-black leading-tight", textPrimary)}>
+                          {avatar.name[locale] || avatar.name.en}
+                        </div>
+                        <div className={clsx("mt-1 text-center text-[9px]", textSecondary)}>
+                          {isSelected
+                            ? t('profile_sticker_selected')
+                            : !canUse
+                            ? t('avatar_unlock')
+                            : t('tap_to_select', 'Tap to select')}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Plan Info (Compact) */}
           <div className="mt-6 pt-4 border-t border-gray-500/20">
@@ -351,16 +460,16 @@ const ProfilePage = () => {
                  </div>
                </div>
                <div className="flex items-center gap-2">
-                 {plan === 'premium' && !isPlanExpired ? (
+                 {isVipAnalyticsUnlocked ? (
                    <div className="text-[10px] font-mono px-2 py-1 rounded-md bg-amber-500/15 text-amber-400">
                      GOLD BORDER
                    </div>
                  ) : null}
                  <button
-                   onClick={() => navigate(plan === 'premium' && !isPlanExpired ? '/analytics' : '/shop')}
+                   onClick={() => navigate(isVipAnalyticsUnlocked ? '/analytics' : '/shop')}
                    className={clsx("px-3 py-1.5 rounded-lg text-[10px] font-bold transition-colors", styles.btnSecondary)}
                  >
-                   {plan === 'premium' && !isPlanExpired ? 'ANALYTICS' : 'UPGRADE'}
+                   {isVipAnalyticsUnlocked ? 'ANALYTICS' : 'UPGRADE'}
                  </button>
                </div>
              </div>
@@ -419,58 +528,6 @@ const ProfilePage = () => {
               <Achievements />
             </div>
 
-            {/* Tickets Section */}
-            {tickets.length > 0 && (
-              <div className="w-full max-w-sm mt-6">
-                <div className="flex items-center justify-between mb-4 px-2">
-                  <h3 className="text-lg font-black flex items-center gap-2">
-                    <TicketIcon size={20} className="text-yellow-400" />
-                    My Tickets
-                  </h3>
-                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                    {tickets.length}
-                  </span>
-                </div>
-                
-                <div className="space-y-3">
-                  {tickets.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className="relative bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 rounded-2xl p-1 shadow-2xl"
-                    >
-                      <div className="bg-gradient-to-br from-yellow-100 to-amber-200 rounded-xl p-4 h-full">
-                        <div className="absolute top-2 right-2">
-                          {ticket.isUsed ? (
-                            <div className="bg-green-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5">
-                              <CheckCircle className="w-2.5 h-2.5" />
-                              VERIFIED
-                            </div>
-                          ) : (
-                            <div className="bg-yellow-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
-                              ACTIVE
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 border-yellow-500/30 shadow-lg">
-                            <img src="/mustang.jpg" alt="Mustang" className="w-full h-full object-cover" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-2xl font-black text-yellow-800 font-mono tracking-wider">
-                              {String(ticket.ticketNumber).padStart(8, '0')}
-                            </div>
-                            <div className="text-[9px] text-yellow-600 font-medium tracking-widest uppercase">Ticket Number</div>
-                            <p className="text-xs font-bold text-yellow-800 truncate">{ticket.eventName}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Level Progress Card */}
             <div className={clsx("w-full max-w-sm rounded-3xl p-5 border mb-6 relative overflow-hidden group transition-colors duration-500", panelClass)}>
               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-primary/10 transition-colors" />
@@ -514,7 +571,7 @@ const ProfilePage = () => {
                   {t('profile_sticker_collection')}
                 </h3>
                 <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>
-                  {ownedProfileStickers.length}
+                  {PROFILE_AVATARS.length}
                 </span>
               </div>
 
@@ -558,7 +615,7 @@ const ProfilePage = () => {
                       </div>
 
                       <div className="mt-3">
-                        <div className={clsx("text-sm font-black", textPrimary)}>{avatar.name[i18n.language] || avatar.name.en}</div>
+                        <div className={clsx("text-sm font-black", textPrimary)}>{avatar.name[locale] || avatar.name.en}</div>
                         <div className={clsx("mt-1 text-xs", textSecondary)}>
                           {isPremiumAvatar && !canUse ? t('avatar_premium') : t('profile_sticker_desc')}
                         </div>
@@ -719,13 +776,14 @@ const ProfilePage = () => {
         ) : isVipAnalyticsUnlocked ? (
           <VipAnalyticsPanel analytics={vipAnalytics} styles={styles} />
         ) : (
-          <AnalyticsLockedCard
+          <VipAnalyticsLockedCard
             styles={styles}
             onUnlock={handleUnlockVipAnalytics}
             isPlanExpired={isPlanExpired}
           />
         )}
       </div>
+
     </div>
   );
 };

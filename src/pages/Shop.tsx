@@ -1,28 +1,35 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Check, Crown, Coins, Layout, FileText, X, BarChart3, Medal, Sparkles, Car, Gift } from 'lucide-react';
+import { Check, CheckCircle, Crown, Coins, Layout, FileText, X, BarChart3, Medal, Sparkles, Car, Gift, Gem, Zap, Ticket as TicketIcon } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { clsx } from 'clsx';
 import { useStore } from '../store/useStoreImpl';
+import type { CaseId, MysteryBox, Ticket } from '../store/useStore';
 import WebApp from '@twa-dev/sdk';
 import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
-import { beginCell } from '@ton/core';
 import { TermsModal } from '../components/TermsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { createTonPaymentIntent, getPaymentStatus, TonPlanCode } from '../utils/paymentApi';
+import { CASE_LIST } from '../store/cases';
+import { CaseList } from '../components/shop/CaseList';
+import { CaseOpeningModal } from '../components/shop/CaseOpeningModal';
+import { CaseIcon } from '../components/shop/CaseIcon';
 
 const PaymentModal = ({ 
   isOpen, 
   onClose,
   planCode,
   planTitle,
-  price
+  price,
+  basePriceKzt
 }: { 
   isOpen: boolean, 
   onClose: () => void,
   planCode: TonPlanCode,
   planTitle: string,
-  price: string
+  price: string,
+  basePriceKzt: number
 }) => {
   const { t } = useTranslation();
   const fetchEntitlements = useStore((state) => state.fetchEntitlements);
@@ -32,6 +39,14 @@ const PaymentModal = ({
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [serverTonAmount, setServerTonAmount] = useState<string | null>(null);
+  const [promoInput, setPromoInput] = useState('');
+  const [appliedPromo, setAppliedPromo] = useState<PaymentPromoDefinition | null>(null);
+  const [promoFeedback, setPromoFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  const discountedPriceKzt = appliedPromo
+    ? Math.max(0, Math.round(basePriceKzt * ((100 - appliedPromo.discountPercent) / 100)))
+    : basePriceKzt;
+  const displayedPrice = formatKztPrice(discountedPriceKzt);
 
   useEffect(() => {
     if (!isOpen) {
@@ -40,6 +55,9 @@ const PaymentModal = ({
       setErrorMessage('');
       setServerTonAmount(null);
       setIsSubmitting(false);
+      setPromoInput('');
+      setAppliedPromo(null);
+      setPromoFeedback(null);
     }
   }, [isOpen]);
 
@@ -123,13 +141,47 @@ const PaymentModal = ({
 
   if (!isOpen) return null;
 
+  const handleApplyPromo = () => {
+    const normalizedCode = normalizePromoCode(promoInput);
+
+    if (!normalizedCode) {
+      setAppliedPromo(null);
+      setPromoFeedback({
+        type: 'error',
+        message: t('shop_promo_enter_code', 'Промокодты енгізіңіз.'),
+      });
+      return;
+    }
+
+    const promo = PAYMENT_PROMO_CODES[normalizedCode];
+    if (!promo || !promo.applicablePlans.includes(planCode)) {
+      setAppliedPromo(null);
+      setPromoFeedback({
+        type: 'error',
+        message: t('shop_promo_invalid', 'Промокод жарамсыз немесе бұл пакетке қолданылмайды.'),
+      });
+      return;
+    }
+
+    setPromoInput(normalizedCode);
+    setAppliedPromo(promo);
+    setPromoFeedback({
+      type: 'success',
+      message: t('shop_promo_applied', '{{code}} промокоды қолданылды. -{{percent}}%', {
+        code: promo.code,
+        percent: promo.discountPercent,
+      }),
+    });
+  };
+
   const handlePayNow = async () => {
     WebApp.HapticFeedback.notificationOccurred('success');
     setErrorMessage('');
 
     try {
       setIsSubmitting(true);
-      const paymentIntent = await createTonPaymentIntent(planCode);
+      const paymentIntent = await createTonPaymentIntent(planCode, appliedPromo?.code);
+      const { beginCell } = await import('@ton/core');
       const payload = beginCell().storeUint(0, 32).storeStringTail(paymentIntent.memo).endCell().toBoc().toString('base64');
 
       await tonUi.sendTransaction({
@@ -144,6 +196,20 @@ const PaymentModal = ({
       });
 
       setServerTonAmount(paymentIntent.amountTon);
+      if (paymentIntent.promoCode && paymentIntent.discountPercent) {
+        setAppliedPromo({
+          code: paymentIntent.promoCode,
+          discountPercent: paymentIntent.discountPercent,
+          applicablePlans: [planCode],
+        });
+        setPromoFeedback({
+          type: 'success',
+          message: t('shop_promo_applied', '{{code}} промокоды қолданылды. -{{percent}}%', {
+            code: paymentIntent.promoCode,
+            percent: paymentIntent.discountPercent,
+          }),
+        });
+      }
       setStatusMessage('Transaction sent. Waiting for TON verification on the server...');
       setPendingPaymentId(paymentIntent.paymentOrderId);
     } catch (e) {
@@ -168,9 +234,57 @@ const PaymentModal = ({
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
             <div className="mb-1 text-sm text-gray-500">{t('item_summary')}</div>
             <div className="text-xl font-bold text-black">{planTitle}</div>
-            <div className="mt-2 text-2xl font-black text-black">{price}</div>
+            {appliedPromo ? (
+              <div className="mt-2">
+                <div className="text-sm font-semibold text-gray-400 line-through">{price}</div>
+                <div className="text-2xl font-black text-emerald-600">{displayedPrice}</div>
+                <div className="mt-1 text-xs font-bold uppercase tracking-wide text-emerald-600">
+                  {appliedPromo.code} · -{appliedPromo.discountPercent}%
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 text-2xl font-black text-black">{price}</div>
+            )}
             {serverTonAmount && (
               <div className="mt-2 text-sm font-semibold text-green-700">Exact TON amount: {serverTonAmount}</div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+            <div className="mb-3 text-sm font-semibold text-black">{t('promo_code', 'Promo Code')}</div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={promoInput}
+                onChange={(event) => setPromoInput(event.target.value)}
+                placeholder={t('enter_code', 'Enter Code')}
+                autoCapitalize="characters"
+                className="min-h-[44px] flex-1 rounded-2xl border border-gray-300 bg-white px-4 text-sm font-semibold uppercase text-black outline-none transition-colors focus:border-emerald-500"
+              />
+              <button
+                type="button"
+                onClick={handleApplyPromo}
+                disabled={isSubmitting || Boolean(pendingPaymentId)}
+                className="min-h-[44px] rounded-2xl bg-black px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+              >
+                {t('apply', 'Apply')}
+              </button>
+            </div>
+            {promoFeedback ? (
+              <div
+                className={clsx(
+                  'mt-3 rounded-2xl border px-3 py-2 text-sm',
+                  promoFeedback.type === 'success'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                    : 'border-red-200 bg-red-50 text-red-700'
+                )}
+              >
+                {promoFeedback.message}
+              </div>
+            ) : (
+              <div className="mt-3 text-xs text-gray-500">
+                {t('shop_promo_hint', 'Қолжетімді код: FOCUS10')}
+              </div>
             )}
           </div>
 
@@ -387,9 +501,513 @@ const SkinCard = ({
 
 type VipPurchaseOption = 'basic' | 'pro' | 'premium';
 
-const BASIC_PRICE = '6 990 ₸';
-const PRO_PRICE = '8 590 ₸';
-const PREMIUM_PRICE = '9 990 ₸';
+type PaymentPromoDefinition = {
+  code: string;
+  discountPercent: number;
+  applicablePlans: TonPlanCode[];
+};
+
+const formatKztPrice = (amount: number) =>
+  `${new Intl.NumberFormat('ru-RU').format(Math.max(0, Math.round(amount)))} ₸`;
+
+const normalizePromoCode = (value: string) => value.trim().toUpperCase();
+
+const BASIC_PRICE_KZT = 6990;
+const PRO_PRICE_KZT = 8590;
+const PREMIUM_PRICE_KZT = 9990;
+const BASIC_PRICE = formatKztPrice(BASIC_PRICE_KZT);
+const PRO_PRICE = formatKztPrice(PRO_PRICE_KZT);
+const PREMIUM_PRICE = formatKztPrice(PREMIUM_PRICE_KZT);
+const PAYMENT_PROMO_CODES: Record<string, PaymentPromoDefinition> = {
+  FOCUS10: {
+    code: 'FOCUS10',
+    discountPercent: 10,
+    applicablePlans: ['basic', 'pro', 'premium'],
+  },
+};
+const CASE_REEL_CARD_WIDTH = 112;
+const CASE_REEL_GAP = 12;
+const CASE_REEL_TARGET_INDEX = 12;
+
+const getMysteryBoxRewardLabel = (reward: MysteryBox | null, t: ReturnType<typeof useTranslation>['t']) => {
+  if (!reward) return '';
+
+  switch (reward.type) {
+    case 'coins':
+      return `+${reward.amount} ${t('coins', 'Coins')}`;
+    case 'crystals':
+      return `+${reward.amount} ${t('crystals', 'Crystals')}`;
+    case 'fec':
+      return `+${reward.amount} FEC`;
+    case 'skin':
+      return t('skin_neon', 'Neon Skin');
+    case 'booster':
+      return `+${reward.amount} ${t('hints', 'Hints')}`;
+    default:
+      return '';
+  }
+};
+
+const getMysteryBoxRewardDescription = (reward: MysteryBox | null, t: ReturnType<typeof useTranslation>['t']) => {
+  if (!reward) return '';
+
+  switch (reward.type) {
+    case 'coins':
+      return t('shop_case_reward_coins', 'Монета бірден балансыңызға қосылды.');
+    case 'crystals':
+      return t('shop_case_reward_crystals', 'Кристалдар аккаунтқа бірден түсті.');
+    case 'fec':
+      return t('shop_case_reward_fec', 'FEC балансыңыз жаңартылды.');
+    case 'skin':
+      return t('shop_case_reward_skin', 'Жаңа скин инвентарьға қосылды.');
+    case 'booster':
+      return t('shop_case_reward_booster', 'Hint booster-лері инвентарьға сақталды.');
+    default:
+      return '';
+  }
+};
+
+type MysteryRewardPreview = {
+  id: string;
+  icon: string;
+  title: string;
+  rarity: string;
+  accentClass: string;
+  glowClass: string;
+};
+
+const getMysteryBoxRewardPreview = (
+  reward: MysteryBox,
+  t: ReturnType<typeof useTranslation>['t']
+): MysteryRewardPreview => {
+  switch (reward.type) {
+    case 'coins':
+      return {
+        id: 'coins',
+        icon: '🪙',
+        title: `+${reward.amount}`,
+        rarity: t('shop_case_rarity_common', 'Common'),
+        accentClass: 'from-amber-300 via-yellow-300 to-orange-400',
+        glowClass: 'shadow-[0_0_30px_rgba(251,191,36,0.35)]',
+      };
+    case 'crystals':
+      return {
+        id: 'crystals',
+        icon: '💎',
+        title: `+${reward.amount}`,
+        rarity: t('shop_case_rarity_rare', 'Rare'),
+        accentClass: 'from-cyan-300 via-sky-300 to-blue-400',
+        glowClass: 'shadow-[0_0_30px_rgba(56,189,248,0.35)]',
+      };
+    case 'fec':
+      return {
+        id: 'fec',
+        icon: '✨',
+        title: `+${reward.amount} FEC`,
+        rarity: t('shop_case_rarity_epic', 'Epic'),
+        accentClass: 'from-emerald-300 via-teal-300 to-cyan-400',
+        glowClass: 'shadow-[0_0_30px_rgba(16,185,129,0.35)]',
+      };
+    case 'skin':
+      return {
+        id: 'skin',
+        icon: '🎨',
+        title: t('skin_neon', 'Neon Skin'),
+        rarity: t('shop_case_rarity_legendary', 'Legendary'),
+        accentClass: 'from-fuchsia-300 via-violet-300 to-purple-400',
+        glowClass: 'shadow-[0_0_36px_rgba(192,132,252,0.45)]',
+      };
+    case 'booster':
+      return {
+        id: 'booster',
+        icon: '🧠',
+        title: `+${reward.amount} ${t('hints', 'Hints')}`,
+        rarity: t('shop_case_rarity_rare', 'Rare'),
+        accentClass: 'from-pink-300 via-rose-300 to-red-400',
+        glowClass: 'shadow-[0_0_30px_rgba(251,113,133,0.35)]',
+      };
+    default:
+      return {
+        id: 'unknown',
+        icon: '🎁',
+        title: t('mystery_box_title', 'Mystery Box'),
+        rarity: t('shop_case_rarity_common', 'Common'),
+        accentClass: 'from-slate-300 via-slate-200 to-zinc-300',
+        glowClass: 'shadow-[0_0_30px_rgba(148,163,184,0.35)]',
+      };
+  }
+};
+
+const buildMysteryBoxOpeningReel = (
+  reward: MysteryBox,
+  t: ReturnType<typeof useTranslation>['t']
+) => {
+  const fillerRewards: MysteryBox[] = [
+    { id: 'preview-coins', type: 'coins', amount: 180 },
+    { id: 'preview-crystals', type: 'crystals', amount: 9 },
+    { id: 'preview-fec', type: 'fec', amount: 1.25 },
+    { id: 'preview-skin', type: 'skin', amount: 1, skinId: 'neon_blue' },
+    { id: 'preview-booster', type: 'booster', amount: 3, boosterType: 'hints' },
+  ];
+
+  return Array.from({ length: 20 }, (_, index) => {
+    const picked = index === CASE_REEL_TARGET_INDEX
+      ? reward
+      : fillerRewards[Math.floor(Math.random() * fillerRewards.length)];
+
+    return {
+      ...getMysteryBoxRewardPreview(picked, t),
+      id: `${picked.type}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+    };
+  });
+};
+
+const MysteryBoxRewardModal = ({
+  reward,
+  onClose,
+}: {
+  reward: MysteryBox | null;
+  onClose: () => void;
+}) => {
+  const { t } = useTranslation();
+  const [phase, setPhase] = useState<'opening' | 'revealed'>('opening');
+  const [reelItems, setReelItems] = useState<MysteryRewardPreview[]>([]);
+  const rewardPreview = reward ? getMysteryBoxRewardPreview(reward, t) : null;
+
+  useEffect(() => {
+    if (!reward) return;
+
+    WebApp.BackButton.show();
+    WebApp.BackButton.onClick(onClose);
+
+    return () => {
+      WebApp.BackButton.offClick(onClose);
+      WebApp.BackButton.hide();
+    };
+  }, [reward, onClose]);
+
+  useEffect(() => {
+    if (!reward) return;
+
+    setPhase('opening');
+    setReelItems(buildMysteryBoxOpeningReel(reward, t));
+
+    const revealTimer = window.setTimeout(() => {
+      setPhase('revealed');
+      WebApp.HapticFeedback.notificationOccurred('success');
+    }, 2600);
+
+    return () => window.clearTimeout(revealTimer);
+  }, [reward, t]);
+
+  if (!reward) return null;
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="modal-shell fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+      >
+        <motion.div
+          initial={{ scale: 0.94, y: 24 }}
+          animate={{ scale: 1, y: 0 }}
+          exit={{ scale: 0.94, y: 24 }}
+          transition={{ duration: 0.25 }}
+          className="modal-card relative flex w-full max-w-md flex-col overflow-hidden rounded-[28px] border border-white/10 bg-[#090b14] shadow-2xl"
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(168,85,247,0.18),transparent_38%),radial-gradient(circle_at_bottom,rgba(34,211,238,0.14),transparent_42%)]" />
+
+          <div className="relative flex items-center justify-between border-b border-white/10 px-4 py-4">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-[0.28em] text-fuchsia-300/80">
+                {phase === 'opening'
+                  ? t('opening_case', 'Opening Case')
+                  : t('reward_revealed', 'Reward Revealed')}
+              </div>
+              <h3 className="mt-1 text-lg font-black text-white">{t('mystery_box_title', 'Mystery Box')}</h3>
+            </div>
+            {phase === 'revealed' ? (
+              <button
+                onClick={onClose}
+                className="min-h-[44px] min-w-[44px] rounded-full bg-white/5 p-2 text-gray-300 transition-colors hover:bg-white/10"
+              >
+                <X size={20} />
+              </button>
+            ) : (
+              <div className="min-h-[44px] min-w-[44px]" />
+            )}
+          </div>
+
+          <div className="relative overflow-hidden px-4 pb-4 pt-5 sm:px-5 sm:pb-5">
+            <div className="pointer-events-none absolute left-1/2 top-4 z-10 h-[190px] w-[2px] -translate-x-1/2 rounded-full bg-gradient-to-b from-transparent via-amber-300 to-transparent shadow-[0_0_20px_rgba(251,191,36,0.6)]" />
+            <div className="relative overflow-hidden rounded-[24px] border border-white/10 bg-[#0d1220] py-8">
+              <motion.div
+                className="flex gap-3"
+                style={{ paddingLeft: 'calc(50% - 56px)', paddingRight: 'calc(50% - 56px)' }}
+                initial={false}
+                animate={{
+                  x: phase === 'opening'
+                    ? -(CASE_REEL_TARGET_INDEX * (CASE_REEL_CARD_WIDTH + CASE_REEL_GAP))
+                    : -(CASE_REEL_TARGET_INDEX * (CASE_REEL_CARD_WIDTH + CASE_REEL_GAP)),
+                }}
+                transition={{ duration: 2.4, ease: [0.12, 0.78, 0.18, 1] }}
+              >
+                {reelItems.map((item, index) => (
+                  <motion.div
+                    key={item.id}
+                    initial={false}
+                    animate={{
+                      scale: phase === 'revealed' && index === CASE_REEL_TARGET_INDEX ? 1.03 : 0.94,
+                      opacity: phase === 'revealed' && index !== CASE_REEL_TARGET_INDEX ? 0.35 : 1,
+                    }}
+                    className={clsx(
+                      'relative shrink-0 overflow-hidden rounded-[22px] border border-white/10 bg-white/[0.03] p-3 text-center',
+                      index === CASE_REEL_TARGET_INDEX && phase === 'revealed' && item.glowClass
+                    )}
+                    style={{ width: CASE_REEL_CARD_WIDTH }}
+                  >
+                    <div className={clsx('absolute inset-x-0 top-0 h-1 bg-gradient-to-r', item.accentClass)} />
+                    <div className="mt-2 text-4xl">{item.icon}</div>
+                    <div className="mt-3 text-xs font-black uppercase tracking-[0.22em] text-white/45">
+                      {item.rarity}
+                    </div>
+                    <div className="mt-2 text-sm font-black text-white">{item.title}</div>
+                  </motion.div>
+                ))}
+              </motion.div>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {phase === 'opening' ? (
+                <motion.div
+                  key="opening"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  className="px-2 pb-2 pt-5 text-center"
+                >
+                  <div className="text-sm font-semibold uppercase tracking-[0.28em] text-white/45">
+                    {t('opening_sequence', 'Scanning drops')}
+                  </div>
+                  <div className="mt-3 text-xl font-black text-white">
+                    {t('shop_case_opening_subtitle', 'Сыйлық тоқтағанша күтіңіз...')}
+                  </div>
+                  <div className="mx-auto mt-4 h-1.5 w-40 overflow-hidden rounded-full bg-white/10">
+                    <motion.div
+                      className="h-full rounded-full bg-gradient-to-r from-fuchsia-400 via-amber-300 to-cyan-300"
+                      initial={{ x: '-100%' }}
+                      animate={{ x: '100%' }}
+                      transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY, ease: 'linear' }}
+                    />
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="revealed"
+                  initial={{ opacity: 0, y: 16, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3 }}
+                  className="px-2 pb-2 pt-5 text-center"
+                >
+                  <motion.div
+                    initial={{ scale: 0.8, rotate: -8 }}
+                    animate={{ scale: 1, rotate: 0 }}
+                    transition={{ type: 'spring', stiffness: 260, damping: 18 }}
+                    className={clsx(
+                      'mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-white/5 text-6xl ring-1 ring-white/10',
+                      rewardPreview?.glowClass
+                    )}
+                  >
+                    {rewardPreview?.icon}
+                  </motion.div>
+                  <div className="mt-5 text-sm font-black uppercase tracking-[0.28em] text-amber-300">
+                    {t('you_found', 'You found')}
+                  </div>
+                  <div className="mt-2 text-3xl font-black text-white">{getMysteryBoxRewardLabel(reward, t)}</div>
+                  <p className="mx-auto mt-3 max-w-xs text-sm leading-relaxed text-white/65">
+                    {getMysteryBoxRewardDescription(reward, t)}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="mt-6 w-full min-h-[48px] rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-base font-black text-stone-950 transition-transform hover:scale-[1.01]"
+                  >
+                    {t('claim_reward', 'Claim reward')}
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
+
+const CasesTab = ({
+  coins,
+  gems,
+  fecBalance,
+  hints,
+  freeMysteryBoxes,
+  price,
+  isAvailable,
+  onOpen,
+}: {
+  coins: number;
+  gems: number;
+  fecBalance: number;
+  hints: number;
+  freeMysteryBoxes: number;
+  price: number;
+  isAvailable: boolean;
+  onOpen: () => void;
+}) => {
+  const { t } = useTranslation();
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-2xl border border-fuchsia-500/20 bg-gradient-to-br from-fuchsia-500/10 via-violet-500/10 to-cyan-500/10 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-fuchsia-300">
+              <Gift size={18} />
+              <span className="text-xs font-black uppercase tracking-[0.22em]">
+                {t('chest_tab', 'Cases')}
+              </span>
+            </div>
+            <h3 className="mt-2 text-2xl font-black text-white">
+              {t('mystery_box_title', 'Mystery Box')}
+            </h3>
+            <p className="mt-2 max-w-xl text-sm text-slate-300">
+              {t('mystery_box_description', 'Rare skins, crystals and coins!')}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-right">
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">
+              {t('shop_price', 'Бағасы')}
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-2xl font-black text-white">
+              <Coins size={20} className="text-amber-300" />
+              {price}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">{t('coins', 'Coins')}</div>
+            <div className="mt-2 text-xl font-black text-white">{coins}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">{t('crystals', 'Crystals')}</div>
+            <div className="mt-2 text-xl font-black text-white">{gems}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">FEC</div>
+            <div className="mt-2 text-xl font-black text-white">{fecBalance.toFixed(2)}</div>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400">{t('hints', 'Hints')}</div>
+            <div className="mt-2 text-xl font-black text-white">{hints}</div>
+          </div>
+          <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-3 col-span-2 md:col-span-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-300">
+              {t('shop_case_free_opens', 'Free opens')}
+            </div>
+            <div className="mt-2 text-xl font-black text-white">{freeMysteryBoxes}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-[1.1fr_0.9fr]">
+        <div className="rounded-3xl border border-amber-400/25 bg-gradient-to-br from-amber-500/10 to-orange-500/10 p-5">
+          <div className="inline-flex rounded-full bg-amber-400 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-stone-950">
+            {t('badge_best', 'Best')}
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 text-4xl">
+              🎁
+            </div>
+            <div>
+              <div className="text-xl font-black text-white">{t('mystery_box_title', 'Mystery Box')}</div>
+              <div className="mt-1 text-sm text-slate-300">{t('shop_case_subtitle', 'Әр ашқанда рандом сыйлық түседі')}</div>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 text-sm text-slate-200">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+              <div className="font-black text-amber-300">{t('shop_case_drop_1', '100-299 coins')}</div>
+              <div className="mt-1 text-slate-400">{t('shop_case_drop_1_desc', 'Ең жиі түсетін базалық дроп')}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+              <div className="font-black text-cyan-300">{t('shop_case_drop_2', '5-14 crystals')}</div>
+              <div className="mt-1 text-slate-400">{t('shop_case_drop_2_desc', 'Кристалл балансты өсіреді')}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+              <div className="font-black text-emerald-300">{t('shop_case_drop_3', '0.50-2.00 FEC')}</div>
+              <div className="mt-1 text-slate-400">{t('shop_case_drop_3_desc', 'Сирек крипто дроп')}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3">
+              <div className="font-black text-fuchsia-300">{t('shop_case_drop_4', 'Skin немесе boosters')}</div>
+              <div className="mt-1 text-slate-400">{t('shop_case_drop_4_desc', 'Ең құнды сыйлықтар')}</div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpen}
+            disabled={false}
+            className="mt-5 flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-base font-black text-stone-950 transition-all hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Sparkles size={18} />
+            {freeMysteryBoxes > 0
+              ? t('open_mystery_box_free', 'Open Mystery Box for free')
+              : t('open_mystery_box', 'Open Mystery Box')}
+          </button>
+        </div>
+
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+          <div className="text-sm font-black uppercase tracking-[0.2em] text-slate-400">
+            {t('shop_case_rules', 'Case ережесі')}
+          </div>
+          <div className="mt-4 space-y-3">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
+              <div className="font-bold text-white">{t('shop_case_rule_1_title', 'Ашу құны')}</div>
+              <div className="mt-1">
+                {freeMysteryBoxes > 0
+                  ? t('shop_case_rule_free_desc', 'Алғашқы ашулар тегін, содан кейін {{price}} coin жұмсалады.', { price })
+                  : t('shop_case_rule_1_desc', 'Әр ашылу кезінде {{price}} coin жұмсалады.', { price })}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
+              <div className="font-bold text-white">{t('shop_case_rule_2_title', 'Сыйлық бірден беріледі')}</div>
+              <div className="mt-1">{t('shop_case_rule_2_desc', 'Ұтқан reward store-ға автоматты түрде жазылады.')}</div>
+            </div>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
+              <div className="font-bold text-white">{t('shop_case_rule_3_title', 'Жеткілікті coin керек')}</div>
+              <div className="mt-1">
+                {freeMysteryBoxes > 0
+                  ? t('shop_case_rule_free_ready', 'Сізде тегін ашылулар бар.')
+                  : coins >= price
+                  ? t('shop_case_rule_3_ready', 'Сіз case ашуға дайынсыз.')
+                  : t('shop_case_rule_3_locked', 'Case ашу үшін coin жинаңыз.')}
+              </div>
+            </div>
+            {!isAvailable && (
+              <div className="rounded-2xl border border-red-400/20 bg-red-500/10 p-3 text-sm text-red-200">
+                {t('shop_case_unavailable', 'Қазір case уақытша өшірулі.')}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const SkinsTab = ({ styles, handleBuySkin, handleEquipSkin, skinInventory, activeSkin }: any) => {
   const { t } = useTranslation();
@@ -572,6 +1190,8 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
     t('premium_f3'),
     t('premium_f4'),
     t('premium_f5'),
+    t('premium_f6'),
+    t('premium_f7'),
   ];
 
   const vipPlans = [
@@ -642,7 +1262,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
         <div className="relative z-10 grid grid-cols-2 gap-2">
           <div className="rounded-xl border border-amber-500/20 bg-white/5 px-2 py-1.5">
             <div className="text-[9px] uppercase tracking-[0.18em] text-amber-100/70">Analytics</div>
-            <div className="mt-0.5 text-[10px] font-black text-white">VIP only</div>
+            <div className="mt-0.5 text-[10px] font-black text-white">Pro & Premium</div>
           </div>
           <div className="rounded-xl border border-amber-500/20 bg-white/5 px-2 py-1.5">
             <div className="text-[9px] uppercase tracking-[0.18em] text-amber-100/70">Status</div>
@@ -814,7 +1434,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
         className="w-full py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold text-sm hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2"
       >
         <BarChart3 size={16} />
-        {currentPlan === 'premium' ? t('open_vip_analytics') : t('preview_vip_analytics')}
+        {currentPlan === 'pro' || currentPlan === 'premium' ? t('open_vip_analytics') : t('preview_vip_analytics')}
       </button>
     </div>
   );
@@ -822,10 +1442,26 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
 
 const ShopPage = () => {
   const { t } = useTranslation();
-  const { coins, skinInventory, activeSkin, buySkin, equipSkin, plan } = useStore();
-  const [activeTab, setActiveTab] = useState<'vip' | 'skins'>('vip');
+  const {
+    coins,
+    gems,
+    freeMysteryBoxes,
+    premiumGiftMysteryBoxes,
+    tickets,
+    mysteryBoxAvailable,
+    skinInventory,
+    activeSkin,
+    buySkin,
+    equipSkin,
+    openCase,
+    plan,
+  } = useStore();
+  const totalFreeCaseOpens = freeMysteryBoxes + premiumGiftMysteryBoxes;
+  const [activeTab, setActiveTab] = useState<'vip' | 'skins' | 'cases'>('vip');
   const [showTerms, setShowTerms] = useState(false);
-  const [paymentModal, setPaymentModal] = useState<{ planCode: TonPlanCode; title: string; price: string } | null>(null);
+  const [paymentModal, setPaymentModal] = useState<{ planCode: TonPlanCode; title: string; price: string; basePriceKzt: number } | null>(null);
+  const [openedCaseReward, setOpenedCaseReward] = useState<{ caseId: CaseId; reward: MysteryBox } | null>(null);
+  const [caseErrorMessage, setCaseErrorMessage] = useState<string | null>(null);
 
   const styles = useThemeStyles();
   const { bgClass, cardClass } = styles;
@@ -834,9 +1470,9 @@ const ShopPage = () => {
     WebApp.HapticFeedback.notificationOccurred('success');
 
     const map = {
-      basic:   { planCode: 'basic' as const, title: 'BASIC YEARLY',   price: BASIC_PRICE },
-      pro:     { planCode: 'pro' as const, title: 'PRO YEARLY',     price: PRO_PRICE },
-      premium: { planCode: 'premium' as const, title: 'PREMIUM YEARLY', price: PREMIUM_PRICE },
+      basic:   { planCode: 'basic' as const, title: 'BASIC YEARLY', price: BASIC_PRICE, basePriceKzt: BASIC_PRICE_KZT },
+      pro:     { planCode: 'pro' as const, title: 'PRO YEARLY', price: PRO_PRICE, basePriceKzt: PRO_PRICE_KZT },
+      premium: { planCode: 'premium' as const, title: 'PREMIUM YEARLY', price: PREMIUM_PRICE, basePriceKzt: PREMIUM_PRICE_KZT },
     } as const;
     const picked = map[plan];
     setPaymentModal({ planCode: picked.planCode, title: picked.title, price: picked.price });
@@ -857,6 +1493,26 @@ const ShopPage = () => {
     WebApp.HapticFeedback.selectionChanged();
   };
 
+  const handleOpenCase = (caseId: CaseId) => {
+    const result = openCase(caseId);
+
+    if (!result.success || !result.reward) {
+      WebApp.HapticFeedback.notificationOccurred('error');
+      setCaseErrorMessage(
+        result.error === 'case_unavailable'
+          ? t('shop_case_service_offline')
+          : result.error === 'not_enough_crystals'
+            ? t('not_enough_crystals')
+            : t('not_enough_coins')
+      );
+      return;
+    }
+
+    setCaseErrorMessage(null);
+    WebApp.HapticFeedback.notificationOccurred('success');
+    setOpenedCaseReward({ caseId, reward: result.reward });
+  };
+
   // Local helper for tabs
   const getTabClass = (isActive: boolean) => {
     if (isActive) {
@@ -874,9 +1530,15 @@ const ShopPage = () => {
         <div className="flex items-center gap-3">
           <h1 className={clsx("text-2xl sm:text-3xl font-bold", styles.textAccent)}>{t('shop')}</h1>
         </div>
-        <div className={clsx("flex items-center gap-2 px-3 py-2 rounded-full border shrink-0", cardClass)}>
-          <Coins size={20} className={styles.textAccent} fill="currentColor" />
-          <span className={clsx("font-bold text-lg", styles.textPrimary)}>{coins}</span>
+        <div className="flex items-center gap-2">
+          <div className={clsx("flex items-center gap-2 px-3 py-2 rounded-full border shrink-0", cardClass)}>
+            <Coins size={20} className={styles.textAccent} fill="currentColor" />
+            <span className={clsx("font-bold text-lg", styles.textPrimary)}>{coins}</span>
+          </div>
+          <div className={clsx("flex items-center gap-2 px-3 py-2 rounded-full border shrink-0", cardClass)}>
+            <Gem size={18} className="text-cyan-300" />
+            <span className={clsx("font-bold text-lg", styles.textPrimary)}>{gems}</span>
+          </div>
         </div>
       </div>
 
@@ -901,6 +1563,16 @@ const ShopPage = () => {
           <Layout size={16} />
           {t('skins') || 'Skins'}
         </button>
+        <button
+          onClick={() => setActiveTab('cases')}
+          className={clsx(
+            "flex-1 min-h-[44px] py-3 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2",
+            getTabClass(activeTab === 'cases')
+          )}
+        >
+          <Gift size={16} />
+          {t('shop_cases_title')}
+        </button>
       </div>
 
       {activeTab === 'vip' ? (
@@ -917,6 +1589,29 @@ const ShopPage = () => {
             activeSkin={activeSkin}
           />
         </div>
+      ) : activeTab === 'cases' ? (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <ShopInventorySection
+            styles={styles}
+            tickets={tickets}
+            starterCases={freeMysteryBoxes}
+            premiumCases={premiumGiftMysteryBoxes}
+            isOpening={Boolean(openedCaseReward)}
+            caseErrorMessage={caseErrorMessage}
+            onOpenCase={handleOpenCase}
+          />
+          <CaseList
+            cases={CASE_LIST}
+            coins={coins}
+            gems={gems}
+            freeOpens={totalFreeCaseOpens}
+            starterFreeOpens={freeMysteryBoxes}
+            premiumGiftCases={premiumGiftMysteryBoxes}
+            errorMessage={caseErrorMessage}
+            isOpening={Boolean(openedCaseReward)}
+            onOpen={handleOpenCase}
+          />
+        </div>
       ) : null}
 
       <TermsModal
@@ -930,9 +1625,173 @@ const ShopPage = () => {
         planCode={paymentModal?.planCode || 'basic'}
         planTitle={paymentModal?.title || ''}
         price={paymentModal?.price || ''}
+        basePriceKzt={paymentModal?.basePriceKzt || BASIC_PRICE_KZT}
+      />
+
+      <CaseOpeningModal
+        caseId={openedCaseReward?.caseId ?? null}
+        reward={openedCaseReward?.reward ?? null}
+        onClose={() => setOpenedCaseReward(null)}
       />
     </div>
   );
 };
 
 export default ShopPage;
+
+const ShopInventorySection = ({
+  styles,
+  tickets,
+  starterCases,
+  premiumCases,
+  isOpening,
+  caseErrorMessage,
+  onOpenCase,
+}: {
+  styles: ReturnType<typeof useThemeStyles>;
+  tickets: Ticket[];
+  starterCases: number;
+  premiumCases: number;
+  isOpening: boolean;
+  caseErrorMessage: string | null;
+  onOpenCase: (caseId: CaseId) => void;
+}) => {
+  const { t } = useTranslation();
+  const totalCases = starterCases + premiumCases;
+
+  return (
+    <div className="mb-6 space-y-6">
+      <div className={clsx("rounded-[28px] border p-5", styles.cardClass)}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className={clsx("text-[10px] font-black uppercase tracking-widest", styles.textSecondary)}>
+              {t('inventory', 'Inventory')}
+            </div>
+            <h3 className={clsx("mt-2 text-xl font-black", styles.textPrimary)}>
+              {t('profile_inventory_title', 'Cases & Tickets')}
+            </h3>
+            <p className={clsx("mt-2 text-sm", styles.textSecondary)}>
+              {t('profile_inventory_desc', 'Your free starter cases, premium gift cases and tickets are stored here.')}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-amber-500/10 p-3 text-amber-400">
+            <Gift size={22} />
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-3 gap-3">
+          <ShopInventoryStatCard label={t('profile_inventory_total_cases', 'Total Cases')} value={totalCases} accent="text-amber-400" styles={styles} />
+          <ShopInventoryStatCard label={t('profile_inventory_starter_cases', 'Starter')} value={starterCases} accent="text-cyan-400" styles={styles} />
+          <ShopInventoryStatCard label={t('profile_inventory_premium_cases', 'Premium')} value={premiumCases} accent="text-fuchsia-400" styles={styles} />
+        </div>
+
+        {caseErrorMessage ? (
+          <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+            {caseErrorMessage}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="space-y-3">
+        {CASE_LIST.map((caseDefinition) => (
+          <div
+            key={caseDefinition.id}
+            className={clsx("rounded-[24px] border p-4", styles.cardClass)}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="h-16 w-16 rounded-2xl bg-black/5 p-2 dark:bg-white/5">
+                  <CaseIcon caseId={caseDefinition.id} className="h-full w-full" />
+                </div>
+                <div>
+                  <div className={clsx("text-sm font-black", styles.textPrimary)}>{t(caseDefinition.titleKey)}</div>
+                  <div className={clsx("mt-1 text-xs", styles.textSecondary)}>{t(caseDefinition.descriptionKey)}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => onOpenCase(caseDefinition.id)}
+                disabled={isOpening}
+                className={clsx("rounded-2xl px-4 py-2 text-xs font-black", isOpening ? "bg-white/10 text-white/50" : styles.btnSecondary)}
+              >
+                {isOpening ? t('shop_case_opening_cta') : t('shop_case_open_cta')}
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className={clsx("rounded-[28px] border p-5", styles.cardClass)}>
+        <div className="flex items-center justify-between px-1">
+          <h3 className={clsx("text-lg font-black flex items-center gap-2", styles.textPrimary)}>
+            <TicketIcon size={18} className="text-yellow-400" />
+            {t('profile_inventory_tickets', 'Tickets')}
+          </h3>
+          <span className={clsx("text-[10px] font-black uppercase tracking-widest", styles.textSecondary)}>
+            {tickets.length}
+          </span>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {tickets.length > 0 ? tickets.map((ticket) => (
+            <div
+              key={ticket.id}
+              className="relative bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 rounded-2xl p-1 shadow-2xl"
+            >
+              <div className="bg-gradient-to-br from-yellow-100 to-amber-200 rounded-xl p-4 h-full">
+                <div className="absolute top-2 right-2">
+                  {ticket.isUsed ? (
+                    <div className="bg-green-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5">
+                      <CheckCircle className="w-2.5 h-2.5" />
+                      VERIFIED
+                    </div>
+                  ) : (
+                    <div className="bg-yellow-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
+                      ACTIVE
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 border-yellow-500/30 shadow-lg">
+                    <img src="/mustang.jpg" alt="Mustang" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-2xl font-black text-yellow-800 font-mono tracking-wider">
+                      {String(ticket.ticketNumber).padStart(8, '0')}
+                    </div>
+                    <div className="text-[9px] text-yellow-600 font-medium tracking-widest uppercase">Ticket Number</div>
+                    <p className="text-xs font-bold text-yellow-800 truncate">{ticket.eventName}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )) : (
+            <div className={clsx("rounded-3xl border border-dashed p-6 text-center", styles.cardClass)}>
+              <div className={clsx("text-sm font-bold", styles.textSecondary)}>
+                {t('no_tickets_found')}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ShopInventoryStatCard = ({
+  label,
+  value,
+  accent,
+  styles,
+}: {
+  label: string;
+  value: number;
+  accent: string;
+  styles: ReturnType<typeof useThemeStyles>;
+}) => (
+  <div className={clsx("rounded-2xl border p-3", styles.cardClass)}>
+    <div className={clsx("text-[10px] font-black uppercase tracking-widest", styles.textSecondary)}>{label}</div>
+    <div className={clsx("mt-2 text-2xl font-black", accent)}>{value}</div>
+  </div>
+);

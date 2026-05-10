@@ -10,6 +10,9 @@ interface AuthState {
   user: any | null;
 }
 
+const canUseTelegramFallbackAuth = (reason?: string | null) =>
+  ['network_error', 'non_json_response'].includes(`${reason || ''}`);
+
 export const useTelegramAuth = () => {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -61,6 +64,17 @@ export const useTelegramAuth = () => {
 
         const verify = await verifyTelegramInitData(initData);
         if (!verify?.ok) {
+          if (user && canUseTelegramFallbackAuth(verify?.reason)) {
+            console.warn('Telegram auth verification endpoint is unavailable, using WebApp user fallback');
+            setAuthState({
+              isAuthenticated: true,
+              isLoading: false,
+              error: null,
+              user,
+            });
+            return;
+          }
+
           setAuthState({
             isAuthenticated: false,
             isLoading: false,

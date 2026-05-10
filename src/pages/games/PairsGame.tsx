@@ -3,7 +3,7 @@ import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { useStore } from '../../store/useStoreImpl';
-import { Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun } from 'lucide-react';
+import { Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun, Moon, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Difficulty, DIFFICULTY_COIN_MULT } from '../../types/games';
 import { useGameTimer } from '../../hooks/useGameTimer';
@@ -14,7 +14,7 @@ import { DifficultySelector } from '../../components/games/DifficultySelector';
 import { GameHUD } from '../../components/games/GameHUD';
 import { soundManager } from '../../utils/soundManager';
 
-const ICONS = [Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun];
+const ICONS = [Brain, Star, Heart, Zap, Coffee, Anchor, Music, Sun, Moon, Sparkles];
 const GAME_ID = 'pairs';
 
 const DIFFICULTY_CONFIG: Record<
@@ -62,6 +62,7 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
   const setStoredDifficulty = useGameSettings(s => s.setDifficulty);
   const [difficulty, setDifficulty] = useState<Difficulty>(storedDifficulty);
   const config = DIFFICULTY_CONFIG[difficulty];
+  const pairCount = Math.min(config.pairs, ICONS.length);
 
   const { best, submit } = useLocalBest(GAME_ID, difficulty);
   const haptic = useHaptic();
@@ -79,11 +80,11 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
 
   // -------- Initialize deck --------
   const initializeDeck = useCallback(() => {
-    const selectedIcons = ICONS.slice(0, config.pairs);
+    const selectedIcons = ICONS.slice(0, pairCount);
     const deck = [...selectedIcons, ...selectedIcons]
       .map((_, index) => ({
         id: index,
-        iconIndex: index % config.pairs,
+        iconIndex: index % pairCount,
         isFlipped: true,
         isMatched: false
       }))
@@ -96,7 +97,7 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
     setCombo(0);
     setScore(0);
     setIsPreviewing(true);
-  }, [config.pairs]);
+  }, [pairCount]);
 
   // -------- Countdown timer (pause-aware) --------
   const { timeLeftMs, reset: resetTimer } = useGameTimer({
@@ -165,7 +166,7 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
           setCombo(c => c + 1);
 
           matchesRef.current += 1;
-          if (matchesRef.current === config.pairs) {
+          if (matchesRef.current === pairCount) {
             // Win
             if (!gameEndedRef.current) {
               gameEndedRef.current = true;
@@ -196,7 +197,7 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
         }, 2000);
       }
     }
-  }, [isPreviewing, isGamePaused, cards, flippedIndices, combo, timeLeftMs, score, config.pairs, submit, difficulty, onEnd, haptic]);
+  }, [isPreviewing, isGamePaused, cards, flippedIndices, combo, timeLeftMs, score, pairCount, submit, difficulty, onEnd, haptic]);
 
   // -------- Change difficulty — fully reset --------
   const changeDifficulty = useCallback((next: Difficulty) => {
@@ -283,7 +284,11 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
                       ? "bg-gradient-to-br from-indigo-100 to-purple-100 border-white"
                       : "bg-gradient-to-br from-white/10 to-white/5 border-white/10"
                   )}
-                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(0deg)',
+                  }}
                 >
                   <div
                     className={clsx(
@@ -304,7 +309,11 @@ const PairsBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: string, coi
                       ? "bg-white border-white"
                       : "bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border-indigo-500/30"
                   )}
-                  style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)',
+                  }}
                 >
                   <Icon
                     size={40}
