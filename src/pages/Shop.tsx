@@ -49,7 +49,6 @@ const PaymentModal = ({
     ? Math.max(0, Math.round(basePriceKzt * ((100 - appliedPromo.discountPercent) / 100)))
     : basePriceKzt;
   const displayedPrice = formatKztPrice(discountedPriceKzt);
-  const hasStartupLinkAccess = hasTelegramStartParam(STARTUP_PROMO_START_PARAM);
 
   useEffect(() => {
     if (!isOpen) {
@@ -243,7 +242,7 @@ const PaymentModal = ({
         return;
       }
 
-      if (result.reason === 'not_found' || result.reason === 'invalid') {
+      if (result.reason === 'not_found' || result.reason === 'invalid' || result.reason === 'network_error') {
         const localPromo = PAYMENT_PROMO_CODES[normalizedCode];
         if (localPromo && localPromo.applicablePlans.includes(planCode)) {
           if (localPromo.requiredStartParam && !hasTelegramStartParam(localPromo.requiredStartParam)) {
@@ -258,13 +257,6 @@ const PaymentModal = ({
           setPromoApplied(localPromo);
           return;
         }
-
-        setAppliedPromo(null);
-        setPromoFeedback({
-          type: 'error',
-          message: t('shop_promo_invalid', 'Промокод жарамсыз немесе бұл пакетке қолданылмайды.'),
-        });
-        return;
       }
 
       setAppliedPromo(null);
@@ -285,31 +277,19 @@ const PaymentModal = ({
   const handleGetPromoCode = () => {
     const promo = PAYMENT_PROMO_CODES.STARTUP;
     setPromoInput(promo.code);
+    setPromoApplied(
+      promo,
+      t('shop_promo_get_success', 'Instagram ашылды. {{code}} промокоды қолданылды. -{{percent}}%', {
+        code: promo.code,
+        percent: promo.discountPercent,
+      }),
+    );
 
     if (isTelegramWebApp()) {
       WebApp.openLink(INSTAGRAM_PROMO_URL);
     } else {
       window.location.assign(INSTAGRAM_PROMO_URL);
     }
-
-    if (!hasStartupLinkAccess) {
-      setAppliedPromo(null);
-      setPromoFeedback({
-        type: 'success',
-        message: t('shop_promo_get_code_visible', 'Instagram ашылды. Промокод көрсетілді: {{code}}', {
-          code: promo.code,
-        }),
-      });
-      return;
-    }
-
-    setPromoApplied(
-      promo,
-      t('shop_promo_get_success', 'Instagram ашылды. Арнайы сілтеме расталды, {{code}} промокоды қолданылды. -{{percent}}%', {
-        code: promo.code,
-        percent: promo.discountPercent,
-      })
-    );
   };
 
   const handlePayNow = async () => {
@@ -411,9 +391,7 @@ const PaymentModal = ({
             <div className="mt-3 rounded-2xl border border-pink-200 bg-pink-50 p-3">
               <div className="text-sm font-semibold text-black">{t('shop_promo_get_title', 'Промокод алу')}</div>
               <div className="mt-1 text-xs text-gray-600">
-                {hasStartupLinkAccess
-                  ? t('shop_promo_get_description_active', 'Арнайы сілтемемен кірдіңіз. Енді STARTUP промокодын қолдана аласыз.')
-                  : t('shop_promo_get_description', 'Промокод тек арнайы сілтеме арқылы ашылғанда ғана беріледі.')}
+                {t('shop_promo_get_description', 'Промокодты пайдалану үшін Instagram-ға тіркеліңіз.')}
               </div>
               <button
                 type="button"
@@ -438,9 +416,7 @@ const PaymentModal = ({
             ) : (
               <>
                 <div className="mt-3 text-xs text-gray-500">
-                  {hasStartupLinkAccess
-                    ? t('shop_promo_hint_active', 'Арнайы сілтеме белсенді. Промокод: STARTUP')
-                    : t('shop_promo_hint', 'Промокод тек арнайы сілтеме арқылы іске қосылады')}
+                  {t('shop_promo_hint_active', 'STARTUP (-10%) және ENERGY (-85%) промокодтары барлық қолданушыға қол жетімді.')}
                 </div>
               </>
             )}
@@ -685,7 +661,6 @@ const PAYMENT_PROMO_CODES: Record<string, PaymentPromoDefinition> = {
     code: 'STARTUP',
     discountPercent: 10,
     applicablePlans: ['basic', 'pro', 'premium'],
-    requiredStartParam: STARTUP_PROMO_START_PARAM,
   },
   ENERGY: {
     code: 'ENERGY',
