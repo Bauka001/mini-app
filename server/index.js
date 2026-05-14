@@ -5,9 +5,22 @@ const crypto = require('crypto');
 const https = require('https');
 const { createClient } = require('@supabase/supabase-js');
 
+const path = require('path');
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '200kb' }));
+
+// Serve admin-v2 single-file browser panel
+// GET /admin           → admin.html
+// GET /admin.html      → admin.html (direct)
+const ADMIN_PANEL_HTML_PATH = path.resolve(__dirname, '..', 'public', 'admin.html');
+app.get(['/admin', '/admin.html'], (req, res) => {
+  res.sendFile(ADMIN_PANEL_HTML_PATH, (err) => {
+    if (err) {
+      res.status(404).send('Admin panel HTML not found. Build the project or copy public/admin.html.');
+    }
+  });
+});
 
 const PORT = Number(process.env.PORT || 3001);
 const isProduction = process.env.NODE_ENV === 'production';
@@ -38,6 +51,8 @@ const TON_PLAN_CATALOG = {
   premium: { tierCode: 'premium', durationDays: 365, amountNano: 15_000_000_000, displayAmount: '15 TON' },
 };
 const DEFAULT_TON_PROMO_CODE_CATALOG = {
+  STARTUP: { code: 'STARTUP', discountPercent: 10, planCodes: ['basic', 'pro', 'premium'], requiredStartParam: 'startup' },
+  ENERGY: { code: 'ENERGY', discountPercent: 85, planCodes: ['basic', 'pro', 'premium'] },
   FOCUS10: { code: 'FOCUS10', discountPercent: 10, planCodes: ['basic', 'pro', 'premium'] },
 };
 const WHEEL_TOPUP_PACKAGE_CATALOG = {
@@ -143,7 +158,7 @@ function parseTonPromoCodeCatalog(rawValue = '') {
       const config = typeof rawConfig === 'number'
         ? { discountPercent: rawConfig }
         : rawConfig || {};
-      const discountPercent = Math.max(1, Math.min(90, Number(config.discountPercent || 0)));
+      const discountPercent = Math.max(1, Math.min(95, Number(config.discountPercent || 0)));
 
       if (!Number.isFinite(discountPercent) || discountPercent <= 0) {
         return accumulator;
@@ -157,6 +172,8 @@ function parseTonPromoCodeCatalog(rawValue = '') {
         code,
         discountPercent,
         planCodes: planCodes.length ? planCodes : ['basic', 'pro', 'premium'],
+        adminOnly: code === 'ENERGY' ? false : Boolean(config.adminOnly),
+        requiredStartParam: typeof config.requiredStartParam === 'string' ? config.requiredStartParam.trim().toLowerCase() : '',
       };
 
       return accumulator;
@@ -171,7 +188,7 @@ function parseTonPromoCodeCatalog(rawValue = '') {
 
 const TON_PROMO_CODE_CATALOG = parseTonPromoCodeCatalog(process.env.TON_PROMO_CODES || '');
 
-function getTonPromoOffer(planCode, promoCode) {
+function getTonPromoOffer(planCode, promoCode, membership = null, identity = null) {
   const normalizedPlanCode = normalizePlanCode(planCode);
   const normalizedPromoCode = normalizePromoCode(promoCode);
 
@@ -184,12 +201,20 @@ function getTonPromoOffer(planCode, promoCode) {
     return null;
   }
 
+  if (promoOffer.adminOnly && !membership?.isAdmin) {
+    return null;
+  }
+
+  if (promoOffer.requiredStartParam && promoOffer.requiredStartParam !== `${identity?.startParam || ''}`.trim().toLowerCase()) {
+    return null;
+  }
+
   return promoOffer.planCodes.includes(normalizedPlanCode) ? promoOffer : null;
 }
 
 function applyDiscountToNano(amountNano, discountPercent = 0) {
   const normalizedAmount = Number(amountNano || 0);
-  const normalizedDiscount = Math.max(0, Math.min(90, Number(discountPercent || 0)));
+  const normalizedDiscount = Math.max(0, Math.min(95, Number(discountPercent || 0)));
 
   if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0 || normalizedDiscount <= 0) {
     return normalizedAmount;
@@ -563,7 +588,9 @@ function validateTelegramInitData(initData, botToken) {
     }
   } catch {}
 
-  return { ok, userId, reason: ok ? null : 'hash_mismatch' };
+  const startParam = (urlParams.get('start_param') || '').trim().toLowerCase();
+
+  return { ok, userId, startParam, reason: ok ? null : 'hash_mismatch' };
 }
 
 function extractUserFromInitData(initData) {
@@ -583,7 +610,7 @@ async function resolveIdentity(initData) {
   // Local development fallback for empty initData
   if (!isProduction && !initData) {
     const fallbackUserId = bootstrapAdminIds[0] || 0;
-    return { ok: true, mode: 'dev', userId: fallbackUserId };
+    return { ok: true, mode: 'dev', userId: fallbackUserId, startParam: '' };
   }
 
   if (!botToken) {
@@ -594,7 +621,7 @@ async function resolveIdentity(initData) {
     const user = extractUserFromInitData(initData);
     const fallbackUserId = user?.id || bootstrapAdminIds[0] || 0;
 
-    return { ok: true, mode: 'dev', userId: fallbackUserId };
+    return { ok: true, mode: 'dev', userId: fallbackUserId, startParam: '' };
   }
 
   return {
@@ -1111,7 +1138,29 @@ app.post('/payments/ton/create', async (req, res) => {
     }
 
     const requestedPromoCode = normalizePromoCode(req.body?.promoCode);
-    const promoOffer = requestedPromoCode ? getTonPromoOffer(planCode, requestedPromoCode) : null;
+    let promoOffer = requestedPromoCode ? getTonPromoOffer(planCode, requestedPromoCode, access.membership, access.identity) : null;
+    // Fallback: check Admin Panel V2 store (admin-v2-data.json or Supabase promo_codes) for codes
+    // generated through the new browser admin panel.
+    if (requestedPromoCode && !promoOffer) {
+      try {
+        const baseUrl = `http://localhost:${PORT}`;
+        const r = await fetch(baseUrl + '/api/admin-v2/public/validate-promo', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: requestedPromoCode, planCode }),
+        });
+        if (r.ok) {
+          const j = await r.json();
+          if (j.valid) {
+            promoOffer = {
+              code: j.code,
+              discountPercent: j.discountPercent,
+              planCodes: j.planCodes || [planCode],
+            };
+          }
+        }
+      } catch (_) {}
+    }
     if (requestedPromoCode && !promoOffer) {
       return res.status(400).json({ error: 'Promo code is invalid or not available for this plan' });
     }
@@ -3275,6 +3324,16 @@ app.post('/payments/stars/webhook', async (req, res) => {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'webhook_error' });
   }
 });
+
+
+// Mount Admin Panel V2 (browser-based: /api/admin-v2/*)
+try {
+  const registerAdminV2 = require("./admin-v2");
+  registerAdminV2(app, { supabase, bootstrapAdminIds, writeAuditLog });
+  console.log("[admin-v2] routes mounted under /api/admin-v2/*");
+} catch (e) {
+  console.error("[admin-v2] Failed to mount:", e && e.message ? e.message : e);
+}
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

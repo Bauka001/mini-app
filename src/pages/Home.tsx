@@ -41,6 +41,7 @@ const gameButtons = [
 
 const vipGamePaths = new Set(['/game/schulte', '/game/stroop']);
 const VIP_TRIAL_LIMIT = 3;
+const DAILY_REWARD_MODAL_LAST_SHOWN_KEY = 'focus-daily-reward-modal-last-shown';
 
 const getStoredPlays = (key: string) => {
   try {
@@ -54,6 +55,22 @@ const getVipTrialsLeft = (path: string) => {
   if (path === '/game/schulte') return Math.max(0, VIP_TRIAL_LIMIT - getStoredPlays('schulte_free_plays_v2'));
   if (path === '/game/stroop') return Math.max(0, VIP_TRIAL_LIMIT - getStoredPlays('stroop_free_plays_v2'));
   return VIP_TRIAL_LIMIT;
+};
+
+const getDailyRewardModalLastShown = () => {
+  try {
+    return localStorage.getItem(DAILY_REWARD_MODAL_LAST_SHOWN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const setDailyRewardModalLastShown = (dayKey: string) => {
+  try {
+    localStorage.setItem(DAILY_REWARD_MODAL_LAST_SHOWN_KEY, dayKey);
+  } catch {
+    // Ignore storage failures and keep UX functional.
+  }
 };
 
 const Home = () => {
@@ -87,8 +104,11 @@ const Home = () => {
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
-    if (dailyRewardStreak?.lastClaimDate !== today) {
+    const wasShownToday = getDailyRewardModalLastShown() === today;
+
+    if (dailyRewardStreak?.lastClaimDate !== today && !wasShownToday) {
       const timer = setTimeout(() => {
+        setDailyRewardModalLastShown(today);
         setShowDailyReward(true);
       }, 1500);
       return () => clearTimeout(timer);

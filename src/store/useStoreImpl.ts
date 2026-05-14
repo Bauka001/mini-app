@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { getTelegramUser } from '../utils/telegram';
+import { getTelegramUser, hasTelegramStartParam } from '../utils/telegram';
 import { isSupabaseConfigured } from '../utils/supabase';
 import { telegramStorage } from './storage';
 import {
@@ -686,6 +686,10 @@ export const useStore = create<UserState>()(
         }
 
         if (normalizedCode === 'STARTUP') {
+          if (!hasTelegramStartParam('startup')) {
+            return { success: false, message: 'Promocode is available only from a special link' };
+          }
+
           set({
             coins: coins + 500,
             usedPromocodes: [...usedPromocodes, normalizedCode]

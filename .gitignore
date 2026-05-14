@@ -41,3 +41,6 @@ lerna-debug.log*
 
 .vercel
 .env*.local
+
+# Admin Panel V2 локалды деректер
+server/admin-v2-data.json

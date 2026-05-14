@@ -13,7 +13,6 @@ import {
   Grid,
   Grid2x2,
   Calculator,
-  RotateCcw,
   Sparkles,
   Target,
   Trophy,
@@ -31,7 +30,7 @@ type WorkoutGame = {
   id: string;
   routeId: string;
   titleKey: string;
-  description: string;
+  descriptionKey: string;
   icon: ElementType;
   accentClass: string;
   historyIds: string[];
@@ -73,7 +72,7 @@ const workoutGamesCatalog: WorkoutGame[] = [
     id: 'memory',
     routeId: 'memory',
     titleKey: 'game_memory',
-    description: 'Кыска мерзімді есте сақтауды қыздырады.',
+    descriptionKey: 'daily_workout_game_memory_desc',
     icon: Grid,
     accentClass: 'from-violet-500/20 to-fuchsia-500/20 border-violet-400/30',
     historyIds: ['memory']
@@ -82,7 +81,7 @@ const workoutGamesCatalog: WorkoutGame[] = [
     id: 'schulte',
     routeId: 'schulte',
     titleKey: 'game_schulte',
-    description: 'Фокус пен коз қозғалысын жылдамдатады.',
+    descriptionKey: 'daily_workout_game_schulte_desc',
     icon: Brain,
     accentClass: 'from-blue-500/20 to-cyan-500/20 border-blue-400/30',
     historyIds: ['schulte'],
@@ -92,7 +91,7 @@ const workoutGamesCatalog: WorkoutGame[] = [
     id: 'math',
     routeId: 'math',
     titleKey: 'game_math',
-    description: 'Логика мен есептеу қарқынын тексереді.',
+    descriptionKey: 'daily_workout_game_math_desc',
     icon: Calculator,
     accentClass: 'from-emerald-500/20 to-lime-500/20 border-emerald-400/30',
     historyIds: ['math']
@@ -101,7 +100,7 @@ const workoutGamesCatalog: WorkoutGame[] = [
     id: 'pairs',
     routeId: 'pairs',
     titleKey: 'game_pairs',
-    description: 'Жады мен назарды жұптастырады.',
+    descriptionKey: 'daily_workout_game_pairs_desc',
     icon: Copy,
     accentClass: 'from-pink-500/20 to-rose-500/20 border-pink-400/30',
     historyIds: ['pairs']
@@ -110,7 +109,7 @@ const workoutGamesCatalog: WorkoutGame[] = [
     id: 'odd-one',
     routeId: 'odd-one',
     titleKey: 'game_odd_one',
-    description: 'Көзге түспейтін айырмашылықты табыңыз.',
+    descriptionKey: 'daily_workout_game_odd_one_desc',
     icon: Eye,
     accentClass: 'from-orange-500/20 to-amber-500/20 border-orange-400/30',
     historyIds: ['odd_one_out']
@@ -119,7 +118,7 @@ const workoutGamesCatalog: WorkoutGame[] = [
     id: 'stroop',
     routeId: 'stroop',
     titleKey: 'game_stroop',
-    description: 'Икемділік пен реакцияны сынайды.',
+    descriptionKey: 'daily_workout_game_stroop_desc',
     icon: Type,
     accentClass: 'from-red-500/20 to-rose-500/20 border-red-400/30',
     historyIds: ['stroop'],
@@ -129,7 +128,7 @@ const workoutGamesCatalog: WorkoutGame[] = [
     id: '2048',
     routeId: '2048',
     titleKey: 'game_2048',
-    description: 'Стратегия мен логиканы бір сессияға жинайды.',
+    descriptionKey: 'daily_workout_game_2048_desc',
     icon: Grid2x2,
     accentClass: 'from-yellow-500/20 to-orange-500/20 border-yellow-400/30',
     historyIds: ['2048']
@@ -258,11 +257,6 @@ export default function DailyWorkoutPage() {
     return new Date(`${session.date}T00:00:00`).toLocaleDateString();
   }, [session]);
 
-  const handleRefreshWorkout = () => {
-    hapticFeedback.impact('medium');
-    setSession(getDailyWorkoutSession(true));
-  };
-
   const handleOpenGame = (routeId: string) => {
     hapticFeedback.click();
     navigate(`/game/${routeId}`);
@@ -287,16 +281,13 @@ export default function DailyWorkoutPage() {
         </button>
 
         <div className="text-center">
-          <h1 className={clsx("text-lg font-black", textPrimary)}>Daily Workout</h1>
-          <p className={clsx("text-sm", textSecondary)}>3 random games. 1 daily result.</p>
+          <h1 className={clsx("text-lg font-black", textPrimary)}>{t('daily_workout')}</h1>
+          <p className={clsx("text-sm", textSecondary)}>{t('daily_workout_page_header_subtitle')}</p>
         </div>
 
-        <button
-          onClick={handleRefreshWorkout}
-          className={clsx("p-2 min-h-[44px] min-w-[44px] rounded-full transition-colors", styles.cardClass)}
-        >
-          <RotateCcw size={18} className={styles.textAccent} />
-        </button>
+        <div className={clsx("px-3 py-2 rounded-2xl text-[11px] font-black uppercase tracking-[0.14em]", styles.cardClass, textSecondary)}>
+          {t('daily_workout_page_once_daily')}
+        </div>
       </header>
 
       <main className="px-4 pt-5 space-y-4">
@@ -308,11 +299,11 @@ export default function DailyWorkoutPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="max-w-[76%]">
               <div className={clsx("text-xs uppercase tracking-[0.22em] font-semibold", textSecondary)}>
-                Today&apos;s Session
+                {t('daily_workout_page_session_label')}
               </div>
-              <h2 className={clsx("text-2xl font-black mt-2", textPrimary)}>Daily Workout</h2>
+              <h2 className={clsx("text-2xl font-black mt-2", textPrimary)}>{t('daily_workout')}</h2>
               <p className={clsx("text-sm mt-2 leading-relaxed", textSecondary)}>
-                Бугінгі 3 ойынды аяктап, біріккен Daily Brain Score жинаңыз.
+                {t('daily_workout_page_intro')}
               </p>
             </div>
             <div className={clsx(
@@ -325,22 +316,22 @@ export default function DailyWorkoutPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
             <div className={clsx("p-3 rounded-2xl", styles.cardClass)}>
-              <div className={clsx("text-xs font-medium", textSecondary)}>Selected</div>
+              <div className={clsx("text-xs font-medium", textSecondary)}>{t('daily_workout_page_selected')}</div>
               <div className={clsx("text-xl font-black mt-1", textPrimary)}>{selectedGames.length}</div>
             </div>
             <div className={clsx("p-3 rounded-2xl", styles.cardClass)}>
-              <div className={clsx("text-xs font-medium", textSecondary)}>Completed</div>
+              <div className={clsx("text-xs font-medium", textSecondary)}>{t('daily_workout_page_completed')}</div>
               <div className={clsx("text-xl font-black mt-1", textPrimary)}>{completedCount}/3</div>
             </div>
             <div className={clsx("p-3 rounded-2xl", styles.cardClass)}>
-              <div className={clsx("text-xs font-medium", textSecondary)}>Date</div>
+              <div className={clsx("text-xs font-medium", textSecondary)}>{t('daily_workout_page_date')}</div>
               <div className={clsx("text-sm font-bold mt-2", textPrimary)}>{sessionDateLabel}</div>
             </div>
           </div>
 
           <div className="mt-5">
             <div className="flex items-center justify-between mb-2">
-              <span className={clsx("text-sm font-medium", textSecondary)}>Workout Progress</span>
+              <span className={clsx("text-sm font-medium", textSecondary)}>{t('daily_workout_page_progress')}</span>
               <span className={clsx("text-sm font-bold", textPrimary)}>{Math.round(progressPercent)}%</span>
             </div>
             <div className={clsx("h-3 rounded-full overflow-hidden", styles.cardClass)}>
@@ -362,9 +353,9 @@ export default function DailyWorkoutPage() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className={clsx("text-xs uppercase tracking-[0.22em] font-semibold", textSecondary)}>
-                Final Result
+                {t('daily_workout_page_final_result')}
               </div>
-              <h2 className={clsx("text-xl font-black mt-2", textPrimary)}>Daily Brain Score</h2>
+              <h2 className={clsx("text-xl font-black mt-2", textPrimary)}>{t('daily_workout_page_score_title')}</h2>
             </div>
             <div className={clsx("w-12 h-12 rounded-2xl flex items-center justify-center", styles.cardClass)}>
               <Trophy size={22} className={styles.textAccent} />
@@ -376,12 +367,14 @@ export default function DailyWorkoutPage() {
               <div className={clsx("text-4xl font-black", textPrimary)}>{totalBrainScore}</div>
               <p className={clsx("text-sm mt-1", textSecondary)}>
                 {isCompleted
-                  ? 'Workout аякталды, кундік нәтиже есептелді.'
-                  : 'Ұпай барлық 3 ойын біткенде толық жиналады.'}
+                  ? t('daily_workout_page_complete_desc')
+                  : t('daily_workout_page_incomplete_desc')}
               </p>
             </div>
             <div className={clsx("px-3 py-2 rounded-2xl text-sm font-semibold", styles.cardClass)}>
-              {isCompleted ? 'Completed' : `${3 - completedCount} left`}
+              {isCompleted
+                ? t('daily_workout_page_completed_state')
+                : t('daily_workout_page_left_state', { count: 3 - completedCount })}
             </div>
           </div>
         </motion.section>
@@ -389,9 +382,9 @@ export default function DailyWorkoutPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <div>
-              <h2 className={clsx("text-lg font-bold", textPrimary)}>Today&apos;s Games</h2>
+              <h2 className={clsx("text-lg font-bold", textPrimary)}>{t('daily_workout_page_games_title')}</h2>
               <p className={clsx("text-sm mt-1", textSecondary)}>
-                Әр карточка бір workout қадамын білдіреді.
+                {t('daily_workout_page_games_desc')}
               </p>
             </div>
             <div className={clsx("flex items-center gap-2 text-sm", textSecondary)}>
@@ -426,7 +419,7 @@ export default function DailyWorkoutPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <div className={clsx("text-xs font-semibold uppercase tracking-[0.18em]", textSecondary)}>
-                          Game {index + 1}
+                          {t('daily_workout_page_game_label', { index: index + 1 })}
                         </div>
                         {item.game.isVip ? (
                           <div className="inline-flex items-center gap-1 rounded-full border border-amber-300/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-300">
@@ -437,11 +430,13 @@ export default function DailyWorkoutPage() {
                       </div>
                       <h3 className={clsx("text-base sm:text-lg font-bold mt-1 break-words", textPrimary)}>{t(item.game.titleKey)}</h3>
                       <p className={clsx("text-sm mt-1 leading-relaxed", textSecondary)}>
-                        {item.game.description}
+                        {t(item.game.descriptionKey)}
                       </p>
                       {item.game.isVip ? (
                         <p className={clsx("text-xs mt-2 font-semibold", textSecondary)}>
-                          {isUnlimitedVipGame ? 'VIP: Шексіз қолжетімді' : `Пробный: ${trialsLeft}/${VIP_TRIAL_LIMIT}`}
+                          {isUnlimitedVipGame
+                            ? t('daily_workout_page_vip_unlimited')
+                            : t('daily_workout_page_vip_trial', { count: trialsLeft, total: VIP_TRIAL_LIMIT })}
                         </p>
                       ) : null}
                     </div>
@@ -452,19 +447,19 @@ export default function DailyWorkoutPage() {
                     isDone ? "bg-emerald-500/15 text-emerald-400" : "bg-white/5 text-slate-400"
                   )}>
                     {isDone ? <CheckCircle2 size={14} /> : <Target size={14} />}
-                    <span>{isDone ? 'Done' : 'Pending'}</span>
+                    <span>{isDone ? t('daily_workout_page_done') : t('daily_workout_page_pending')}</span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
                   <div className={clsx("p-3 rounded-2xl", styles.cardClass)}>
-                    <div className={clsx("text-xs font-medium", textSecondary)}>Result</div>
+                    <div className={clsx("text-xs font-medium", textSecondary)}>{t('daily_workout_page_result')}</div>
                     <div className={clsx("text-base font-bold mt-2", textPrimary)}>
-                      {item.result ? String(item.result.score) : 'Not played yet'}
+                      {item.result ? String(item.result.score) : t('daily_workout_page_not_played')}
                     </div>
                   </div>
                   <div className={clsx("p-3 rounded-2xl", styles.cardClass)}>
-                    <div className={clsx("text-xs font-medium", textSecondary)}>Brain Points</div>
+                    <div className={clsx("text-xs font-medium", textSecondary)}>{t('daily_workout_page_brain_points')}</div>
                     <div className={clsx("text-base font-bold mt-2", textPrimary)}>
                       {item.result ? item.brainScore : 0}
                     </div>
@@ -478,7 +473,7 @@ export default function DailyWorkoutPage() {
                     isDone ? styles.btnSecondary : styles.btnPrimary
                   )}
                 >
-                  <span>{isDone ? 'Қайта ойнау' : 'Ойынды бастау'}</span>
+                  <span>{isDone ? t('daily_workout_page_replay') : t('daily_workout_page_start_game')}</span>
                   <ChevronRight size={18} />
                 </button>
               </motion.div>
@@ -492,10 +487,9 @@ export default function DailyWorkoutPage() {
               <Sparkles size={20} className={styles.textAccent} />
             </div>
             <div>
-              <h3 className={clsx("text-base font-bold", textPrimary)}>Қалай аяқталады</h3>
+              <h3 className={clsx("text-base font-bold", textPrimary)}>{t('daily_workout_page_finish_title')}</h3>
               <p className={clsx("text-sm mt-1 leading-relaxed", textSecondary)}>
-                Әр ойын біткен соң осы бетке қайта кіріп отырыңыз. Уш ойын толык жабылғанда
-                `Daily Brain Score` автоматты түрде жаңарады.
+                {t('daily_workout_page_finish_desc')}
               </p>
             </div>
           </div>

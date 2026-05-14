@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Check, CheckCircle, Crown, Coins, Layout, FileText, X, BarChart3, Medal, Sparkles, Car, Gift, Gem, Zap, Ticket as TicketIcon } from 'lucide-react';
@@ -11,6 +11,7 @@ import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
 import { TermsModal } from '../components/TermsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { createTonPaymentIntent, getPaymentStatus, TonPlanCode } from '../utils/paymentApi';
+import { hasTelegramStartParam, isTelegramWebApp } from '../utils/telegram';
 import { CASE_LIST } from '../store/cases';
 import { CaseList } from '../components/shop/CaseList';
 import { CaseOpeningModal } from '../components/shop/CaseOpeningModal';
@@ -42,11 +43,13 @@ const PaymentModal = ({
   const [promoInput, setPromoInput] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<PaymentPromoDefinition | null>(null);
   const [promoFeedback, setPromoFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const discountedPriceKzt = appliedPromo
     ? Math.max(0, Math.round(basePriceKzt * ((100 - appliedPromo.discountPercent) / 100)))
     : basePriceKzt;
   const displayedPrice = formatKztPrice(discountedPriceKzt);
+  const hasStartupLinkAccess = hasTelegramStartParam(STARTUP_PROMO_START_PARAM);
 
   useEffect(() => {
     if (!isOpen) {
@@ -58,6 +61,8 @@ const PaymentModal = ({
       setPromoInput('');
       setAppliedPromo(null);
       setPromoFeedback(null);
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
     }
   }, [isOpen]);
 
@@ -141,7 +146,63 @@ const PaymentModal = ({
 
   if (!isOpen) return null;
 
-  const handleApplyPromo = () => {
+  const setPromoApplied = (promo: PaymentPromoDefinition, successMessage?: string) => {
+    setPromoInput(promo.code);
+    setAppliedPromo(promo);
+    setPromoFeedback({
+      type: 'success',
+      message: successMessage || t('shop_promo_applied', '{{code}} промокоды қолданылды. -{{percent}}%', {
+        code: promo.code,
+        percent: promo.discountPercent,
+      }),
+    });
+  };
+
+  const validatePromoCodeOnBackend = async (
+    code: string,
+    planCode: TonPlanCode,
+    signal?: AbortSignal
+  ): Promise<{ valid: boolean; promo?: PaymentPromoDefinition; reason?: string }> => {
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiBase}/api/admin-v2/public/validate-promo`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, planCode }),
+        signal,
+      });
+
+      if (!res.ok) {
+        return { valid: false, reason: 'network_error' };
+      }
+
+      const data = await res.json();
+
+      if (!data.ok || !data.valid) {
+        return {
+          valid: false,
+          reason: data.reason || 'invalid',
+        };
+      }
+
+      return {
+        valid: true,
+        promo: {
+          code: data.code,
+          discountPercent: data.discountPercent,
+          applicablePlans: data.planCodes || [planCode],
+        },
+      };
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return { valid: false, reason: 'aborted' };
+      }
+      console.error('Failed to validate promo code on backend:', error);
+      return { valid: false, reason: 'network_error' };
+    }
+  };
+
+  const handleApplyPromo = async () => {
     const normalizedCode = normalizePromoCode(promoInput);
 
     if (!normalizedCode) {
@@ -153,25 +214,102 @@ const PaymentModal = ({
       return;
     }
 
-    const promo = PAYMENT_PROMO_CODES[normalizedCode];
-    if (!promo || !promo.applicablePlans.includes(planCode)) {
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const result = await validatePromoCodeOnBackend(normalizedCode, planCode, abortControllerRef.current.signal);
+
+      if (result.valid && result.promo) {
+        if (!result.promo.applicablePlans.includes(planCode)) {
+          setAppliedPromo(null);
+          setPromoFeedback({
+            type: 'error',
+            message: t('shop_promo_invalid', 'Промокод жарамсыз немесе бұл пакетке қолданылмайды.'),
+          });
+          return;
+        }
+
+        setPromoApplied(result.promo);
+        return;
+      }
+
+      if (result.reason === 'expired') {
+        setAppliedPromo(null);
+        setPromoFeedback({
+          type: 'error',
+          message: t('shop_promo_expired', 'Промокодтың мерзімі аяқталды.'),
+        });
+        return;
+      }
+
+      if (result.reason === 'not_found' || result.reason === 'invalid') {
+        const localPromo = PAYMENT_PROMO_CODES[normalizedCode];
+        if (localPromo && localPromo.applicablePlans.includes(planCode)) {
+          if (localPromo.requiredStartParam && !hasTelegramStartParam(localPromo.requiredStartParam)) {
+            setAppliedPromo(null);
+            setPromoFeedback({
+              type: 'error',
+              message: t('shop_promo_link_only', 'Бұл промокод тек арнайы сілтеме арқылы кіргенде ғана жұмыс істейді.'),
+            });
+            return;
+          }
+
+          setPromoApplied(localPromo);
+          return;
+        }
+
+        setAppliedPromo(null);
+        setPromoFeedback({
+          type: 'error',
+          message: t('shop_promo_invalid', 'Промокод жарамсыз немесе бұл пакетке қолданылмайды.'),
+        });
+        return;
+      }
+
       setAppliedPromo(null);
       setPromoFeedback({
         type: 'error',
         message: t('shop_promo_invalid', 'Промокод жарамсыз немесе бұл пакетке қолданылмайды.'),
       });
+    } catch (error) {
+      console.error('Error applying promo code:', error);
+      setAppliedPromo(null);
+      setPromoFeedback({
+        type: 'error',
+        message: t('shop_promo_invalid', 'Промокод жарамсыз немесе бұл пакетке қолданылмайды.'),
+      });
+    }
+  };
+
+  const handleGetPromoCode = () => {
+    const promo = PAYMENT_PROMO_CODES.STARTUP;
+    setPromoInput(promo.code);
+
+    if (isTelegramWebApp()) {
+      WebApp.openLink(INSTAGRAM_PROMO_URL);
+    } else {
+      window.location.assign(INSTAGRAM_PROMO_URL);
+    }
+
+    if (!hasStartupLinkAccess) {
+      setAppliedPromo(null);
+      setPromoFeedback({
+        type: 'success',
+        message: t('shop_promo_get_code_visible', 'Instagram ашылды. Промокод көрсетілді: {{code}}', {
+          code: promo.code,
+        }),
+      });
       return;
     }
 
-    setPromoInput(normalizedCode);
-    setAppliedPromo(promo);
-    setPromoFeedback({
-      type: 'success',
-      message: t('shop_promo_applied', '{{code}} промокоды қолданылды. -{{percent}}%', {
+    setPromoApplied(
+      promo,
+      t('shop_promo_get_success', 'Instagram ашылды. Арнайы сілтеме расталды, {{code}} промокоды қолданылды. -{{percent}}%', {
         code: promo.code,
         percent: promo.discountPercent,
-      }),
-    });
+      })
+    );
   };
 
   const handlePayNow = async () => {
@@ -252,22 +390,38 @@ const PaymentModal = ({
 
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
             <div className="mb-3 text-sm font-semibold text-black">{t('promo_code', 'Promo Code')}</div>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
               <input
                 type="text"
                 value={promoInput}
                 onChange={(event) => setPromoInput(event.target.value)}
                 placeholder={t('enter_code', 'Enter Code')}
                 autoCapitalize="characters"
-                className="min-h-[44px] flex-1 rounded-2xl border border-gray-300 bg-white px-4 text-sm font-semibold uppercase text-black outline-none transition-colors focus:border-emerald-500"
+                className="min-h-[44px] w-full rounded-2xl border border-gray-300 bg-white px-4 text-sm font-semibold uppercase text-black outline-none transition-colors focus:border-emerald-500"
               />
               <button
                 type="button"
                 onClick={handleApplyPromo}
                 disabled={isSubmitting || Boolean(pendingPaymentId)}
-                className="min-h-[44px] rounded-2xl bg-black px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
+                className="min-h-[44px] w-full rounded-2xl bg-black px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:bg-gray-300"
               >
                 {t('apply', 'Apply')}
+              </button>
+            </div>
+            <div className="mt-3 rounded-2xl border border-pink-200 bg-pink-50 p-3">
+              <div className="text-sm font-semibold text-black">{t('shop_promo_get_title', 'Промокод алу')}</div>
+              <div className="mt-1 text-xs text-gray-600">
+                {hasStartupLinkAccess
+                  ? t('shop_promo_get_description_active', 'Арнайы сілтемемен кірдіңіз. Енді STARTUP промокодын қолдана аласыз.')
+                  : t('shop_promo_get_description', 'Промокод тек арнайы сілтеме арқылы ашылғанда ғана беріледі.')}
+              </div>
+              <button
+                type="button"
+                onClick={handleGetPromoCode}
+                disabled={isSubmitting || Boolean(pendingPaymentId)}
+                className="mt-3 min-h-[44px] w-full rounded-2xl bg-pink-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:bg-pink-300"
+              >
+                {t('shop_promo_get_button', 'Промокод алу')}
               </button>
             </div>
             {promoFeedback ? (
@@ -282,9 +436,13 @@ const PaymentModal = ({
                 {promoFeedback.message}
               </div>
             ) : (
-              <div className="mt-3 text-xs text-gray-500">
-                {t('shop_promo_hint', 'Қолжетімді код: FOCUS10')}
-              </div>
+              <>
+                <div className="mt-3 text-xs text-gray-500">
+                  {hasStartupLinkAccess
+                    ? t('shop_promo_hint_active', 'Арнайы сілтеме белсенді. Промокод: STARTUP')
+                    : t('shop_promo_hint', 'Промокод тек арнайы сілтеме арқылы іске қосылады')}
+                </div>
+              </>
             )}
           </div>
 
@@ -505,6 +663,8 @@ type PaymentPromoDefinition = {
   code: string;
   discountPercent: number;
   applicablePlans: TonPlanCode[];
+  adminOnly?: boolean;
+  requiredStartParam?: string;
 };
 
 const formatKztPrice = (amount: number) =>
@@ -518,7 +678,20 @@ const PREMIUM_PRICE_KZT = 9990;
 const BASIC_PRICE = formatKztPrice(BASIC_PRICE_KZT);
 const PRO_PRICE = formatKztPrice(PRO_PRICE_KZT);
 const PREMIUM_PRICE = formatKztPrice(PREMIUM_PRICE_KZT);
+const INSTAGRAM_PROMO_URL = 'https://www.instagram.com/focus_game_clube?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==';
+const STARTUP_PROMO_START_PARAM = 'startup';
 const PAYMENT_PROMO_CODES: Record<string, PaymentPromoDefinition> = {
+  STARTUP: {
+    code: 'STARTUP',
+    discountPercent: 10,
+    applicablePlans: ['basic', 'pro', 'premium'],
+    requiredStartParam: STARTUP_PROMO_START_PARAM,
+  },
+  ENERGY: {
+    code: 'ENERGY',
+    discountPercent: 85,
+    applicablePlans: ['basic', 'pro', 'premium'],
+  },
   FOCUS10: {
     code: 'FOCUS10',
     discountPercent: 10,
@@ -1487,7 +1660,7 @@ const ShopPage = () => {
       alert(t('not_enough_coins'));
     }
   };
-
+ 
   const handleEquipSkin = (id: string) => {
     equipSkin(id);
     WebApp.HapticFeedback.selectionChanged();
@@ -1598,7 +1771,6 @@ const ShopPage = () => {
             premiumCases={premiumGiftMysteryBoxes}
             isOpening={Boolean(openedCaseReward)}
             caseErrorMessage={caseErrorMessage}
-            onOpenCase={handleOpenCase}
           />
           <CaseList
             cases={CASE_LIST}
@@ -1646,7 +1818,6 @@ const ShopInventorySection = ({
   premiumCases,
   isOpening,
   caseErrorMessage,
-  onOpenCase,
 }: {
   styles: ReturnType<typeof useThemeStyles>;
   tickets: Ticket[];
@@ -1654,7 +1825,6 @@ const ShopInventorySection = ({
   premiumCases: number;
   isOpening: boolean;
   caseErrorMessage: string | null;
-  onOpenCase: (caseId: CaseId) => void;
 }) => {
   const { t } = useTranslation();
   const totalCases = starterCases + premiumCases;
@@ -1690,35 +1860,6 @@ const ShopInventorySection = ({
             {caseErrorMessage}
           </div>
         ) : null}
-      </div>
-
-      <div className="space-y-3">
-        {CASE_LIST.map((caseDefinition) => (
-          <div
-            key={caseDefinition.id}
-            className={clsx("rounded-[24px] border p-4", styles.cardClass)}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="h-16 w-16 rounded-2xl bg-black/5 p-2 dark:bg-white/5">
-                  <CaseIcon caseId={caseDefinition.id} className="h-full w-full" />
-                </div>
-                <div>
-                  <div className={clsx("text-sm font-black", styles.textPrimary)}>{t(caseDefinition.titleKey)}</div>
-                  <div className={clsx("mt-1 text-xs", styles.textSecondary)}>{t(caseDefinition.descriptionKey)}</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => onOpenCase(caseDefinition.id)}
-                disabled={isOpening}
-                className={clsx("rounded-2xl px-4 py-2 text-xs font-black", isOpening ? "bg-white/10 text-white/50" : styles.btnSecondary)}
-              >
-                {isOpening ? t('shop_case_opening_cta') : t('shop_case_open_cta')}
-              </button>
-            </div>
-          </div>
-        ))}
       </div>
 
       <div className={clsx("rounded-[28px] border p-5", styles.cardClass)}>

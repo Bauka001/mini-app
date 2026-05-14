@@ -250,7 +250,29 @@ export const subscribeToSupabaseChanges = (telegramId: number, setState: StoreSe
   });
 };
 
+/** Fetches admin-managed promotion end date from server (Admin Panel V2 bridge). */
+export const fetchAdminPromotionEnd = async (): Promise<string | null> => {
+  const apiBase = (import.meta as { env?: { VITE_API_URL?: string } }).env?.VITE_API_URL || '';
+  try {
+    const res = await fetch(`${apiBase}/api/admin-v2/public/promotion`, { method: 'GET' });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { ok?: boolean; promotionEndIso?: string };
+    if (data?.ok && typeof data.promotionEndIso === 'string') {
+      return data.promotionEndIso;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 export const loadUserFromSupabase = async (telegramId: number, setState: StoreSetState) => {
+  // Always try to fetch admin-managed promotion end first — works without Supabase too.
+  const adminPromotionEnd = await fetchAdminPromotionEnd();
+  if (adminPromotionEnd) {
+    setState((state) => ({ ...state, promotionEndISO: adminPromotionEnd }));
+  }
+
   if (!isSupabaseConfigured) return;
 
   try {
@@ -263,6 +285,8 @@ export const loadUserFromSupabase = async (telegramId: number, setState: StoreSe
           ...state.user,
           ...mapped.user,
         },
+        // Admin-managed promotion end always wins over user-level one
+        promotionEndISO: adminPromotionEnd || mapped.promotionEndISO,
         dailyRewardStreak: {
           count: mapped.dailyRewardStreak.count,
           lastClaimDate: mapped.dailyRewardStreak.lastClaimDate,
@@ -345,7 +369,6 @@ export const shouldShowFirstWorkoutNotification = (userId: number, gameId: strin
   if (!session) return false;
 
   const firstSessionGameId = session.gameIds[0];
-  const firstGameHistoryIds = WORKOUT_HISTORY_IDS_BY_SESSION_ID[firstSessionGameId] || [];
   if (!firstGameHistoryIds.includes(gameId) || playedAt < session.startedAt) {
     return false;
   }

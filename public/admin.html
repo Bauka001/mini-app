@@ -1,0 +1,1085 @@
+<!doctype html>
+<html lang="kk">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Focus · Admin Panel</title>
+<style>
+  :root {
+    --bg-0:#0b1020;
+    --bg-1:#111634;
+    --bg-2:#1a2148;
+    --bg-3:#222a5e;
+    --line:#2a3370;
+    --text:#e7ecff;
+    --muted:#9aa6d6;
+    --brand:#7c5cff;
+    --brand-2:#22d3ee;
+    --ok:#22c55e;
+    --warn:#f59e0b;
+    --danger:#ef4444;
+    --shadow:0 14px 40px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html,body { height:100%; }
+  body {
+    margin:0; font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(1100px 700px at 90% -10%, rgba(124,92,255,.25), transparent 55%),
+      radial-gradient(900px 600px at -10% 110%, rgba(34,211,238,.18), transparent 55%),
+      linear-gradient(180deg, var(--bg-0) 0%, #060914 100%);
+    min-height:100vh;
+  }
+  a { color: var(--brand-2); text-decoration: none; }
+  button { font: inherit; cursor: pointer; }
+  input, select, textarea {
+    font: inherit; color: var(--text); background: rgba(255,255,255,.04);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+    outline: none; width: 100%;
+  }
+  input::placeholder, textarea::placeholder { color: #6f7bb1; }
+  input:focus, select:focus, textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(124,92,255,.18); }
+  .btn {
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    border:1px solid transparent; border-radius:10px; padding:10px 14px; font-weight:600;
+    background:linear-gradient(180deg, var(--brand), #5a3df0); color:#fff;
+    transition: transform .06s ease, box-shadow .2s ease, opacity .2s ease;
+  }
+  .btn:hover { box-shadow: 0 6px 18px rgba(124,92,255,.35); }
+  .btn:active { transform: translateY(1px); }
+  .btn[disabled] { opacity:.5; cursor:not-allowed; }
+  .btn.ghost  { background: rgba(255,255,255,.04); border:1px solid var(--line); color:var(--text); }
+  .btn.danger { background: linear-gradient(180deg, #ef4444, #b91c1c); }
+  .btn.ok     { background: linear-gradient(180deg, #22c55e, #15803d); }
+  .btn.sm     { padding:6px 10px; font-size:12px; border-radius:8px; }
+
+  /* Login */
+  .auth-wrap { min-height:100vh; display:grid; place-items:center; padding:24px; }
+  .auth-card {
+    width:100%; max-width:420px; background: rgba(17,22,52,.85);
+    border:1px solid var(--line); border-radius:18px; padding:28px; box-shadow: var(--shadow);
+    backdrop-filter: blur(8px);
+  }
+  .auth-logo {
+    width:54px; height:54px; border-radius:14px;
+    background: linear-gradient(135deg, var(--brand), var(--brand-2));
+    display:grid; place-items:center; font-weight:800; font-size:22px; color:#fff;
+    box-shadow: 0 8px 30px rgba(124,92,255,.45);
+  }
+  .auth-title { font-size:22px; font-weight:800; margin:14px 0 4px; }
+  .auth-sub   { color: var(--muted); margin-bottom: 22px; font-size:13px; }
+  .field { margin-bottom: 12px; }
+  .field label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .auth-error { background: rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.4); color:#fecaca; padding:10px 12px; border-radius:10px; margin-bottom:12px; font-size:13px; }
+
+  /* App layout */
+  .app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+  .sidebar {
+    background: rgba(11,16,32,.7); border-right:1px solid var(--line);
+    padding:18px 14px; display:flex; flex-direction:column; gap:6px;
+    position: sticky; top:0; height:100vh;
+  }
+  .brand { display:flex; align-items:center; gap:10px; padding:8px 10px 18px; }
+  .brand-mark { width:34px; height:34px; border-radius:10px; background: linear-gradient(135deg, var(--brand), var(--brand-2)); display:grid; place-items:center; font-weight:800; color:#fff; }
+  .brand-name { font-weight:800; letter-spacing:.2px; }
+  .nav-item {
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px;
+    color: var(--muted); cursor:pointer; border:1px solid transparent;
+  }
+  .nav-item:hover { background: rgba(255,255,255,.03); color:var(--text); }
+  .nav-item.active { background: rgba(124,92,255,.12); color:#fff; border-color: rgba(124,92,255,.35); }
+  .nav-icon { width:18px; text-align:center; }
+  .sidebar-foot { margin-top:auto; padding:10px 6px; color:var(--muted); font-size:12px; }
+  .me-row { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; background: rgba(255,255,255,.03); margin-bottom:8px; }
+  .me-avatar { width:28px; height:28px; border-radius:50%; background: linear-gradient(135deg, var(--brand), var(--brand-2)); display:grid; place-items:center; font-size:12px; font-weight:700; }
+
+  /* Main */
+  .main { padding:28px 32px; }
+  .page-head { display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:20px; }
+  .page-title { font-size:22px; font-weight:800; }
+  .page-sub   { color:var(--muted); font-size:13px; }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+
+  /* Cards */
+  .card { background: rgba(17,22,52,.7); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  .grid { display:grid; gap:14px; }
+  .grid-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+  .grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  @media (max-width: 1080px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } .grid-3 { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 720px)  {
+    .app { grid-template-columns: 1fr; } .sidebar { position:relative; height:auto; }
+    .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+    .main { padding:18px; }
+  }
+
+  .stat .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+  .stat .value { font-size:28px; font-weight:800; margin-top:6px; }
+  .stat .delta { font-size:12px; color:var(--muted); margin-top:4px; }
+
+  /* Table */
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06); font-size:13px; }
+  th { color:var(--muted); font-weight:600; text-transform:uppercase; font-size:11px; letter-spacing:.6px; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:999px; font-size:11px; font-weight:700; }
+  .pill.ok { background: rgba(34,197,94,.15); color:#86efac; }
+  .pill.off { background: rgba(239,68,68,.15); color:#fecaca; }
+  .pill.warn { background: rgba(245,158,11,.15); color:#fde68a; }
+  .code-cell { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight:800; letter-spacing:.5px; }
+
+  /* Modal */
+  .modal-back { position: fixed; inset:0; background: rgba(2,5,16,.7); display:none; align-items:center; justify-content:center; padding:18px; z-index:50; }
+  .modal-back.open { display:flex; }
+  .modal { width:100%; max-width:520px; background: var(--bg-1); border:1px solid var(--line); border-radius:14px; padding:22px; box-shadow:var(--shadow); }
+  .modal h3 { margin:0 0 14px; font-size:18px; }
+  .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:18px; }
+
+  .toast-wrap { position:fixed; right:18px; top:18px; display:flex; flex-direction:column; gap:8px; z-index:80; }
+  .toast { padding:10px 14px; border-radius:10px; background:#13183a; border:1px solid var(--line); box-shadow: var(--shadow); font-size:13px; min-width:240px; }
+  .toast.ok    { border-color: rgba(34,197,94,.4); }
+  .toast.err   { border-color: rgba(239,68,68,.5); }
+
+  .empty { padding:40px; text-align:center; color: var(--muted); }
+  .skeleton { display:block; height:14px; border-radius:6px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(255,255,255,.10), rgba(255,255,255,.04)); background-size: 200% 100%; animation: sk 1.4s linear infinite; }
+  @keyframes sk { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+  .copy-btn { background: rgba(255,255,255,.06); border:1px solid var(--line); color: var(--text); padding:4px 8px; border-radius:6px; font-size:11px; cursor:pointer; }
+  .copy-btn:hover { border-color: var(--brand); }
+
+  .info-list { display:grid; gap:10px; }
+  .info-row { display:flex; justify-content:space-between; gap:10px; padding:10px 12px; background: rgba(255,255,255,.03); border-radius:10px; }
+  .info-row .k { color: var(--muted); }
+  .info-row .v { font-weight:600; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+/* ============================================================
+   Focus Admin Panel V2 (browser-based)
+   Single-file vanilla JS app — works against /api/admin-v2/*
+   ============================================================ */
+
+const API_BASE = (() => {
+  // If served from the same backend, use relative paths
+  // If opened as a local file, allow ?api=... to override
+  const params = new URLSearchParams(location.search);
+  const fromQuery = params.get('api');
+  if (fromQuery) {
+    localStorage.setItem('adminV2:apiBase', fromQuery.replace(/\/$/, ''));
+    history.replaceState({}, '', location.pathname);
+  }
+  const stored = localStorage.getItem('adminV2:apiBase');
+  if (stored) return stored;
+  return ''; // same origin
+})();
+
+const TOKEN_KEY = 'adminV2:token';
+
+const state = {
+  token: localStorage.getItem(TOKEN_KEY) || '',
+  me: null,
+  route: 'dashboard',
+  loading: false,
+};
+
+/* ---------- helpers ---------- */
+function el(tag, attrs = {}, children = []) {
+  const node = document.createElement(tag);
+  Object.entries(attrs || {}).forEach(([k, v]) => {
+    if (v == null || v === false) return;
+    if (k === 'class') node.className = v;
+    else if (k === 'html') node.innerHTML = v;
+    else if (k === 'text') node.textContent = v;
+    else if (k.startsWith('on') && typeof v === 'function') node.addEventListener(k.slice(2).toLowerCase(), v);
+    else node.setAttribute(k, v);
+  });
+  (Array.isArray(children) ? children : [children]).forEach((c) => {
+    if (c == null || c === false) return;
+    if (typeof c === 'string' || typeof c === 'number') node.appendChild(document.createTextNode(c));
+    else node.appendChild(c);
+  });
+  return node;
+}
+
+function toast(message, type = 'ok') {
+  const t = el('div', { class: 'toast ' + type, text: message });
+  document.getElementById('toasts').appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+async function api(path, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (state.token) headers['Authorization'] = 'Bearer ' + state.token;
+  const res = await fetch(API_BASE + path, { ...options, headers });
+  let data = null;
+  try { data = await res.json(); } catch (_) { data = null; }
+  if (!res.ok) {
+    const message = data?.error || ('HTTP ' + res.status);
+    if (res.status === 401) {
+      state.token = '';
+      state.me = null;
+      localStorage.removeItem(TOKEN_KEY);
+      render();
+    }
+    throw new Error(message);
+  }
+  return data || {};
+}
+
+function fmtDate(value) {
+  if (!value) return '—';
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleString('ru-RU', { year:'numeric', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+  } catch (_) { return value; }
+}
+function fmtDateOnly(value) {
+  if (!value) return '—';
+  try { return new Date(value).toLocaleDateString('ru-RU'); } catch (_) { return value; }
+}
+function timeUntil(iso) {
+  if (!iso) return '—';
+  const ms = new Date(iso).getTime() - Date.now();
+  if (Number.isNaN(ms)) return '—';
+  if (ms <= 0) return 'Аяқталған';
+  const days = Math.floor(ms / (1000*60*60*24));
+  const hours = Math.floor((ms % (1000*60*60*24)) / (1000*60*60));
+  return days + ' күн ' + hours + ' сағат';
+}
+
+/* ---------- LOGIN VIEW ---------- */
+function renderLogin(authConfig) {
+  const passwordRequired = !authConfig || authConfig.passwordRequired !== false;
+  const errBox = el('div', { class: 'auth-error', style: 'display:none' });
+  const loginInput = el('input', { type:'text', autocomplete:'username', placeholder:'admin', value: (authConfig && authConfig.login) || 'admin' });
+  const passInput  = el('input', { type:'password', autocomplete:'current-password', placeholder:'••••••••', style:'padding-right:84px' });
+  const toggleBtn  = el('button', {
+    type:'button',
+    style: 'position:absolute;right:8px;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--muted);padding:4px 10px;border-radius:6px;font-size:11px;cursor:pointer;',
+    onclick: () => {
+      const hidden = passInput.type === 'password';
+      passInput.type = hidden ? 'text' : 'password';
+      toggleBtn.textContent = hidden ? '🙈 жасыру' : '👁  көрсету';
+    },
+  }, '👁  көрсету');
+  const submitBtn  = el('button', { class:'btn', style:'width:100%;margin-top:6px' }, passwordRequired ? '🔓  Кіру' : '🚪  Кіру (пароль жоқ)');
+
+  const onSubmit = async (e) => {
+    if (e) e.preventDefault();
+    errBox.style.display = 'none';
+    submitBtn.disabled = true; submitBtn.textContent = 'Кіруде...';
+    try {
+      const data = await api('/api/admin-v2/login', {
+        method:'POST',
+        body: JSON.stringify({
+          login: loginInput.value.trim() || 'admin',
+          password: passwordRequired ? passInput.value : '',
+        }),
+      });
+      state.token = data.token;
+      localStorage.setItem(TOKEN_KEY, data.token);
+      toast('Қош келдіңіз!');
+      await refreshMe();
+      render();
+    } catch (err) {
+      errBox.textContent = err.message;
+      errBox.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false; submitBtn.textContent = '🔓  Кіру';
+    }
+  };
+
+  const formChildren = [
+    el('div', { class:'auth-logo' }, 'F'),
+    el('div', { class:'auth-title' }, 'Focus Admin'),
+    el('div', { class:'auth-sub' }, passwordRequired ? 'Жарнамалар, промокодтар және статистика' : 'Парольсіз режим — қажет болғанда «Баптаулар» бөлімінен парольді қоюға болады'),
+    errBox,
+    el('div', { class:'field' }, [el('label', {}, 'Логин'), loginInput]),
+  ];
+  if (passwordRequired) {
+    formChildren.push(el('div', { class:'field' }, [
+      el('label', {}, 'Құпиясөз'),
+      el('div', { style:'position:relative' }, [passInput, toggleBtn]),
+    ]));
+  }
+  formChildren.push(submitBtn);
+  if (passwordRequired) {
+    formChildren.push(el('div', { style:'text-align:center;color:var(--muted);font-size:12px;margin-top:14px' },
+      'Парольді кейін «Баптаулар» бөлімінен ауыстыруға болады.'));
+  } else {
+    formChildren.push(el('div', { style:'text-align:center;color:#fde68a;font-size:12px;margin-top:14px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);padding:8px;border-radius:8px' },
+      '⚠️ Пароль қойылмаған. Кіргеннен кейін «Баптаулар» → «Парольді қою» арқылы қорғаныс орнатыңыз.'));
+  }
+  const form = el('form', { onsubmit: onSubmit }, formChildren);
+
+  return el('div', { class:'auth-wrap' }, [ el('div', { class:'auth-card' }, [form]) ]);
+}
+
+/* ---------- SHELL ---------- */
+function renderShell(content) {
+  const nav = (id, icon, label) => el('div', {
+    class: 'nav-item' + (state.route === id ? ' active' : ''),
+    onclick: () => { state.route = id; render(); },
+  }, [el('span', { class:'nav-icon' }, icon), el('span', {}, label)]);
+
+  const initials = (state.me?.login || 'A').slice(0,2).toUpperCase();
+
+  const sidebar = el('aside', { class:'sidebar' }, [
+    el('div', { class:'brand' }, [
+      el('div', { class:'brand-mark' }, 'F'),
+      el('div', { class:'brand-name' }, 'Focus Admin'),
+    ]),
+    nav('dashboard', '📊', 'Дашборд'),
+    nav('promo',     '🎟️', 'Промокодтар'),
+    nav('promotion', '🎉', 'Акция күні'),
+    nav('users',     '👥', 'Қолданушылар'),
+    nav('tickets',   '🎫', 'Тікеттер'),
+    nav('info',      'ℹ️', 'Қосымша туралы'),
+    nav('settings',  '⚙️', 'Баптаулар'),
+    el('div', { class:'sidebar-foot' }, [
+      el('div', { class:'me-row' }, [
+        el('div', { class:'me-avatar' }, initials),
+        el('div', {}, [
+          el('div', { style:'font-weight:700' }, state.me?.login || 'admin'),
+          el('div', { style:'font-size:11px;color:var(--muted)' }, 'TG ID: ' + (state.me?.adminTelegramId || '—')),
+        ]),
+      ]),
+      el('button', { class:'btn ghost', style:'width:100%', onclick: logout }, '🚪  Шығу'),
+    ]),
+  ]);
+
+  return el('div', { class:'app' }, [sidebar, el('main', { class:'main' }, content)]);
+}
+
+/* ---------- DASHBOARD ---------- */
+async function viewDashboard() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, 'Дашборд'),
+      el('div', { class:'page-sub' }, 'Қосымшаның жалпы көрсеткіштері'),
+    ]),
+    el('button', { class:'btn ghost', onclick: () => render() }, '🔄  Жаңарту'),
+  ]));
+
+  const statsGrid = el('div', { class:'grid grid-4' });
+  for (let i = 0; i < 4; i += 1) statsGrid.appendChild(el('div', { class:'card stat' }, [el('span', { class:'skeleton', style:'width:60%' })]));
+  root.appendChild(statsGrid);
+
+  try {
+    const data = await api('/api/admin-v2/stats');
+    statsGrid.innerHTML = '';
+    const o = data.overview;
+    const cards = [
+      { label:'Барлық қолданушы', value: o.usersTotal, delta:'Барлығы тіркелген' },
+      { label:'VIP / ақылы',       value: o.usersPaid,  delta:'free емес жоспарлар' },
+      { label:'Жаңа 24 сағат',     value: o.usersNew24h, delta:'Кейінгі бір күнде' },
+      { label:'Тікеттер күтуде',    value: o.ticketsPending, delta: 'Барлығы: ' + o.ticketsTotal },
+    ];
+    cards.forEach((c) => {
+      statsGrid.appendChild(el('div', { class:'card stat' }, [
+        el('div', { class:'label' }, c.label),
+        el('div', { class:'value' }, String(c.value ?? 0)),
+        el('div', { class:'delta' }, c.delta),
+      ]));
+    });
+
+    // Second row
+    const row2 = el('div', { class:'grid grid-3', style:'margin-top:14px' });
+    row2.appendChild(el('div', { class:'card stat' }, [
+      el('div', { class:'label' }, 'Жаңа кері байланыс'),
+      el('div', { class:'value' }, String(o.feedbackNew || 0)),
+    ]));
+    row2.appendChild(el('div', { class:'card stat' }, [
+      el('div', { class:'label' }, 'Белсенді промокодтар'),
+      el('div', { class:'value' }, String(o.promoCodesActive || 0)),
+      el('div', { class:'delta' }, 'Қолданылды: ' + (o.promoRedemptionsTotal || 0)),
+    ]));
+    row2.appendChild(el('div', { class:'card stat' }, [
+      el('div', { class:'label' }, 'Бітелген қолданушылар'),
+      el('div', { class:'value' }, String(o.usersBlocked || 0)),
+    ]));
+    root.appendChild(row2);
+
+    // Promotion card
+    const promo = el('div', { class:'card', style:'margin-top:14px' }, [
+      el('div', { style:'display:flex;justify-content:space-between;align-items:flex-start;gap:14px' }, [
+        el('div', {}, [
+          el('div', { style:'font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px' }, 'Акция аяқталу күні'),
+          el('div', { style:'font-size:22px;font-weight:800;margin-top:6px' }, fmtDate(data.promotionEndIso)),
+          el('div', { style:'color:var(--muted);font-size:13px;margin-top:4px' }, 'Қалды: ' + timeUntil(data.promotionEndIso)),
+        ]),
+        el('button', { class:'btn', onclick: () => { state.route = 'promotion'; render(); } }, '⏱  Күнін ұзарту'),
+      ]),
+    ]);
+    root.appendChild(promo);
+
+    // Plans breakdown
+    if (Array.isArray(data.planBreakdown) && data.planBreakdown.length) {
+      const planCard = el('div', { class:'card', style:'margin-top:14px' }, [
+        el('div', { style:'font-weight:700;margin-bottom:10px' }, 'Жоспарлар бойынша қолданушылар'),
+      ]);
+      const table = el('table');
+      table.appendChild(el('thead', {}, el('tr', {}, [el('th', {}, 'Жоспар'), el('th', {}, 'Қолданушы')])));
+      const tbody = el('tbody');
+      data.planBreakdown
+        .sort((a,b) => b.count - a.count)
+        .forEach((p) => tbody.appendChild(el('tr', {}, [el('td', {}, p.plan), el('td', {}, String(p.count))])));
+      table.appendChild(tbody);
+      planCard.appendChild(table);
+      root.appendChild(planCard);
+    }
+  } catch (err) {
+    statsGrid.innerHTML = '';
+    root.appendChild(el('div', { class:'card', style:'color:#fecaca' }, 'Қате: ' + err.message));
+  }
+
+  return root;
+}
+
+/* ---------- PROMO CODES ---------- */
+async function viewPromoCodes() {
+  const root = el('div');
+  const newBtn = el('button', { class:'btn', onclick: () => openPromoModal() }, '➕  Жаңа промокод');
+  const refreshBtn = el('button', { class:'btn ghost', onclick: () => render() }, '🔄');
+
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, 'Промокодтар'),
+      el('div', { class:'page-sub' }, 'Болгерлерге беретін жеңілдік кодтарын осы жерден шығарыңыз'),
+    ]),
+    el('div', { class:'toolbar' }, [refreshBtn, newBtn]),
+  ]));
+
+  const card = el('div', { class:'card' }, [el('div', { class:'empty' }, 'Жүктелуде…')]);
+  root.appendChild(card);
+
+  try {
+    const data = await api('/api/admin-v2/promo-codes');
+    const codes = data.codes || [];
+    card.innerHTML = '';
+    if (!codes.length) {
+      card.appendChild(el('div', { class:'empty' }, 'Әзірге промокодтар жоқ. Үстіндегі түймемен жаңасын жасаңыз.'));
+    } else {
+      const table = el('table');
+      table.appendChild(el('thead', {}, el('tr', {}, [
+        el('th', {}, 'Код'),
+        el('th', {}, 'Жеңілдік'),
+        el('th', {}, 'Болгер / ескертпе'),
+        el('th', {}, 'Қолд./Лимит'),
+        el('th', {}, 'Әрекет ету мерзімі'),
+        el('th', {}, 'Күй'),
+        el('th', {}, ''),
+      ])));
+      const tbody = el('tbody');
+      codes.forEach((c) => {
+        const codeCell = el('td', { class:'code-cell' }, [
+          c.code,
+          ' ',
+          el('button', {
+            class:'copy-btn',
+            onclick: () => { navigator.clipboard.writeText(c.code); toast('Кодты көшірдік: ' + c.code); }
+          }, 'көшіру'),
+        ]);
+        const status = c.isActive
+          ? el('span', { class:'pill ok' }, '● белсенді')
+          : el('span', { class:'pill off' }, '● өшірілген');
+
+        const usage = c.maxUses == null ? (c.usedCount + ' / ∞') : (c.usedCount + ' / ' + c.maxUses);
+
+        const tr = el('tr', {}, [
+          codeCell,
+          el('td', {}, c.discountPercent + '%'),
+          el('td', {}, (c.bloggerName || '—') + (c.note ? ' · ' + c.note : '')),
+          el('td', {}, usage),
+          el('td', {}, c.validUntil ? fmtDateOnly(c.validUntil) : 'Шектеусіз'),
+          el('td', {}, status),
+          el('td', {}, el('div', { style:'display:flex;gap:6px;justify-content:flex-end' }, [
+            el('button', { class: 'btn sm ' + (c.isActive ? 'ghost' : 'ok'), onclick: () => togglePromo(c) },
+              c.isActive ? 'Өшіру' : 'Қосу'),
+            el('button', { class:'btn sm danger', onclick: () => deletePromo(c) }, 'Жою'),
+          ])),
+        ]);
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      card.appendChild(table);
+    }
+  } catch (err) {
+    card.innerHTML = '';
+    card.appendChild(el('div', { class:'empty', style:'color:#fecaca' }, 'Қате: ' + err.message));
+  }
+  return root;
+}
+
+async function togglePromo(c) {
+  try {
+    await api('/api/admin-v2/promo-codes/' + encodeURIComponent(c.code), {
+      method:'PATCH',
+      body: JSON.stringify({ isActive: !c.isActive }),
+    });
+    toast(c.isActive ? 'Өшірілді' : 'Қосылды');
+    render();
+  } catch (err) { toast(err.message, 'err'); }
+}
+async function deletePromo(c) {
+  if (!confirm('"' + c.code + '" кодын жоюды растайсыз ба?')) return;
+  try {
+    await api('/api/admin-v2/promo-codes/' + encodeURIComponent(c.code), { method:'DELETE' });
+    toast('Жойылды');
+    render();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+function openPromoModal() {
+  const back = el('div', { class:'modal-back open' });
+  const codeInput = el('input', { placeholder:'Бос қалдырса, автоматты жасалады' });
+  const discountInput = el('input', { type:'number', min:'1', max:'100', value:'15' });
+  const plansSel = el('select', { multiple:true, size:3 }, [
+    el('option', { value:'basic', selected:true }, 'basic'),
+    el('option', { value:'pro', selected:true }, 'pro'),
+    el('option', { value:'premium', selected:true }, 'premium'),
+  ]);
+  const maxUses = el('input', { type:'number', min:'1', placeholder:'Бос — шексіз' });
+  const validUntil = el('input', { type:'date' });
+  const bloggerInput = el('input', { placeholder:'Мысалы: @blogger_name' });
+  const noteInput = el('input', { placeholder:'Ескертпе / кампания атауы' });
+
+  const submitBtn = el('button', { class:'btn' }, 'Жасау');
+  submitBtn.addEventListener('click', async () => {
+    submitBtn.disabled = true;
+    const planCodes = Array.from(plansSel.selectedOptions).map((o) => o.value);
+    try {
+      const result = await api('/api/admin-v2/promo-codes', {
+        method:'POST',
+        body: JSON.stringify({
+          code: codeInput.value.trim(),
+          discountPercent: Number(discountInput.value || 10),
+          planCodes,
+          maxUses: maxUses.value ? Number(maxUses.value) : null,
+          validUntil: validUntil.value || null,
+          bloggerName: bloggerInput.value.trim(),
+          note: noteInput.value.trim(),
+        }),
+      });
+      toast('Жасалды: ' + result.code.code);
+      back.remove();
+      render();
+    } catch (err) {
+      toast(err.message, 'err');
+      submitBtn.disabled = false;
+    }
+  });
+
+  const modal = el('div', { class:'modal' }, [
+    el('h3', {}, 'Жаңа промокод'),
+    el('div', { class:'field' }, [el('label', {}, 'Код (қалауыңызша)'), codeInput]),
+    el('div', { class:'grid grid-2' }, [
+      el('div', { class:'field' }, [el('label', {}, 'Жеңілдік (%)'), discountInput]),
+      el('div', { class:'field' }, [el('label', {}, 'Лимит (қолдану саны)'), maxUses]),
+    ]),
+    el('div', { class:'field' }, [el('label', {}, 'Жоспарлар'), plansSel]),
+    el('div', { class:'grid grid-2' }, [
+      el('div', { class:'field' }, [el('label', {}, 'Жарамдылық мерзімі (соңғы күн)'), validUntil]),
+      el('div', { class:'field' }, [el('label', {}, 'Болгер аты'), bloggerInput]),
+    ]),
+    el('div', { class:'field' }, [el('label', {}, 'Ескертпе'), noteInput]),
+    el('div', { class:'modal-actions' }, [
+      el('button', { class:'btn ghost', onclick: () => back.remove() }, 'Бас тарту'),
+      submitBtn,
+    ]),
+  ]);
+  back.appendChild(modal);
+  back.addEventListener('click', (e) => { if (e.target === back) back.remove(); });
+  document.body.appendChild(back);
+}
+
+/* ---------- PROMOTION ---------- */
+async function viewPromotion() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, 'Акция күнін басқару'),
+      el('div', { class:'page-sub' }, 'Қазіргі акцияның аяқталу күнін кейінге шегеру немесе абсолютті орнату'),
+    ]),
+  ]));
+
+  const card = el('div', { class:'card' }, [el('div', { class:'empty' }, 'Жүктелуде…')]);
+  root.appendChild(card);
+
+  try {
+    const data = await api('/api/admin-v2/promotion');
+    card.innerHTML = '';
+
+    const head = el('div', { class:'grid grid-2' }, [
+      el('div', { class:'card stat' }, [
+        el('div', { class:'label' }, 'Қазіргі аяқталу күні'),
+        el('div', { class:'value' }, fmtDate(data.promotionEndIso)),
+        el('div', { class:'delta' }, 'Қалды: ' + timeUntil(data.promotionEndIso)),
+      ]),
+      el('div', { class:'card stat' }, [
+        el('div', { class:'label' }, 'Соңғы өзгеріс'),
+        el('div', { class:'value', style:'font-size:18px' }, fmtDate(data.updatedAt)),
+        el('div', { class:'delta' }, 'Кім: ' + (data.updatedBy || '—')),
+      ]),
+    ]);
+    card.appendChild(head);
+
+    // Quick extend buttons
+    const quickRow = el('div', { class:'card', style:'margin-top:14px' }, [
+      el('div', { style:'font-weight:700;margin-bottom:10px' }, 'Жылдам ұзарту'),
+      el('div', { class:'toolbar' }, [
+        ...[3, 7, 14, 30, 60].map((d) =>
+          el('button', { class:'btn', onclick: () => extendPromotion(d) }, '+' + d + ' күн')),
+      ]),
+    ]);
+    card.appendChild(quickRow);
+
+    // Absolute set
+    const absInput = el('input', { type:'datetime-local' });
+    const absBtn = el('button', { class:'btn ok', onclick: async () => {
+      if (!absInput.value) return toast('Күн таңдаңыз', 'err');
+      try {
+        await api('/api/admin-v2/promotion', {
+          method:'POST',
+          body: JSON.stringify({ absoluteIso: new Date(absInput.value).toISOString() }),
+        });
+        toast('Сақталды'); render();
+      } catch (err) { toast(err.message, 'err'); }
+    } }, 'Жаңа күнді сақтау');
+
+    card.appendChild(el('div', { class:'card', style:'margin-top:14px' }, [
+      el('div', { style:'font-weight:700;margin-bottom:10px' }, 'Нақты күн орнату'),
+      el('div', { class:'grid grid-2', style:'align-items:end' }, [
+        el('div', { class:'field' }, [el('label', {}, 'Аяқталу күні мен сағаты'), absInput]),
+        el('div', {}, absBtn),
+      ]),
+    ]));
+  } catch (err) {
+    card.innerHTML = '';
+    card.appendChild(el('div', { class:'empty', style:'color:#fecaca' }, 'Қате: ' + err.message));
+  }
+  return root;
+}
+
+async function extendPromotion(days) {
+  try {
+    await api('/api/admin-v2/promotion', {
+      method:'POST',
+      body: JSON.stringify({ extendDays: days }),
+    });
+    toast('+' + days + ' күн қосылды');
+    render();
+  } catch (err) { toast(err.message, 'err'); }
+}
+
+/* ---------- USERS ---------- */
+async function viewUsers() {
+  const root = el('div');
+  const search = el('input', { placeholder:'Іздеу: telegram_id, username, name', style:'max-width:340px' });
+  const goBtn = el('button', { class:'btn ghost', onclick: () => loadList() }, 'Іздеу');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, 'Қолданушылар'),
+      el('div', { class:'page-sub' }, 'Соңғы тіркелгендер'),
+    ]),
+    el('div', { class:'toolbar', style:'align-items:center' }, [search, goBtn]),
+  ]));
+
+  const card = el('div', { class:'card' }, [el('div', { class:'empty' }, 'Жүктелуде…')]);
+  root.appendChild(card);
+
+  async function loadList() {
+    card.innerHTML = '';
+    card.appendChild(el('div', { class:'empty' }, 'Жүктелуде…'));
+    try {
+      const data = await api('/api/admin-v2/users?limit=50&search=' + encodeURIComponent(search.value.trim()));
+      card.innerHTML = '';
+      if (!data.users?.length) {
+        card.appendChild(el('div', { class:'empty' }, 'Ештеңе табылмады'));
+        return;
+      }
+      const table = el('table');
+      table.appendChild(el('thead', {}, el('tr', {}, [
+        el('th', {}, 'Telegram ID'),
+        el('th', {}, 'Аты'),
+        el('th', {}, 'Username'),
+        el('th', {}, 'Жоспар'),
+        el('th', {}, 'Level'),
+        el('th', {}, 'Coins'),
+        el('th', {}, 'Тіркелген'),
+      ])));
+      const tbody = el('tbody');
+      data.users.forEach((u) => tbody.appendChild(el('tr', {}, [
+        el('td', { class:'code-cell' }, String(u.telegramId)),
+        el('td', {}, [u.firstName, u.lastName].filter(Boolean).join(' ') || '—'),
+        el('td', {}, u.username ? '@' + u.username : '—'),
+        el('td', {}, el('span', { class:'pill ' + (u.plan === 'free' ? 'warn' : 'ok') }, u.plan || 'free')),
+        el('td', {}, String(u.level || 1)),
+        el('td', {}, String(u.coins || 0)),
+        el('td', {}, fmtDate(u.createdAt)),
+      ])));
+      table.appendChild(tbody);
+      card.appendChild(table);
+    } catch (err) {
+      card.innerHTML = '';
+      card.appendChild(el('div', { class:'empty', style:'color:#fecaca' }, 'Қате: ' + err.message));
+    }
+  }
+  search.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadList(); });
+  loadList();
+  return root;
+}
+
+/* ---------- INFO ---------- */
+async function viewInfo() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, 'Қосымша туралы ақпарат'),
+      el('div', { class:'page-sub' }, 'Backend параметрлері мен жалпы күй'),
+    ]),
+  ]));
+
+  const card = el('div', { class:'card info-list' });
+  root.appendChild(card);
+
+  try {
+    const me = await api('/api/admin-v2/me');
+    const stats = await api('/api/admin-v2/stats');
+
+    const rows = [
+      ['Backend URL', API_BASE || location.origin],
+      ['Әкімші логин', me.login],
+      ['Әкімші TG ID', me.adminTelegramId],
+      ['Сессия аяқталады', fmtDate(me.expiresAt)],
+      ['Bootstrap admins (TG IDs)', (stats.bootstrapAdminIds || []).join(', ') || '—'],
+      ['Барлық қолданушы', stats.overview.usersTotal],
+      ['Ақылы қолданушы', stats.overview.usersPaid],
+      ['Тікеттер', stats.overview.ticketsTotal],
+      ['Жаңа кері байланыс', stats.overview.feedbackNew],
+      ['Акция аяқталу күні', fmtDate(stats.promotionEndIso)],
+    ];
+    rows.forEach(([k, v]) => card.appendChild(el('div', { class:'info-row' }, [
+      el('div', { class:'k' }, String(k)),
+      el('div', { class:'v' }, String(v)),
+    ])));
+  } catch (err) {
+    card.appendChild(el('div', { class:'empty', style:'color:#fecaca' }, 'Қате: ' + err.message));
+  }
+  return root;
+}
+
+
+
+/* ---------- TICKETS ---------- */
+async function viewTickets() {
+  const root = el('div');
+  const search = el('input', { placeholder: '🔍 Тікет №, telegram_id немесе аты', style: 'max-width:340px' });
+  const statusSelect = el('select', { style: 'max-width:160px' }, [
+    el('option', { value: '' }, 'Барлығы'),
+    el('option', { value: 'pending' }, 'Күтуде'),
+    el('option', { value: 'verified' }, 'Расталған'),
+    el('option', { value: 'used' }, 'Қолданылған'),
+  ]);
+  const refreshBtn = el('button', { class: 'btn ghost', onclick: () => load() }, '🔄 Жаңарту');
+
+  root.appendChild(el('div', { class: 'page-head' }, [
+    el('div', {}, [
+      el('div', { class: 'page-title' }, 'Тікеттер'),
+      el('div', { class: 'page-sub' }, 'Кім қандай нөмірлі билетті алды'),
+    ]),
+    el('div', { class: 'toolbar', style: 'align-items:center' }, [search, statusSelect, refreshBtn]),
+  ]));
+
+  // Stats row
+  const statsRow = el('div', { class: 'grid grid-4', style: 'margin-bottom:14px' });
+  root.appendChild(statsRow);
+
+  const card = el('div', { class: 'card' }, [el('div', { class: 'empty' }, 'Жүктелуде…')]);
+  root.appendChild(card);
+
+  async function load() {
+    statsRow.innerHTML = '';
+    [0, 1, 2, 3].forEach(() => statsRow.appendChild(el('div', { class: 'card stat' }, [
+      el('span', { class: 'skeleton', style: 'width:60%' }),
+    ])));
+    card.innerHTML = '';
+    card.appendChild(el('div', { class: 'empty' }, 'Жүктелуде…'));
+    try {
+      const params = new URLSearchParams();
+      if (statusSelect.value) params.set('status', statusSelect.value);
+      if (search.value.trim()) params.set('search', search.value.trim());
+      params.set('limit', '200');
+      const data = await api('/api/admin-v2/tickets?' + params.toString());
+
+      const stats = data.stats || { total: 0, pending: 0, verified: 0, used: 0 };
+      statsRow.innerHTML = '';
+      [
+        { label: 'Барлығы', value: stats.total, color: 'blue' },
+        { label: 'Күтуде',  value: stats.pending, color: 'warn' },
+        { label: 'Расталған', value: stats.verified, color: 'ok' },
+        { label: 'Қолданылған', value: stats.used, color: 'muted' },
+      ].forEach((s) => {
+        statsRow.appendChild(el('div', { class: 'card stat' }, [
+          el('div', { class: 'label' }, s.label),
+          el('div', { class: 'value' }, String(s.value)),
+        ]));
+      });
+
+      card.innerHTML = '';
+
+      if (data.note) {
+        card.appendChild(el('div', {
+          style: 'padding:14px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:10px;color:#fde68a;margin-bottom:14px;font-size:13px',
+        }, '⚠️ ' + data.note));
+      }
+
+      if (!data.tickets || !data.tickets.length) {
+        card.appendChild(el('div', { class: 'empty' }, 'Билеттер табылмады'));
+        return;
+      }
+
+      const table = el('table');
+      table.appendChild(el('thead', {}, el('tr', {}, [
+        el('th', {}, '№'),
+        el('th', {}, 'Қолданушы'),
+        el('th', {}, 'Іс-шара'),
+        el('th', {}, 'Сатып алу күні'),
+        el('th', {}, 'Күй'),
+        el('th', {}, ''),
+      ])));
+      const tbody = el('tbody');
+      data.tickets.forEach((t) => {
+        const statusPill = t.status === 'verified'
+          ? el('span', { class: 'pill ok' }, '● Расталған')
+          : t.status === 'used'
+          ? el('span', { class: 'pill warn' }, '● Қолданылған')
+          : el('span', { class: 'pill off' }, '● Күтуде');
+
+        const actionCell = el('td', {}, []);
+        if (t.status === 'pending') {
+          actionCell.appendChild(el('button', {
+            class: 'btn ok sm',
+            onclick: async () => {
+              if (!confirm('#' + t.ticketNumber + ' нөмірлі тікетті растайсыз ба?')) return;
+              try {
+                await api('/api/admin-v2/tickets/' + t.ticketNumber + '/verify', { method: 'POST' });
+                toast('Расталды');
+                load();
+              } catch (err) { toast(err.message, 'err'); }
+            },
+          }, '✓ Растау'));
+        } else {
+          actionCell.appendChild(el('span', { style: 'color:var(--muted);font-size:12px' },
+            t.verifiedAt ? fmtDate(t.verifiedAt) : '—'));
+        }
+
+        tbody.appendChild(el('tr', {}, [
+          el('td', { class: 'code-cell' }, [
+            el('span', {
+              style: 'background:rgba(245,158,11,.2);color:#fde68a;padding:3px 10px;border-radius:999px',
+            }, '#' + String(t.ticketNumber).padStart(8, '0')),
+          ]),
+          el('td', {}, [
+            el('div', { style: 'font-weight:600' }, t.userName || '—'),
+            el('div', { style: 'font-size:11px;color:var(--muted)' }, 'TG ID: ' + t.userTelegramId),
+          ]),
+          el('td', {}, [
+            el('div', {}, t.eventName || 'Іс-шара'),
+            el('div', { style: 'font-size:11px;color:var(--muted)' }, fmtDate(t.eventDate)),
+          ]),
+          el('td', {}, fmtDate(t.purchaseDate)),
+          el('td', {}, statusPill),
+          actionCell,
+        ]));
+      });
+      table.appendChild(tbody);
+      card.appendChild(table);
+    } catch (err) {
+      statsRow.innerHTML = '';
+      card.innerHTML = '';
+      card.appendChild(el('div', { class: 'empty', style: 'color:#fecaca' }, 'Қате: ' + err.message));
+    }
+  }
+  search.addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+  statusSelect.addEventListener('change', load);
+  load();
+  return root;
+}
+
+/* ---------- SETTINGS ---------- */
+async function viewSettings() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, 'Баптаулар'),
+      el('div', { class:'page-sub' }, 'Әкімші паролі және қол жетімділік'),
+    ]),
+  ]));
+
+  const card = el('div', { class:'card' }, [el('div', { class:'empty' }, 'Жүктелуде…')]);
+  root.appendChild(card);
+
+  try {
+    const data = await api('/api/admin-v2/settings');
+    card.innerHTML = '';
+
+    // Status
+    const status = data.passwordRequired
+      ? el('span', { class:'pill ok' }, '● Пароль қойылған')
+      : el('span', { class:'pill warn' }, '● Пароль жоқ (ашық режим)');
+
+    const sourceLabel = {
+      local: 'Баптаулардан қойылған',
+      env: '.env файлынан алынған',
+      none: 'Ешқайда қойылмаған',
+    }[data.passwordSource] || data.passwordSource;
+
+    card.appendChild(el('div', { style:'margin-bottom:18px' }, [
+      el('div', { style:'display:flex;gap:10px;align-items:center;margin-bottom:8px' }, [
+        el('div', { style:'font-size:18px;font-weight:700' }, 'Қазіргі күй'),
+        status,
+      ]),
+      el('div', { class:'info-row' }, [
+        el('div', { class:'k' }, 'Логин'),
+        el('div', { class:'v' }, data.login),
+      ]),
+      el('div', { class:'info-row', style:'margin-top:6px' }, [
+        el('div', { class:'k' }, 'Пароль көзі'),
+        el('div', { class:'v' }, sourceLabel),
+      ]),
+    ]));
+
+    // Set/change password form
+    const newPassInput = el('input', { type:'password', placeholder:'Жаңа пароль (бос қалдырса — өшіріледі)' });
+    const togglePass = el('button', { type:'button', class:'btn ghost sm', onclick: () => {
+      newPassInput.type = newPassInput.type === 'password' ? 'text' : 'password';
+      togglePass.textContent = newPassInput.type === 'password' ? '👁 көрсету' : '🙈 жасыру';
+    }}, '👁 көрсету');
+
+    const setBtn = el('button', { class:'btn ok' }, '💾 Сақтау');
+    setBtn.addEventListener('click', async () => {
+      const newPw = newPassInput.value;
+      if (newPw && newPw.length < 1) {
+        toast('Пароль тым қысқа', 'err');
+        return;
+      }
+      setBtn.disabled = true;
+      try {
+        await api('/api/admin-v2/settings/password', {
+          method:'POST',
+          body: JSON.stringify({ newPassword: newPw }),
+        });
+        toast(newPw ? 'Пароль жаңартылды' : 'Пароль өшірілді');
+        newPassInput.value = '';
+        render();
+      } catch (err) {
+        toast(err.message, 'err');
+      } finally {
+        setBtn.disabled = false;
+      }
+    });
+
+    card.appendChild(el('div', {}, [
+      el('div', { style:'font-size:16px;font-weight:700;margin-bottom:10px' }, '🔑 Парольді қою / ауыстыру'),
+      el('div', { class:'field' }, [
+        el('label', {}, 'Жаңа пароль'),
+        el('div', { style:'display:flex;gap:8px;align-items:center' }, [newPassInput, togglePass]),
+      ]),
+      el('div', { style:'display:flex;gap:8px;align-items:center' }, [
+        setBtn,
+        data.passwordRequired ? el('button', {
+          class:'btn danger',
+          onclick: async () => {
+            if (!confirm('Парольді өшіруді растайсыз ба? Кейін кез келген адам кіре алады.')) return;
+            try {
+              await api('/api/admin-v2/settings/password', {
+                method:'POST',
+                body: JSON.stringify({ newPassword: '' }),
+              });
+              toast('Пароль өшірілді');
+              render();
+            } catch (err) { toast(err.message, 'err'); }
+          },
+        }, '🗑 Парольді өшіру') : null,
+      ]),
+      el('div', { style:'margin-top:10px;color:var(--muted);font-size:12px' },
+        'Кеңес: 6+ таңбадан, әріп+сан+белгілерден тұратын пароль қойыңыз. Қаласаңыз бос қалдырып, паролсіз режимде жұмыс істей беруге болады.'),
+    ]));
+
+    // Logout helper info
+    card.appendChild(el('div', { style:'margin-top:24px;padding-top:18px;border-top:1px solid var(--line)' }, [
+      el('div', { style:'font-size:14px;font-weight:600;margin-bottom:6px' }, 'Шығу'),
+      el('div', { style:'color:var(--muted);font-size:13px;margin-bottom:10px' }, 'Қазіргі сессияны жабу үшін бүйір панельдегі «Шығу» түймесін басыңыз.'),
+    ]));
+  } catch (err) {
+    card.innerHTML = '';
+    card.appendChild(el('div', { class:'empty', style:'color:#fecaca' }, 'Қате: ' + err.message));
+  }
+  return root;
+}
+
+/* ---------- ROUTER / LIFECYCLE ---------- */
+async function refreshMe() {
+  if (!state.token) { state.me = null; return; }
+  try {
+    state.me = await api('/api/admin-v2/me');
+  } catch (_) {
+    state.me = null;
+  }
+}
+
+async function logout() {
+  try { await api('/api/admin-v2/logout', { method:'POST' }); } catch (_) {}
+  state.token = '';
+  state.me = null;
+  localStorage.removeItem(TOKEN_KEY);
+  render();
+}
+
+async function render() {
+  const root = document.getElementById('root');
+  root.innerHTML = '';
+
+  if (!state.token) {
+    let authConfig = null;
+    try {
+      const r = await fetch(API_BASE + '/api/admin-v2/auth-config');
+      if (r.ok) authConfig = await r.json();
+    } catch (_) {}
+    root.appendChild(renderLogin(authConfig));
+    return;
+  }
+  if (!state.me) {
+    await refreshMe();
+    if (!state.token) { root.appendChild(renderLogin()); return; }
+  }
+
+  const slot = el('div');
+  root.appendChild(renderShell(slot));
+
+  let view;
+  switch (state.route) {
+    case 'promo':     view = await viewPromoCodes();  break;
+    case 'promotion': view = await viewPromotion();   break;
+    case 'users':     view = await viewUsers();       break;
+    case 'tickets':   view = await viewTickets();     break;
+    case 'info':      view = await viewInfo();        break;
+    case 'settings':  view = await viewSettings();    break;
+    case 'dashboard':
+    default:          view = await viewDashboard();   break;
+  }
+  slot.replaceWith(view);
+}
+
+render();
+</script>
+</body>
+</html>

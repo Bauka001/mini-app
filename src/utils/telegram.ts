@@ -46,6 +46,24 @@ export const getTelegramUser = () => {
   return null;
 };
 
+export const getTelegramStartParam = () => {
+  const unsafeStartParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+  if (unsafeStartParam) {
+    return `${unsafeStartParam}`.trim().toLowerCase();
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fallbackStartParam = params.get('tgWebAppStartParam') || params.get('startapp') || params.get('start_param');
+    return fallbackStartParam ? fallbackStartParam.trim().toLowerCase() : '';
+  } catch {
+    return '';
+  }
+};
+
+export const hasTelegramStartParam = (expectedValue: string) =>
+  getTelegramStartParam() === `${expectedValue}`.trim().toLowerCase();
+
 export const isTelegramWebApp = () => {
   return !!window.Telegram?.WebApp;
 };
