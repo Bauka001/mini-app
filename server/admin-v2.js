@@ -190,7 +190,7 @@ function registerAdminV2(app, deps) {
       } catch (_) {}
     }
     // 3) Default
-    return '2026-04-26T08:00:00.000Z';
+    return '2026-07-06T08:00:00.000Z';
   }
 
   async function lookupPromoCode(code) {
@@ -484,7 +484,7 @@ function registerAdminV2(app, deps) {
       let promotionEndIsoLocal = null;
       if (!isSupabaseUsable()) {
         const ps = ls.appSettings['promotion_end_iso'];
-        promotionEndIsoLocal = ps?.value || '2026-04-26T08:00:00.000Z';
+        promotionEndIsoLocal = ps?.value || '2026-07-15T08:00:00.000Z';
       }
 
       return res.json({
@@ -777,7 +777,7 @@ function registerAdminV2(app, deps) {
       const local = ls.appSettings['promotion_end_iso'];
       const localIso = local
         ? (typeof local.value === 'string' ? local.value : null)
-        : '2026-04-26T08:00:00.000Z';
+        : '2026-07-15T08:00:00.000Z';
       return res.json({
         ok: true,
         promotionEndIso: localIso,
@@ -820,7 +820,7 @@ function registerAdminV2(app, deps) {
             : null;
         } else {
           const local = ls.appSettings['promotion_end_iso'];
-          currentIso = local?.value || '2026-04-26T08:00:00.000Z';
+          currentIso = local?.value || '2026-07-15T08:00:00.000Z';
         }
         const base = currentIso ? new Date(currentIso) : new Date();
         const start = base.getTime() < Date.now() ? new Date() : base;

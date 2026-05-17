@@ -485,7 +485,9 @@ export const initialState = {
   
   tickets: [],
   eventParticipants: [],
-  promotionEndISO: '2026-04-26T08:00:00.000Z',
+  promotionEndISO: '2026-07-15T08:00:00.000Z',
+  planExpiry: null,
+  subscriptionDay: 0,
   claimedPlanRewardKeys: [],
   dailyQuest: {
     id: 'daily_quest_3games',

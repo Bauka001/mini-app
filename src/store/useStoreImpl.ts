@@ -348,7 +348,7 @@ export const useStore = create<UserState>()(
 
       tickets: [],
       eventParticipants: [],
-      promotionEndISO: '2026-04-26T08:00:00.000Z',
+      promotionEndISO: '2026-07-06T08:00:00.000Z',
       tournament: { ...initialState.tournament },
 
       dailyQuest: { ...DEFAULT_DAILY_QUEST },
@@ -596,6 +596,7 @@ export const useStore = create<UserState>()(
             return {
               plan: response.plan,
               planExpiry: response.planExpiry,
+              subscriptionDay: response.subscriptionDay,
               ...(rewardPatch?.statePatch || {}),
             };
           });
@@ -1120,7 +1121,7 @@ export const useStore = create<UserState>()(
           tournamentTickets: 0,
           tickets: [],
           eventParticipants: [],
-          promotionEndISO: '2026-04-26T08:00:00.000Z',
+          promotionEndISO: '2026-07-06T08:00:00.000Z',
           tournament: { ...initialState.tournament },
           dailyQuest: { ...DEFAULT_DAILY_QUEST },
           inventory: { freezes: 0, hints: 0, shields: 0 },

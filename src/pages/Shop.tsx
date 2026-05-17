@@ -1311,10 +1311,11 @@ const SkinsTab = ({ styles, handleBuySkin, handleEquipSkin, skinInventory, activ
   );
 };
 
-const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
+const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms, promotionEndISO }: {
   currentPlan: string;
   onBuyPlan: (plan: VipPurchaseOption) => void;
   onShowTerms: () => void;
+  promotionEndISO?: string;
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -1498,7 +1499,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms }: {
               </div>
               {plan.isPremium && (
                 <div className="mt-1">
-                  <CountdownTimer targetDateISO="2026-05-25T23:59:59.000Z" />
+                  <CountdownTimer targetDateISO={promotionEndISO || '2026-07-15T08:00:00.000Z'} />
                 </div>
               )}
             </div>
@@ -1603,6 +1604,7 @@ const ShopPage = () => {
     equipSkin,
     openCase,
     plan,
+    promotionEndISO,
   } = useStore();
   const totalFreeCaseOpens = freeMysteryBoxes + premiumGiftMysteryBoxes;
   const [activeTab, setActiveTab] = useState<'vip' | 'skins' | 'cases'>('vip');
@@ -1725,7 +1727,7 @@ const ShopPage = () => {
 
       {activeTab === 'vip' ? (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <VIPTab currentPlan={plan} onBuyPlan={handleBuyPlan} onShowTerms={() => setShowTerms(true)} />
+          <VIPTab currentPlan={plan} onBuyPlan={handleBuyPlan} onShowTerms={() => setShowTerms(true)} promotionEndISO={promotionEndISO} />
         </div>
       ) : activeTab === 'skins' ? (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">

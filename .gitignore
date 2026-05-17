@@ -44,3 +44,7 @@ lerna-debug.log*
 
 # Admin Panel V2 локалды деректер
 server/admin-v2-data.json
+
+# Cloned repositories (temporary)
+focus_game/
+mini-app/

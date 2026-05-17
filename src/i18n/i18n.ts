@@ -2061,7 +2061,6 @@ const resources = {
       "status": "Күй",
       "payment_confirmation": "Төлем растауы",
       "waiting_for_payment": "Төлем күтіп жатыр",
-      "please_complete_payment_in_stars": "Төлемді Telegram Stars арқылы аяқтаңыз",
       "continue": "Жалғастыру"
     }
   }

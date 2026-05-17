@@ -37,6 +37,7 @@ export interface EntitlementsResponse {
   activeEntitlement: ServerEntitlement | null;
   plan: 'free' | 'basic' | 'pro' | 'premium';
   planExpiry: number | null;
+  subscriptionDay: number;
 }
 
 export interface PlanInfo {
