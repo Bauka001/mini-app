@@ -5,6 +5,7 @@ import { useStore } from '../store/useStoreImpl';
 import WebApp from '@twa-dev/sdk';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { claudeTokens } from './ui/claudeTokens';
+import { soundManager } from '../utils/soundManager';
 
 interface ChestModalProps {
   isOpen: boolean;
@@ -14,12 +15,16 @@ interface ChestModalProps {
 
 export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
   const { t } = useTranslation();
-  const { addFec, addCoins, theme } = useStore();
+  const { addFec, addCoins, theme, soundEnabled } = useStore(); // Using addCoins to add coins easily
   const { isClaude } = useThemeStyles();
   const [chestState, setChestState] = useState<'closed' | 'shaking' | 'opening' | 'opened'>('closed');
   const [reward, setReward] = useState<{ type: 'coins' | 'fec' | 'gem', amount: number } | null>(null);
 
   const isLight = theme === 'light';
+
+  useEffect(() => {
+    soundManager.setEnabled(soundEnabled);
+  }, [soundEnabled]);
 
   useEffect(() => {
     if (isOpen) {
@@ -32,12 +37,15 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
     if (chestState !== 'closed') return;
 
     WebApp.HapticFeedback.impactOccurred('heavy');
+    void soundManager.playClick();
     setChestState('shaking');
 
     setTimeout(() => {
       setChestState('opening');
       WebApp.HapticFeedback.notificationOccurred('success');
+      void soundManager.playTing();
 
+      // Calculate Reward
       const rand = Math.random();
       let newReward;
 
@@ -57,7 +65,13 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
 
       setReward(newReward);
       setChestState('opened');
+      void soundManager.playTingTing();
     }, 1000);
+  };
+
+  const handleClose = () => {
+    void soundManager.playClick();
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -188,7 +202,7 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
 
           {chestState === 'opened' && (
             <button
-              onClick={onClose}
+              onClick={handleClose}
               className="mt-6 w-full rounded-lg py-3.5 text-[14px] font-medium transition-colors"
               style={{ backgroundColor: claudeTokens.accent, color: '#FFFFFF' }}
             >
@@ -203,10 +217,10 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
   // Legacy themes — original markup
   return (
     <div className={clsx(
-      "fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-300",
+      "modal-shell fixed inset-0 z-[60] flex items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-300",
       isLight ? "bg-white/90" : "bg-black/90"
     )}>
-      <div className="flex flex-col items-center max-w-sm w-full">
+      <div className="modal-card flex flex-col items-center max-w-sm w-full overflow-y-auto">
 
         <h2 className={clsx(
           "text-3xl font-black mb-2 text-center drop-shadow-lg",
@@ -265,9 +279,9 @@ export const ChestModal = ({ isOpen, onClose, gameTitle }: ChestModalProps) => {
 
         {chestState === 'opened' && (
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className={clsx(
-              "mt-12 w-full py-4 font-black text-xl rounded-2xl hover:scale-105 transition-transform",
+              "mt-12 w-full min-h-[44px] py-4 font-black text-xl rounded-2xl hover:scale-105 transition-transform",
               isLight ? "bg-blue-600 text-white shadow-lg" : "bg-primary text-black shadow-[0_0_20px_rgba(255,215,0,0.3)]"
             )}
           >

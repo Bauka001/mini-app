@@ -93,4 +93,10 @@ Desktop.ini
 *.temp
 *.bak
 *.orig
-.vercel
+
+# Admin Panel V2 local data
+server/admin-v2-data.json
+
+# Cloned repositories (temporary)
+focus_game/
+mini-app/

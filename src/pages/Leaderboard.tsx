@@ -3,14 +3,15 @@ import { useStore } from '../store/useStoreImpl';
 import { useMemo } from 'react';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { claudeTokens } from '../components/ui/claudeTokens';
+import { getDefaultAvatarUrl } from '../constants/avatars';
 
 // Mock Leaderboard Data
 const MOCK_LEADERBOARD = [
-  { id: 101, name: 'Alice', xp: 15400, level: 15, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice' },
-  { id: 102, name: 'Bob', xp: 12300, level: 12, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob' },
-  { id: 103, name: 'Charlie', xp: 11200, level: 11, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie' },
-  { id: 104, name: 'David', xp: 9500, level: 9, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David' },
-  { id: 105, name: 'Eve', xp: 8700, level: 8, avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Eve' },
+  { id: 101, name: 'Alice', xp: 15400, level: 15, avatar: getDefaultAvatarUrl('Alice') },
+  { id: 102, name: 'Bob', xp: 12300, level: 12, avatar: getDefaultAvatarUrl('Bob') },
+  { id: 103, name: 'Charlie', xp: 11200, level: 11, avatar: getDefaultAvatarUrl('Charlie') },
+  { id: 104, name: 'David', xp: 9500, level: 9, avatar: getDefaultAvatarUrl('David') },
+  { id: 105, name: 'Eve', xp: 8700, level: 8, avatar: getDefaultAvatarUrl('Eve') },
 ];
 
 const LeaderboardPage = () => {
@@ -254,9 +255,9 @@ const LeaderboardPage = () => {
   // Legacy themes — original markup
   const getRankIcon = (index: number) => {
     switch (index) {
-      case 0: return <Crown size={24} className="text-yellow-400 fill-yellow-400" />;
-      case 1: return <Medal size={24} className="text-gray-300 fill-gray-300" />;
-      case 2: return <Medal size={24} className="text-orange-400 fill-orange-400" />;
+      case 0: return <Crown size={24} className="text-yellow-500 fill-yellow-500" />;
+      case 1: return <Medal size={24} className="text-slate-400 fill-slate-400" />;
+      case 2: return <Medal size={24} className="text-amber-700 fill-amber-700" />;
       default: return <span className="text-lg font-bold text-gray-500 w-6 text-center">{index + 1}</span>;
     }
   };
@@ -276,39 +277,39 @@ const LeaderboardPage = () => {
           <div className="flex justify-center items-end gap-4 mb-10 mt-8">
             {/* 2nd Place */}
             <div className="flex flex-col items-center">
-              <div className="w-16 h-16 rounded-full border-2 border-gray-300 overflow-hidden mb-2 relative">
+              <div className="w-16 h-16 rounded-full border-2 border-slate-400 overflow-hidden mb-2 relative">
                  <img src={displayList[1].avatar} alt={displayList[1].name} className="w-full h-full" />
-                 <div className="absolute bottom-0 w-full bg-gray-300 text-black text-[10px] font-bold text-center">2</div>
+                 <div className="absolute bottom-0 w-full bg-slate-400 text-black text-[10px] font-bold text-center">2</div>
               </div>
-              <span className="font-bold text-sm">{displayList[1].name}</span>
+              <span className="font-bold text-sm text-slate-300">{displayList[1].name}</span>
               <span className="text-xs text-gray-400">{displayList[1].xp} XP</span>
-              <div className="w-12 h-24 bg-gray-300/20 rounded-t-lg mt-2 border-t border-gray-300/50" />
+              <div className="w-12 h-24 bg-slate-400/20 rounded-t-lg mt-2 border-t border-slate-400/50" />
             </div>
 
             {/* 1st Place */}
             <div className="flex flex-col items-center">
               <div className="relative">
-                 <Crown size={32} className="text-yellow-400 absolute -top-8 left-1/2 -translate-x-1/2 animate-bounce" />
-                 <div className="w-20 h-20 rounded-full border-4 border-yellow-400 overflow-hidden mb-2 relative shadow-[0_0_20px_rgba(250,204,21,0.5)]">
+                 <Crown size={32} className="text-yellow-500 absolute -top-8 left-1/2 -translate-x-1/2 animate-bounce" />
+                 <div className="w-20 h-20 rounded-full border-4 border-yellow-500 overflow-hidden mb-2 relative shadow-[0_0_20px_rgba(234,179,8,0.5)]">
                     <img src={displayList[0].avatar} alt={displayList[0].name} className="w-full h-full" />
                  </div>
               </div>
-              <span className="font-bold text-lg text-yellow-400">{displayList[0].name}</span>
+              <span className="font-bold text-lg text-yellow-500">{displayList[0].name}</span>
               <span className="text-xs text-gray-400">{displayList[0].xp} XP</span>
-              <div className="w-16 h-32 bg-yellow-400/20 rounded-t-lg mt-2 border-t border-yellow-400/50 relative overflow-hidden">
-                 <div className="absolute inset-0 bg-gradient-to-t from-yellow-400/10 to-transparent" />
+              <div className="w-16 h-32 bg-yellow-500/20 rounded-t-lg mt-2 border-t border-yellow-500/50 relative overflow-hidden">
+                 <div className="absolute inset-0 bg-gradient-to-t from-yellow-500/10 to-transparent" />
               </div>
             </div>
 
             {/* 3rd Place */}
             <div className="flex flex-col items-center">
-              <div className="w-16 h-16 rounded-full border-2 border-orange-400 overflow-hidden mb-2 relative">
+              <div className="w-16 h-16 rounded-full border-2 border-amber-700 overflow-hidden mb-2 relative">
                  <img src={displayList[2].avatar} alt={displayList[2].name} className="w-full h-full" />
-                 <div className="absolute bottom-0 w-full bg-orange-400 text-black text-[10px] font-bold text-center">3</div>
+                 <div className="absolute bottom-0 w-full bg-amber-700 text-white text-[10px] font-bold text-center">3</div>
               </div>
-              <span className="font-bold text-sm">{displayList[2].name}</span>
+              <span className="font-bold text-sm text-amber-600">{displayList[2].name}</span>
               <span className="text-xs text-gray-400">{displayList[2].xp} XP</span>
-              <div className="w-12 h-16 bg-orange-400/20 rounded-t-lg mt-2 border-t border-orange-400/50" />
+              <div className="w-12 h-16 bg-amber-700/20 rounded-t-lg mt-2 border-t border-amber-700/50" />
             </div>
           </div>
 
@@ -338,7 +339,7 @@ const LeaderboardPage = () => {
                 <div className="flex items-center gap-4">
                   <span className="text-lg font-bold text-white w-6 text-center">?</span>
                   <div className="w-10 h-10 rounded-full bg-gray-700 overflow-hidden border-2 border-primary">
-                    <img src={user.photoUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="Me" className="w-full h-full" />
+                    <img src={user.photoUrl || getDefaultAvatarUrl('Felix')} alt="Me" className="w-full h-full" />
                   </div>
                   <div>
                     <div className="font-bold text-white">{user.firstName} (You)</div>

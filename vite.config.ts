@@ -92,13 +92,20 @@ export default defineConfig({
       },
     },
   },
+  esbuild: {
+    drop: ['console', 'debugger'],
+  },
   build: {
+    // Keep es2020 — Telegram WebView on older Android devices chokes on esnext
+    // features (top-level await, private class fields, etc.).
     target: 'es2020',
+    minify: 'esbuild',
+    cssMinify: true,
     rollupOptions: {
       output: {
         manualChunks: {
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-ui': ['framer-motion', 'lucide-react', 'clsx', 'tailwind-merge'],
+          'vendor-ui': ['framer-motion', 'lucide-react', 'clsx'],
           'vendor-utils': ['i18next', 'react-i18next', 'zustand'],
           'vendor-charts': ['recharts'],
           'vendor-tonconnect': ['@tonconnect/ui-react'],

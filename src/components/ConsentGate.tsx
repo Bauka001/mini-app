@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, FileText, ShieldCheck } from 'lucide-react';
 import { claudeTokens } from './ui/claudeTokens';
@@ -90,8 +90,7 @@ type ConsentGateProps = {
 export const ConsentGate = ({ children }: ConsentGateProps) => {
   const { t } = useTranslation();
   const [accepted, setAccepted] = useState<boolean>(() => readConsent() !== null);
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+  const [acceptedDocs, setAcceptedDocs] = useState(false);
   const [confirmedAge, setConfirmedAge] = useState(false);
 
   useEffect(() => {
@@ -102,7 +101,7 @@ export const ConsentGate = ({ children }: ConsentGateProps) => {
     };
   }, [accepted]);
 
-  const allChecked = acceptedTerms && acceptedPrivacy && confirmedAge;
+  const allChecked = acceptedDocs && confirmedAge;
 
   const handleAccept = () => {
     if (!allChecked) return;
@@ -122,31 +121,7 @@ export const ConsentGate = ({ children }: ConsentGateProps) => {
     setAccepted(true);
   };
 
-  const checkboxes = useMemo(
-    () => [
-      {
-        key: 'terms',
-        checked: acceptedTerms,
-        onToggle: () => setAcceptedTerms((v) => !v),
-        label: t('consent_accept_terms'),
-        link: { label: t('consent_view_terms'), href: '#/terms' },
-      },
-      {
-        key: 'privacy',
-        checked: acceptedPrivacy,
-        onToggle: () => setAcceptedPrivacy((v) => !v),
-        label: t('consent_accept_privacy'),
-        link: { label: t('consent_view_privacy'), href: '#/privacy' },
-      },
-      {
-        key: 'age',
-        checked: confirmedAge,
-        onToggle: () => setConfirmedAge((v) => !v),
-        label: t('consent_confirm_age'),
-      },
-    ],
-    [acceptedPrivacy, acceptedTerms, confirmedAge, t]
-  );
+  const toggleDocs = () => setAcceptedDocs((v) => !v);
 
   if (accepted) return <>{children}</>;
 
@@ -222,15 +197,65 @@ export const ConsentGate = ({ children }: ConsentGateProps) => {
           </p>
 
           <div className="space-y-2">
-            {checkboxes.map((c) => (
-              <CheckboxRow
-                key={c.key}
-                checked={c.checked}
-                onToggle={c.onToggle}
-                label={c.label}
-                link={c.link}
-              />
-            ))}
+            <label
+              className="flex items-start gap-3 rounded-xl px-4 py-3 cursor-pointer select-none"
+              style={{
+                backgroundColor: claudeTokens.surfaceMuted,
+                border: `1px solid ${acceptedDocs ? claudeTokens.accent : claudeTokens.border}`,
+              }}
+            >
+              <button
+                type="button"
+                onClick={toggleDocs}
+                aria-pressed={acceptedDocs}
+                aria-label={t('consent_accept_terms_and_privacy', {
+                  defaultValue: 'I have read and agree to the Terms of Use and Privacy Policy',
+                })}
+                className="mt-0.5 h-5 w-5 shrink-0 rounded-md flex items-center justify-center"
+                style={{
+                  backgroundColor: acceptedDocs ? claudeTokens.accent : '#FFFFFF',
+                  border: `1.5px solid ${acceptedDocs ? claudeTokens.accent : claudeTokens.borderStrong}`,
+                }}
+              >
+                {acceptedDocs && <Check size={14} strokeWidth={3} color="#FFFFFF" />}
+              </button>
+              <div className="text-sm leading-relaxed" style={{ color: claudeTokens.textBody }}>
+                <span onClick={toggleDocs}>
+                  {t('consent_accept_terms_and_privacy', {
+                    defaultValue: 'I have read and agree to the Terms of Use and Privacy Policy',
+                  })}
+                </span>
+                {' ('}
+                <a
+                  href="#/terms"
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="underline"
+                  style={{ color: claudeTokens.accent }}
+                >
+                  {t('consent_view_terms')}
+                </a>
+                {' · '}
+                <a
+                  href="#/privacy"
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="underline"
+                  style={{ color: claudeTokens.accent }}
+                >
+                  {t('consent_view_privacy')}
+                </a>
+                {')'}
+              </div>
+            </label>
+
+            <CheckboxRow
+              checked={confirmedAge}
+              onToggle={() => setConfirmedAge((v) => !v)}
+              label={t('consent_confirm_age')}
+            />
           </div>
         </div>
 

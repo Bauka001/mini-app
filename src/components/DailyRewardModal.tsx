@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart3, BrainCircuit, CalendarDays, Check, Crown, Lock, Users, X } from 'lucide-react';
 import { useStore } from '../store/useStoreImpl';
@@ -10,20 +11,44 @@ type AnalyticsClaimReward = {
   coins: number;
   gems: number;
   xp: number;
-  analyticsDay: number;
-  analyticsTitle: string;
-  analyticsDescription: string;
-  nextUnlockDay: number | null;
-  isNewUnlock: boolean;
+  tournamentTickets: number;
+  milestoneDay: number;
+  milestoneTitle: string;
+  milestoneDescription: string;
+  nextMilestoneDay: number | null;
+  isMilestoneReached: boolean;
   streakPreservedByVip: boolean;
 };
 
-const ANALYTICS_REWARD_STEPS = [
-  { day: 1, title: 'Ертеңгі нәтиже', description: 'Ертеңгі нәтижені көре аласыз', icon: CalendarDays },
-  { day: 7, title: 'Апталық график', description: 'Апталық график ашылады', icon: BarChart3 },
-  { day: 14, title: 'Орташа білім баласы', description: 'Орташа білім баласын көре аласыз', icon: BrainCircuit },
-  { day: 30, title: 'Қоғамдық салыстырма', description: 'Айдан көпшілік салыстырма ашылады', icon: Users },
+const DAILY_STREAK_STEPS = [
+  {
+    day: 1,
+    titleKey: 'daily_reward_step_1_title',
+    descriptionKey: 'daily_reward_step_1_desc',
+    icon: CalendarDays,
+  },
+  {
+    day: 7,
+    titleKey: 'daily_reward_step_7_title',
+    descriptionKey: 'daily_reward_step_7_desc',
+    icon: BarChart3,
+  },
+  {
+    day: 14,
+    titleKey: 'daily_reward_step_14_title',
+    descriptionKey: 'daily_reward_step_14_desc',
+    icon: BrainCircuit,
+  },
+  {
+    day: 30,
+    titleKey: 'daily_reward_step_30_title',
+    descriptionKey: 'daily_reward_step_30_desc',
+    icon: Users,
+  },
 ] as const;
+
+const getDailyStepByDay = (day: number) =>
+  DAILY_STREAK_STEPS.find((step) => step.day === day) || null;
 
 export const DailyRewardModal = ({
   isOpen,
@@ -32,7 +57,13 @@ export const DailyRewardModal = ({
   isOpen: boolean;
   onClose: () => void;
 }) => {
-  const { lastDailyRewardDate, dailyRewardStreak, claimDailyLoginReward, plan, planExpiry } = useStore();
+  const { t } = useTranslation();
+  const {
+    dailyRewardStreak,
+    claimDailyLoginReward,
+    plan,
+    planExpiry,
+  } = useStore();
   const { isClaude } = useThemeStyles();
   const [claimedReward, setClaimedReward] = useState<AnalyticsClaimReward | null>(null);
 
@@ -53,25 +84,50 @@ export const DailyRewardModal = ({
   const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
   const twoDaysAgo = new Date(Date.now() - 86400000 * 2).toISOString().split('T')[0];
   const isVipActive = plan === 'premium' && (!planExpiry || planExpiry > Date.now());
+  const lastDailyRewardDate = dailyRewardStreak?.lastClaimDate || null;
   const isClaimedToday = lastDailyRewardDate === today;
   const canUseVipGrace = !isClaimedToday && isVipActive && lastDailyRewardDate === twoDaysAgo;
   const previewStreak = isClaimedToday
-    ? dailyRewardStreak
+    ? dailyRewardStreak.count
     : lastDailyRewardDate === yesterday || canUseVipGrace
-      ? dailyRewardStreak + 1
+      ? dailyRewardStreak.count + 1
       : 1;
-  const unlockedDays = isClaimedToday ? dailyRewardStreak : Math.max(dailyRewardStreak, 0);
-  const nextMilestone = ANALYTICS_REWARD_STEPS.find((step) => step.day > unlockedDays) || null;
+  const unlockedDays = isClaimedToday ? dailyRewardStreak.count : Math.max(dailyRewardStreak.count, 0);
+  const nextMilestone = DAILY_STREAK_STEPS.find((step) => step.day > unlockedDays) || null;
   const currentFocusDay =
-    !isClaimedToday && ANALYTICS_REWARD_STEPS.some((step) => step.day === previewStreak)
+    !isClaimedToday && DAILY_STREAK_STEPS.some((step) => step.day === previewStreak)
       ? previewStreak
-      : nextMilestone?.day || ANALYTICS_REWARD_STEPS[ANALYTICS_REWARD_STEPS.length - 1].day;
+      : nextMilestone?.day || DAILY_STREAK_STEPS[DAILY_STREAK_STEPS.length - 1].day;
 
   const streakMessage = canUseVipGrace
-    ? 'VIP мәртебесі бір күн кешіккен серияны сақтап тұр'
+    ? t('daily_reward_modal_message_vip_grace')
     : isClaimedToday
-      ? 'Бүгінгі аналитика прогресі тіркелді'
-      : 'Серия үзілсе, free қолданушы үшін прогресс 1-күннен қайта басталады';
+      ? t('daily_reward_modal_message_claimed_today')
+      : t('daily_reward_modal_message_reset_warning');
+
+  const getClaimRewardTitle = (reward: AnalyticsClaimReward) => {
+    const exactStep = getDailyStepByDay(reward.milestoneDay);
+    if (exactStep) return t(exactStep.titleKey);
+    if (reward.nextMilestoneDay) {
+      return t('daily_reward_modal_progress_title', { day: reward.nextMilestoneDay });
+    }
+    return t('daily_reward_modal_all_done_title');
+  };
+
+  const getClaimRewardDescription = (reward: AnalyticsClaimReward) => {
+    const exactStep = getDailyStepByDay(reward.milestoneDay);
+    if (exactStep) return t(exactStep.descriptionKey);
+
+    if (reward.nextMilestoneDay) {
+      const nextStep = getDailyStepByDay(reward.nextMilestoneDay);
+      return t('daily_reward_modal_progress_desc', {
+        day: reward.nextMilestoneDay,
+        reward: nextStep ? t(nextStep.titleKey).toLowerCase() : '',
+      });
+    }
+
+    return t('daily_reward_modal_all_done_desc');
+  };
 
   if (isClaude) {
     return (
@@ -118,7 +174,7 @@ export const DailyRewardModal = ({
                     fontWeight: 500,
                   }}
                 >
-                  Daily analytics
+                  {t('daily_reward_modal_title')}
                 </h2>
               </div>
               <button
@@ -133,7 +189,7 @@ export const DailyRewardModal = ({
 
             <div className="overflow-y-auto px-6 py-5">
               <p className="text-[14px] leading-relaxed" style={{ color: claudeTokens.textBody }}>
-                Күнделікті кіру арқылы аналитика бөлімінің жаңа қабаттарын ашыңыз.
+                {t('daily_reward_modal_subtitle')}
               </p>
 
               {/* Streak panel */}
@@ -150,7 +206,7 @@ export const DailyRewardModal = ({
                       className="text-[10px] font-medium uppercase tracking-[0.22em]"
                       style={{ color: claudeTokens.textMuted }}
                     >
-                      Current streak
+                      {t('daily_reward_modal_current_streak')}
                     </span>
                     <div
                       className="mt-1 tabular-nums"
@@ -163,7 +219,7 @@ export const DailyRewardModal = ({
                         lineHeight: 1,
                       }}
                     >
-                      {dailyRewardStreak}
+                      {dailyRewardStreak.count}
                       <span className="text-[14px] ml-1" style={{ color: claudeTokens.textMuted }}>
                         days
                       </span>
@@ -179,7 +235,7 @@ export const DailyRewardModal = ({
                       }}
                     >
                       <Crown size={11} strokeWidth={1.75} />
-                      VIP grace
+                      {t('daily_reward_modal_vip_protection')}
                     </span>
                   )}
                 </div>
@@ -191,14 +247,17 @@ export const DailyRewardModal = ({
                     className="mt-2 text-[11px] italic"
                     style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
                   >
-                    Next unlock: day {nextMilestone.day} · {nextMilestone.title.toLowerCase()}
+                    {t('daily_reward_modal_next_milestone', {
+                      day: nextMilestone.day,
+                      title: t(nextMilestone.titleKey).toLowerCase(),
+                    })}
                   </p>
                 )}
               </div>
 
               {/* Milestone list */}
               <div className="mt-4 space-y-2">
-                {ANALYTICS_REWARD_STEPS.map((step) => {
+                {DAILY_STREAK_STEPS.map((step) => {
                   const Icon = step.icon;
                   const isUnlocked = unlockedDays >= step.day;
                   const isActive = !isUnlocked && currentFocusDay === step.day;
@@ -241,7 +300,7 @@ export const DailyRewardModal = ({
                               fontFamily: claudeTokens.serifStack,
                             }}
                           >
-                            Day {step.day}
+                            {t('daily_reward_modal_day_label', { day: step.day })}
                           </span>
                           {isUnlocked ? (
                             <span
@@ -249,7 +308,7 @@ export const DailyRewardModal = ({
                               style={{ color: claudeTokens.success, fontFamily: claudeTokens.serifStack }}
                             >
                               <Check size={10} strokeWidth={2} />
-                              Open
+                              {t('daily_reward_modal_status_unlocked')}
                             </span>
                           ) : isActive ? (
                             <span
@@ -257,7 +316,7 @@ export const DailyRewardModal = ({
                               style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
                             >
                               <Lock size={10} strokeWidth={1.75} />
-                              Next
+                              {t('daily_reward_modal_status_queued')}
                             </span>
                           ) : (
                             <span
@@ -265,7 +324,7 @@ export const DailyRewardModal = ({
                               style={{ color: claudeTokens.textMuted }}
                             >
                               <Lock size={10} strokeWidth={1.75} />
-                              Locked
+                              {t('daily_reward_modal_status_locked')}
                             </span>
                           )}
                         </div>
@@ -277,10 +336,10 @@ export const DailyRewardModal = ({
                             fontWeight: 500,
                           }}
                         >
-                          {step.title}
+                          {t(step.titleKey)}
                         </div>
                         <div className="text-[12px] mt-0.5" style={{ color: claudeTokens.textBody }}>
-                          {step.description}
+                          {t(step.descriptionKey)}
                         </div>
                       </div>
                     </div>
@@ -310,23 +369,53 @@ export const DailyRewardModal = ({
                       }}
                     >
                       <Check size={18} strokeWidth={2} />
-                      {claimedReward.isNewUnlock ? 'Analytics unlocked' : 'Streak extended'}
+                      {claimedReward.isMilestoneReached
+                        ? t('daily_reward_modal_result_milestone')
+                        : t('daily_reward_modal_result_continued')}
                     </div>
                     <div
                       className="mt-1 text-[14px]"
                       style={{ color: claudeTokens.textPrimary, fontWeight: 500 }}
                     >
-                      {claimedReward.analyticsTitle}
+                      {getClaimRewardTitle(claimedReward)}
                     </div>
                     <div className="mt-1 text-[12px]" style={{ color: claudeTokens.textBody }}>
-                      {claimedReward.analyticsDescription}
+                      {getClaimRewardDescription(claimedReward)}
                     </div>
+                    {(claimedReward.coins > 0 || claimedReward.tournamentTickets > 0) && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {claimedReward.coins > 0 && (
+                          <div
+                            className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em]"
+                            style={{
+                              backgroundColor: claudeTokens.surface,
+                              border: `1px solid ${claudeTokens.border}`,
+                              color: claudeTokens.textPrimary,
+                            }}
+                          >
+                            +{claimedReward.coins} {t('coins_unit')}
+                          </div>
+                        )}
+                        {claimedReward.tournamentTickets > 0 && (
+                          <div
+                            className="rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.18em]"
+                            style={{
+                              backgroundColor: claudeTokens.surface,
+                              border: `1px solid ${claudeTokens.border}`,
+                              color: claudeTokens.textPrimary,
+                            }}
+                          >
+                            {t('daily_reward_modal_ticket_reward', { count: claimedReward.tournamentTickets })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {claimedReward.streakPreservedByVip && (
                       <div
                         className="mt-2 text-[11px] italic"
                         style={{ color: claudeTokens.accent, fontFamily: claudeTokens.serifStack }}
                       >
-                        VIP grace applied — streak preserved despite a one-day gap.
+                        {t('daily_reward_modal_vip_grace_applied')}
                       </div>
                     )}
                   </motion.div>
@@ -340,7 +429,7 @@ export const DailyRewardModal = ({
                     }}
                   >
                     <Check size={14} strokeWidth={1.75} />
-                    Come back tomorrow to extend the streak
+                    {t('daily_reward_modal_try_tomorrow')}
                   </div>
                 ) : (
                   <button
@@ -348,7 +437,7 @@ export const DailyRewardModal = ({
                     className="w-full rounded-lg py-3.5 text-[14px] font-medium transition-colors"
                     style={{ backgroundColor: claudeTokens.accent, color: '#FFFFFF' }}
                   >
-                    Unlock today's analytics
+                    {t('daily_reward_modal_continue')}
                   </button>
                 )}
               </div>
@@ -366,57 +455,64 @@ export const DailyRewardModal = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+        className="modal-shell fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       >
         <motion.div
           initial={{ scale: 0.8, y: 50 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.8, y: 50 }}
-          className="bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/15 shadow-2xl relative"
+          className="modal-card bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/15 shadow-2xl relative flex flex-col"
         >
            <button
              onClick={onClose}
-             className="absolute top-4 right-4 p-2 bg-white/5 rounded-full text-gray-400 hover:bg-white/10 z-10"
+             className="absolute top-4 right-4 p-2 min-h-[44px] min-w-[44px] bg-white/5 rounded-full text-gray-400 hover:bg-white/10 z-10"
            >
              <X size={20} />
            </button>
 
-           <div className="p-8 text-center relative overflow-hidden isolate">
+           <div className="p-5 sm:p-8 text-center relative overflow-y-auto overflow-x-hidden isolate">
              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-64 bg-primary/10 blur-[80px] rounded-full pointer-events-none z-0" aria-hidden="true" />
 
              <h2
                style={{ color: '#FFFFFF' }}
-               className="text-3xl font-extrabold mb-2 relative z-10 uppercase tracking-wide drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
+               className="text-2xl sm:text-3xl font-extrabold mb-2 relative z-10 uppercase tracking-wide italic drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]"
              >
-               Күнделікті аналитика
+               {t('daily_reward_modal_title')}
              </h2>
-             <p style={{ color: '#E5E7EB' }} className="text-sm mb-4 relative z-10 font-medium">
-               Күнделікті кіру арқылы аналитика бөлімінің жаңа қабаттарын ашыңыз.
+             <p style={{ color: '#E5E7EB' }} className="text-sm sm:text-base mb-4 relative z-10 font-medium">
+               {t('daily_reward_modal_subtitle')}
              </p>
 
              <div className="relative z-10 mb-6 rounded-2xl border border-white/15 bg-white/[0.07] p-4 text-left">
                <div className="flex items-center justify-between gap-3 mb-2">
                  <div>
-                   <p style={{ color: '#D1D5DB' }} className="text-xs uppercase tracking-[0.2em]">Қазіргі серия</p>
-                   <p style={{ color: '#FFFFFF' }} className="text-2xl font-extrabold">{dailyRewardStreak} күн</p>
+                   <p style={{ color: '#D1D5DB' }} className="text-xs uppercase tracking-[0.2em]">
+                     {t('daily_reward_modal_current_streak')}
+                   </p>
+                  <p style={{ color: '#FFFFFF' }} className="text-2xl font-extrabold">
+                    {t('daily_reward_modal_streak_count', { count: dailyRewardStreak.count })}
+                  </p>
                  </div>
                  {isVipActive ? (
                    <div className="inline-flex items-center gap-2 rounded-full border border-yellow-500/30 bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-300">
                      <Crown size={14} />
-                     VIP қорғау
+                     {t('daily_reward_modal_vip_protection')}
                    </div>
                  ) : null}
                </div>
                <p className="text-sm text-gray-200">{streakMessage}</p>
                {!isClaimedToday && nextMilestone ? (
                  <p className="mt-2 text-xs font-bold text-primary">
-                   Келесі unlock: {nextMilestone.day}-күн, {nextMilestone.title.toLowerCase()}
+                  {t('daily_reward_modal_next_milestone', {
+                    day: nextMilestone.day,
+                    title: t(nextMilestone.titleKey).toLowerCase(),
+                  })}
                  </p>
                ) : null}
              </div>
 
              <div className="space-y-3 mb-8 relative z-10">
-               {ANALYTICS_REWARD_STEPS.map((step) => {
+               {DAILY_STREAK_STEPS.map((step) => {
                  const Icon = step.icon;
                  const isUnlocked = unlockedDays >= step.day;
                  const isActive = !isUnlocked && currentFocusDay === step.day;
@@ -450,27 +546,27 @@ export const DailyRewardModal = ({
                            "text-xs font-black uppercase tracking-[0.18em]",
                            isActive ? "text-primary" : isUnlocked ? "text-green-300" : "text-gray-300"
                          )}>
-                           Күн {step.day}
+                          {t('daily_reward_modal_day_label', { day: step.day })}
                          </span>
                          {isUnlocked ? (
                            <span className="inline-flex items-center gap-1 rounded-full bg-green-500/20 px-2 py-1 text-[11px] font-bold text-green-200">
                              <Check size={12} />
-                             Ашық
+                            {t('daily_reward_modal_status_unlocked')}
                            </span>
                          ) : isActive ? (
                            <span className="inline-flex items-center gap-1 rounded-full bg-primary/20 px-2 py-1 text-[11px] font-bold text-primary">
                              <Lock size={12} />
-                             Кезекте
+                            {t('daily_reward_modal_status_queued')}
                            </span>
                          ) : (
                            <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2 py-1 text-[11px] font-bold text-gray-200">
                              <Lock size={12} />
-                             Құлыптаулы
+                            {t('daily_reward_modal_status_locked')}
                            </span>
                          )}
                        </div>
-                       <div style={{ color: '#FFFFFF' }} className="text-base font-bold">{step.title}</div>
-                       <div style={{ color: '#E5E7EB' }} className="text-sm">{step.description}</div>
+                      <div style={{ color: '#FFFFFF' }} className="text-base font-bold">{t(step.titleKey)}</div>
+                      <div style={{ color: '#E5E7EB' }} className="text-sm">{t(step.descriptionKey)}</div>
                      </div>
                    </div>
                  );
@@ -485,27 +581,43 @@ export const DailyRewardModal = ({
                >
                  <div className="flex items-center gap-2 text-green-200 font-black text-lg mb-2">
                    <Check size={22} />
-                   {claimedReward.isNewUnlock ? 'Analytics ашылды' : 'Streak жаңартылды'}
+                  {claimedReward.isMilestoneReached
+                    ? t('daily_reward_modal_result_milestone')
+                    : t('daily_reward_modal_result_continued')}
                  </div>
-                 <div style={{ color: '#FFFFFF' }} className="font-bold">{claimedReward.analyticsTitle}</div>
-                 <div style={{ color: '#E5E7EB' }} className="text-sm mt-1">{claimedReward.analyticsDescription}</div>
+                <div style={{ color: '#FFFFFF' }} className="font-bold">{getClaimRewardTitle(claimedReward)}</div>
+                <div style={{ color: '#E5E7EB' }} className="text-sm mt-1">{getClaimRewardDescription(claimedReward)}</div>
+                {claimedReward.coins > 0 || claimedReward.tournamentTickets > 0 ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {claimedReward.coins > 0 ? (
+                      <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white">
+                        +{claimedReward.coins} {t('coins_unit')}
+                      </div>
+                    ) : null}
+                    {claimedReward.tournamentTickets > 0 ? (
+                      <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-white">
+                        {t('daily_reward_modal_ticket_reward', { count: claimedReward.tournamentTickets })}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                  {claimedReward.streakPreservedByVip ? (
-                   <div className="mt-3 text-xs font-semibold text-yellow-200">
-                     VIP grace қолданылды: серия бір күн кешіккеніне қарамастан сақталды.
+                   <div className="mt-3 text-xs font-semibold text-yellow-300">
+                     {t('daily_reward_modal_vip_grace_applied')}
                    </div>
                  ) : null}
                </motion.div>
              ) : isClaimedToday ? (
                <div className="bg-white/15 text-gray-200 font-bold py-4 rounded-xl text-sm flex items-center justify-center gap-2">
                  <Check size={16} />
-                 Ертең қайта кіріп, streak-ті жалғастырыңыз
+                 {t('daily_reward_modal_try_tomorrow')}
                </div>
              ) : (
                <button
                  onClick={handleClaim}
-                 className="w-full bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 text-stone-950 font-black py-4 rounded-xl text-xl shadow-[0_8px_24px_rgba(245,158,11,0.45)] hover:scale-[1.02] transition-transform active:scale-95"
+                 className="w-full min-h-[44px] bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 text-stone-950 font-black py-4 rounded-xl text-xl shadow-[0_8px_24px_rgba(245,158,11,0.45)] hover:scale-[1.02] transition-transform active:scale-95"
                >
-                 Analytics ашу
+                 {t('daily_reward_modal_continue')}
                </button>
              )}
            </div>

@@ -16,7 +16,6 @@ const gameNames: Record<string, string> = {
   'stroop': 'Stroop Test',
   'memory': 'Memory Matrix',
   'odd-one': 'Odd One Out',
-  'agent_sequence': 'Agent Sequence',
   'pairs': 'Pairs',
   'tetris': 'Tetris',
   '2048': 'Merge 2048'

@@ -1,9 +1,21 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { getTelegramUser, hapticFeedback } from '../utils/telegram';
+import { getTelegramUser, hapticFeedback, hasTelegramStartParam } from '../utils/telegram';
 import { detectInitialLanguage } from '../utils/detectLanguage';
 import { telegramStorage } from './storage';
-import { UserState, initialUserRaw, generateGameId, initialState, generateDailyChallenges, initialSocialTasks, Ticket, EventParticipant, Notification, TournamentState } from './useStore';
+import {
+  type EventParticipant,
+  type MysteryBox,
+  type Notification,
+  type Ticket,
+  type TournamentState,
+  type UserState,
+  generateDailyChallenges,
+  generateGameId,
+  initialSocialTasks,
+  initialState,
+  initialUserRaw,
+} from './useStore';
 import { getUserByTelegramId, createUser, updateUser, subscribeToUserChanges, isSupabaseConfigured, DatabaseUser } from '../utils/supabase';
 import {
   CanonicalUser,
@@ -21,635 +33,209 @@ import {
   syncUserToServer,
 } from '../utils/adminApi';
 import { calculateBrainScoreMetrics } from '../utils/brainScore';
+import {
+  DEFAULT_BRAIN_STATS,
+  applyBrainStatProgress,
+  normalizeBrainStats,
+  toDateKey,
+} from './analytics';
+import {
+  buildClaimDailyLoginRewardResult,
+  buildDailyQuestAfterGame,
+  buildWeeklyChallengeAfterGame,
+  buildWeeklyQuestAfterGame,
+  DEFAULT_DAILY_QUEST,
+  DEFAULT_WEEKLY_QUEST,
+  getWeekKeyMonday,
+  normalizeDailyQuest,
+  normalizeWeeklyQuest,
+  rollMysteryBoxOutcome,
+} from './economy';
+import { rollCaseOutcome } from './cases';
+import {
+  getWeekendEvent,
+  loadUserFromSupabase,
+  persistFeedbackEntry,
+  shouldShowFirstWorkoutNotification,
+  subscribeToSupabaseChanges,
+  syncUserToSupabase,
+} from './persistence';
+import {
+  buildJoinTournamentOutcome,
+  buildTournamentStateAfterGame,
+  normalizeTournamentState,
+} from './tournament';
+import { fetchSocialTasksApi, claimSocialTaskApi } from '../utils/api';
+import { fetchEntitlements as fetchEntitlementsApi, type EntitlementsResponse } from '../utils/entitlementApi';
+import { AvatarStorage } from '../utils/avatarStorage';
+import { getDefaultAvatarUrl, PROFILE_AVATARS } from '../constants/avatars';
 
-let supabaseChannel: ReturnType<typeof subscribeToUserChanges> | null = null;
+export { buildVipAnalyticsSnapshot, TELEGRAM_AVERAGE_BRAIN_PROFILE } from './analytics';
 
-const DEFAULT_BRAIN_STATS = {
-  focus: 20,
-  memory: 20,
-  logic: 20,
-  speed: 20,
-  flexibility: 20,
-};
+const CLAIMED_PLAN_REWARD_HISTORY_LIMIT = 64;
+const PREMIUM_PLAN_REWARD_KEY_PREFIX = 'premium-once-v1';
+const PRO_WEEKLY_TICKET_KEY_PREFIX = 'pro-weekly-ticket-v1';
+const PREMIUM_RAFFLE_EVENT_NAME = 'Premium Car Raffle';
+const PREMIUM_PLAN_REWARD = {
+  coins: 10_000,
+  gems: 10_000,
+  premiumGiftMysteryBoxes: 10,
+} as const;
 
-const DEFAULT_DAILY_QUEST: UserState['dailyQuest'] = {
-  id: 'daily_quest_3games',
-  gamesPlayed: [],
-  isCompleted: false,
-  isClaimed: false,
-  lastResetDate: null,
-};
+const trimClaimedPlanRewardKeys = (keys: string[]) =>
+  Array.from(new Set(keys)).slice(-CLAIMED_PLAN_REWARD_HISTORY_LIMIT);
 
-const DEFAULT_WEEKLY_QUEST: UserState['weeklyQuest'] = {
-  id: 'weekly_quest_10games',
-  gamesPlayed: 0,
-  targetGames: 10,
-  milestones: [
-    { gamesRequired: 2, reward: { coins: 50, crystals: 0, energy: 0 }, isClaimed: false },
-    { gamesRequired: 4, reward: { coins: 50, crystals: 2, energy: 0 }, isClaimed: false },
-    { gamesRequired: 6, reward: { coins: 50, crystals: 0, energy: 10 }, isClaimed: false },
-    { gamesRequired: 8, reward: { coins: 100, crystals: 0, energy: 0 }, isClaimed: false },
-    { gamesRequired: 10, reward: { coins: 100, crystals: 5, energy: 20 }, isClaimed: false },
-  ],
-  lastResetDate: null,
-};
+const buildPremiumRaffleTicket = (
+  state: Pick<UserState, 'user' | 'promotionEndISO'>,
+  now: Date
+): { ticket: Ticket; participant: EventParticipant } => {
+  const ticketNumber = Math.floor(Math.random() * 90000000) + 10000000;
+  const ticketId = `premium-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`;
+  const purchaseDate = now.toISOString();
+  const eventDate = state.promotionEndISO || now.toISOString();
+  const userName = state.user.firstName || 'Premium User';
 
-const normalizeBrainStats = (brainStats: any, history: any[] = []) => {
-  const safeStats = {
-    focus: Number.isFinite(Number(brainStats?.focus)) ? Number(brainStats.focus) : DEFAULT_BRAIN_STATS.focus,
-    memory: Number.isFinite(Number(brainStats?.memory)) ? Number(brainStats.memory) : DEFAULT_BRAIN_STATS.memory,
-    logic: Number.isFinite(Number(brainStats?.logic)) ? Number(brainStats.logic) : DEFAULT_BRAIN_STATS.logic,
-    speed: Number.isFinite(Number(brainStats?.speed)) ? Number(brainStats.speed) : DEFAULT_BRAIN_STATS.speed,
-    flexibility: Number.isFinite(Number(brainStats?.flexibility)) ? Number(brainStats.flexibility) : DEFAULT_BRAIN_STATS.flexibility,
+  const ticket: Ticket = {
+    id: ticketId,
+    ticketNumber,
+    eventName: PREMIUM_RAFFLE_EVENT_NAME,
+    eventDate,
+    price: 0,
+    purchaseDate,
+    userId: state.user.id,
+    userName,
+    isUsed: false,
   };
 
   return {
-    ...safeStats,
-    ...calculateBrainScoreMetrics(history),
+    ticket,
+    participant: {
+      ticketId,
+      ticketNumber,
+      userId: state.user.id,
+      userName,
+      userPhoto: state.user.photoUrl,
+      purchaseDate,
+      isVerified: false,
+    },
   };
 };
 
-const normalizeDailyQuest = (dailyQuest: any): UserState['dailyQuest'] => ({
-  ...DEFAULT_DAILY_QUEST,
-  ...(dailyQuest || {}),
-  gamesPlayed: Array.isArray(dailyQuest?.gamesPlayed)
-    ? dailyQuest.gamesPlayed.filter((gameId: unknown): gameId is string => typeof gameId === 'string')
-    : [],
-});
-
-const normalizeWeeklyQuest = (weeklyQuest: any): UserState['weeklyQuest'] => ({
-  ...DEFAULT_WEEKLY_QUEST,
-  ...(weeklyQuest || {}),
-  milestones: Array.isArray(weeklyQuest?.milestones) && weeklyQuest.milestones.length > 0
-    ? weeklyQuest.milestones.map((milestone: any, index: number) => ({
-        ...DEFAULT_WEEKLY_QUEST.milestones[Math.min(index, DEFAULT_WEEKLY_QUEST.milestones.length - 1)],
-        ...(milestone || {}),
-        reward: {
-          ...DEFAULT_WEEKLY_QUEST.milestones[Math.min(index, DEFAULT_WEEKLY_QUEST.milestones.length - 1)].reward,
-          ...(milestone?.reward || {}),
-        },
-      }))
-    : DEFAULT_WEEKLY_QUEST.milestones,
-});
-
-const TOURNAMENT_ENTRY_FEE = 50;
-const TOURNAMENT_GAMES_LIMIT = 3;
-const VIP_TOURNAMENT_PLAN = 'premium';
-const DAILY_WORKOUT_STORAGE_KEY = 'focus-daily-workout-v1';
-const ONBOARDING_WORKOUT_TOAST_PREFIX = 'focus-onboarding-workout-toast-v1';
-const VIP_ANALYTICS_DAY_RANGE = 30;
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
-
-type AnalyticsCategoryKey = 'focus' | 'memory' | 'logic' | 'speed' | 'flexibility';
-
-const ANALYTICS_CATEGORY_LABELS: Record<AnalyticsCategoryKey, string> = {
-  focus: 'Focus',
-  memory: 'Memory',
-  logic: 'Logic',
-  speed: 'Speed',
-  flexibility: 'Flexibility',
-};
-
-export const TELEGRAM_AVERAGE_BRAIN_PROFILE: Record<AnalyticsCategoryKey | 'overall', number> = {
-  overall: 62,
-  focus: 58,
-  memory: 56,
-  logic: 60,
-  speed: 55,
-  flexibility: 54,
-};
-
-const clampAnalyticsMetric = (value: number, min = 0, max = 100) =>
-  Math.max(min, Math.min(max, Math.round(value)));
-
-const toSafeNumber = (value: string | number | undefined | null) => {
-  const nextValue = Number(value);
-  return Number.isFinite(nextValue) ? nextValue : 0;
-};
-
-const buildAnalyticsDateLabel = (value: Date) =>
-  `${String(value.getDate()).padStart(2, '0')}/${String(value.getMonth() + 1).padStart(2, '0')}`;
-
-const DAILY_ANALYTICS_REWARDS = [
-  {
-    day: 1,
-    title: 'Ертеңгі нәтиже',
-    description: 'Ертеңгі нәтижені көре аласыз',
-  },
-  {
-    day: 7,
-    title: 'Апталық график',
-    description: 'Апталық график ашылады',
-  },
-  {
-    day: 14,
-    title: 'Орташа білім баласы',
-    description: 'Орташа білім баласын көре аласыз',
-  },
-  {
-    day: 30,
-    title: 'Қоғамдық салыстырма',
-    description: 'Айдан көпшілік салыстырма ашылады',
-  },
-] as const;
-
-const getDateDiffInDays = (fromDateKey: string, toDateKey: string) => {
-  const from = new Date(`${fromDateKey}T00:00:00`);
-  const to = new Date(`${toDateKey}T00:00:00`);
-  return Math.round((to.getTime() - from.getTime()) / DAY_IN_MS);
-};
-
-const isVipDailyRewardGraceActive = (
-  plan: UserState['plan'],
-  planExpiry: UserState['planExpiry']
-) => plan === 'premium' && (!planExpiry || planExpiry > Date.now());
-
-const getAnalyticsRewardForStreak = (streak: number) => {
-  const exactReward = DAILY_ANALYTICS_REWARDS.find((entry) => entry.day === streak);
-  const nextReward = DAILY_ANALYTICS_REWARDS.find((entry) => entry.day > streak) || null;
-
-  if (exactReward) {
-    return {
-      analyticsDay: streak,
-      analyticsTitle: exactReward.title,
-      analyticsDescription: exactReward.description,
-      nextUnlockDay: nextReward?.day || null,
-      isNewUnlock: true,
-    };
-  }
-
-  return {
-    analyticsDay: streak,
-    analyticsTitle: nextReward ? `${nextReward.day}-күнге қадам` : 'Барлық аналитика ашық',
-    analyticsDescription: nextReward
-      ? `${nextReward.day}-күнге жетсеңіз, ${nextReward.title.toLowerCase()} ашылады`
-      : 'Analytics бөліміндегі барлық daily unlock ашылып тұр',
-    nextUnlockDay: nextReward?.day || null,
-    isNewUnlock: false,
-  };
-};
-
-export const buildVipAnalyticsSnapshot = (
-  history: UserState['history'] = [],
-  brainStats: UserState['brainStats']
-) => {
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-
-  const dailyBuckets = Array.from({ length: VIP_ANALYTICS_DAY_RANGE }, (_, index) => {
-    const date = new Date(now);
-    date.setDate(now.getDate() - (VIP_ANALYTICS_DAY_RANGE - 1 - index));
-    return {
-      key: toDateKey(date),
-      label: buildAnalyticsDateLabel(date),
-      total: 0,
-      sessions: 0,
-    };
-  });
-
-  const bucketMap = new Map(dailyBuckets.map((bucket) => [bucket.key, bucket]));
-  const windowStart = dailyBuckets[0] ? new Date(`${dailyBuckets[0].key}T00:00:00`).getTime() : Date.now();
-
-  const windowHistory = [...history]
-    .filter((entry) => toSafeNumber(entry.timestamp) >= windowStart)
-    .sort((left, right) => toSafeNumber(left.timestamp) - toSafeNumber(right.timestamp));
-
-  const gameBreakdownMap = new Map<
-    string,
-    { gameId: string; plays: number; totalScore: number; bestScore: number; lastScore: number }
-  >();
-
-  windowHistory.forEach((entry) => {
-    const entryTimestamp = toSafeNumber(entry.timestamp) || Date.now();
-    const performanceScore = clampAnalyticsMetric(toSafeNumber(entry.coinsEarned) * 10);
-    const entryDateKey = toDateKey(new Date(entryTimestamp));
-    const bucket = bucketMap.get(entryDateKey);
-
-    if (bucket) {
-      bucket.total += performanceScore;
-      bucket.sessions += 1;
-    }
-
-    const existingGame = gameBreakdownMap.get(entry.gameId) || {
-      gameId: entry.gameId,
-      plays: 0,
-      totalScore: 0,
-      bestScore: 0,
-      lastScore: 0,
-    };
-
-    gameBreakdownMap.set(entry.gameId, {
-      gameId: entry.gameId,
-      plays: existingGame.plays + 1,
-      totalScore: existingGame.totalScore + performanceScore,
-      bestScore: Math.max(existingGame.bestScore, performanceScore),
-      lastScore: performanceScore,
-    });
-  });
-
-  const midpointTimestamp = windowStart + Math.floor(VIP_ANALYTICS_DAY_RANGE / 2) * DAY_IN_MS;
-  const previousWindowHistory = windowHistory.filter((entry) => toSafeNumber(entry.timestamp) < midpointTimestamp);
-  const currentWindowMetrics = calculateBrainScoreMetrics(windowHistory);
-  const previousWindowMetrics = calculateBrainScoreMetrics(previousWindowHistory);
-
-  return {
-    dayRange: VIP_ANALYTICS_DAY_RANGE,
-    dailySeries: dailyBuckets.map((bucket) => ({
-      key: bucket.key,
-      label: bucket.label,
-      value: bucket.sessions > 0 ? clampAnalyticsMetric(bucket.total / bucket.sessions) : 0,
-      sessions: bucket.sessions,
-    })),
-    totalSessions: windowHistory.length,
-    activeDays: dailyBuckets.filter((bucket) => bucket.sessions > 0).length,
-    currentBrainScore: currentWindowMetrics.combinedScore,
-    brainScoreChange: currentWindowMetrics.combinedScore - previousWindowMetrics.combinedScore,
-    telegramAverage: TELEGRAM_AVERAGE_BRAIN_PROFILE.overall,
-    comparison: (Object.keys(ANALYTICS_CATEGORY_LABELS) as AnalyticsCategoryKey[]).map((key) => {
-      const userValue = clampAnalyticsMetric(toSafeNumber(brainStats?.[key]));
-      const telegramValue = TELEGRAM_AVERAGE_BRAIN_PROFILE[key];
-
-      return {
-        key,
-        label: ANALYTICS_CATEGORY_LABELS[key],
-        userValue,
-        telegramValue,
-        difference: userValue - telegramValue,
-      };
-    }),
-    gameBreakdown: Array.from(gameBreakdownMap.values())
-      .map((entry) => ({
-        gameId: entry.gameId,
-        plays: entry.plays,
-        averageScore: clampAnalyticsMetric(entry.totalScore / entry.plays),
-        bestScore: entry.bestScore,
-        lastScore: entry.lastScore,
-      }))
-      .sort((left, right) => right.averageScore - left.averageScore || right.plays - left.plays),
-  };
-};
-
-const WORKOUT_HISTORY_IDS_BY_SESSION_ID: Record<string, string[]> = {
-  memory: ['memory'],
-  schulte: ['schulte'],
-  math: ['math'],
-  pairs: ['pairs'],
-  'odd-one': ['odd_one_out'],
-  'agent-spot': ['agent_spot'],
-  'agent-sequence': ['agent_sequence'],
-  'code-breaker': ['code_breaker'],
-  stroop: ['stroop'],
-  tetris: ['tetris'],
-  '2048': ['2048'],
-};
-
-type StoredWorkoutSession = {
-  date: string;
-  startedAt: number;
-  gameIds: string[];
-};
-
-const toDateKey = (value: Date) => {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, '0');
-  const day = String(value.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
-
-const getTournamentSchedule = (now = new Date()) => {
-  const friday = new Date(now);
-  friday.setHours(0, 0, 0, 0);
-  friday.setDate(friday.getDate() - ((friday.getDay() + 2) % 7));
-
-  const sunday = new Date(friday);
-  sunday.setDate(friday.getDate() + 2);
-  sunday.setHours(23, 59, 59, 999);
-
-  const nextFriday = new Date(now);
-  nextFriday.setHours(0, 0, 0, 0);
-  nextFriday.setDate(nextFriday.getDate() + (((5 - now.getDay() + 7) % 7) || 7));
-
-  return {
-    weekKey: toDateKey(friday),
-    isOpen: now >= friday && now <= sunday,
-    startsAtISO: friday.toISOString(),
-    endsAtISO: sunday.toISOString(),
-    nextStartsAtISO: nextFriday.toISOString(),
-  };
-};
-
-const readStoredWorkoutSession = (): StoredWorkoutSession | null => {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const raw = localStorage.getItem(DAILY_WORKOUT_STORAGE_KEY);
-    if (!raw) return null;
-
-    const parsed = JSON.parse(raw) as Partial<StoredWorkoutSession>;
-    if (
-      !parsed.date ||
-      typeof parsed.startedAt !== 'number' ||
-      !Array.isArray(parsed.gameIds) ||
-      parsed.gameIds.length === 0
-    ) {
-      return null;
-    }
-
-    return {
-      date: parsed.date,
-      startedAt: parsed.startedAt,
-      gameIds: parsed.gameIds.filter((gameId): gameId is string => typeof gameId === 'string').slice(0, 3),
-    };
-  } catch (error) {
-    console.warn('Workout session read error:', error);
+const buildPlanRewardPatch = (
+  state: UserState,
+  response: EntitlementsResponse,
+  now = new Date()
+): {
+  statePatch: Partial<UserState>;
+  grantedTicket?: Ticket;
+} | null => {
+  const nowTs = now.getTime();
+  const hasActivePaidPlan = response.plan !== 'free' && (!response.planExpiry || response.planExpiry > nowTs);
+  if (!hasActivePaidPlan) {
     return null;
   }
-};
 
-const shouldShowFirstWorkoutNotification = (userId: number, gameId: string, playedAt: number) => {
-  const session = readStoredWorkoutSession();
-  if (!session) return false;
+  let nextCoins = state.coins;
+  let nextGems = state.gems;
+  let nextFreeMysteryBoxes = state.freeMysteryBoxes;
+  let nextPremiumGiftMysteryBoxes = state.premiumGiftMysteryBoxes;
+  let nextTournamentTickets = state.tournamentTickets;
+  let nextTickets = state.tickets;
+  let nextEventParticipants = state.eventParticipants;
+  let nextNotifications = state.notifications;
+  let nextClaimedRewardKeys = [...(state.claimedPlanRewardKeys || [])];
+  let grantedTicket: Ticket | undefined;
 
-  const firstSessionGameId = session.gameIds[0];
-  const firstGameHistoryIds = WORKOUT_HISTORY_IDS_BY_SESSION_ID[firstSessionGameId] || [];
-  if (!firstGameHistoryIds.includes(gameId) || playedAt < session.startedAt) {
-    return false;
-  }
+  const entitlementSeed =
+    response.activeEntitlement?.sourcePaymentOrderId ||
+    response.activeEntitlement?.startsAt ||
+    String(response.planExpiry || response.plan);
 
-  const toastKey = `${ONBOARDING_WORKOUT_TOAST_PREFIX}-${userId}-${session.date}`;
-  if (typeof window === 'undefined' || localStorage.getItem(toastKey) === '1') {
-    return false;
-  }
-
-  localStorage.setItem(toastKey, '1');
-  return true;
-};
-
-const normalizeTournamentState = (tournament: any): TournamentState => ({
-  weekKey: typeof tournament?.weekKey === 'string' ? tournament.weekKey : null,
-  joinedAt: typeof tournament?.joinedAt === 'string' ? tournament.joinedAt : null,
-  paymentMethod:
-    tournament?.paymentMethod === 'stars' ||
-    tournament?.paymentMethod === 'ton' ||
-    tournament?.paymentMethod === 'vip'
-      ? tournament.paymentMethod
-      : null,
-  games: Array.isArray(tournament?.games)
-    ? tournament.games
-        .filter((game: any) => typeof game?.gameId === 'string')
-        .map((game: any) => ({
-          gameId: game.gameId,
-          score: typeof game.score === 'number' || typeof game.score === 'string' ? game.score : 0,
-          playedAt: typeof game.playedAt === 'string' ? game.playedAt : new Date().toISOString(),
-          tournamentBrainScore: Number.isFinite(Number(game.tournamentBrainScore))
-            ? Number(game.tournamentBrainScore)
-            : 0,
-        }))
-    : [],
-  score: Number.isFinite(Number(tournament?.score)) ? Number(tournament.score) : 0,
-  vipFreeEntryWeek: typeof tournament?.vipFreeEntryWeek === 'string' ? tournament.vipFreeEntryWeek : null,
-});
-
-const isVipTournamentEligible = (plan: UserState['plan']) => plan === VIP_TOURNAMENT_PLAN;
-
-const calculateTournamentScoreProgress = (games: TournamentState['games']) =>
-  games.map((game, index) => {
-    const nextScore = calculateBrainScoreMetrics(
-      games.slice(0, index + 1).map((entry) => ({
-        gameId: entry.gameId,
-        score: entry.score,
-        timestamp: Date.parse(entry.playedAt) || Date.now(),
-        coinsEarned: 0,
-      }))
-    ).combinedScore;
-
-    return {
-      ...game,
-      tournamentBrainScore: nextScore,
+  const pushNotification = (message: string) => {
+    const notification: Notification = {
+      id: Math.random().toString(36).slice(2, 11),
+      title: 'Plan rewards',
+      message,
+      date: now.toISOString(),
+      isRead: false,
+      type: 'success',
     };
-  });
-
-const mapDbUserToState = (dbUser: DatabaseUser) => ({
-  coins: dbUser.coins,
-  gems: dbUser.gems,
-  xp: dbUser.xp,
-  level: dbUser.level,
-  brainStats: normalizeBrainStats(dbUser.brain_stats),
-  skinInventory: dbUser.skin_inventory,
-  activeSkin: dbUser.active_skin,
-  plan: dbUser.plan,
-  planExpiry: dbUser.plan_expiry,
-  hp: dbUser.hp,
-  maxHp: dbUser.max_hp,
-  fecBalance: dbUser.fec_balance,
-  inventory: dbUser.inventory,
-  dailyGoalMinutes: dbUser.daily_goal_minutes,
-  streak: dbUser.streak,
-  dailyRewardStreak: dbUser.daily_reward_streak,
-  lastDailyRewardDate: dbUser.last_daily_reward_date,
-  promotionEndISO: dbUser.promotion_end_iso,
-  dailyQuest: normalizeDailyQuest(dbUser.daily_quest),
-  weeklyQuest: normalizeWeeklyQuest(dbUser.weekly_quest),
-  energy: dbUser.energy,
-  maxEnergy: dbUser.max_energy,
-  lastEnergyRegenTime: dbUser.last_energy_regen_time,
-  streakProtection: dbUser.streak_protection,
-  mysteryBoxAvailable: dbUser.mystery_box_available,
-  mysteryBoxPrice: dbUser.mystery_box_price,
-});
-
-// NOTE: `plan` and `plan_expiry` are intentionally omitted. The frontend uses
-// the Supabase anon key, so any column we include here is something the client
-// can write. Plan changes must flow through the Node backend (POST /tickets/issue),
-// which uses the service-role key and bases the update on the issued ticket row.
-const mapStateToDbUser = (state: any, telegramId: number) => ({
-  telegram_id: telegramId,
-  first_name: state.user.firstName,
-  last_name: state.user.lastName,
-  username: state.user.username,
-  photo_url: state.user.photoUrl,
-  coins: state.coins,
-  gems: state.gems,
-  xp: state.xp,
-  level: state.level,
-  brain_stats: state.brainStats,
-  skin_inventory: state.skinInventory,
-  active_skin: state.activeSkin,
-  hp: state.hp,
-  max_hp: state.maxHp,
-  fec_balance: state.fecBalance,
-  inventory: state.inventory,
-  daily_goal_minutes: state.dailyGoalMinutes,
-  streak: state.streak,
-  daily_reward_streak: state.dailyRewardStreak,
-  last_daily_reward_date: state.lastDailyRewardDate,
-  promotion_end_iso: state.promotionEndISO,
-  daily_quest: state.dailyQuest,
-  weekly_quest: state.weeklyQuest,
-  energy: state.energy,
-  max_energy: state.maxEnergy,
-  last_energy_regen_time: state.lastEnergyRegenTime,
-  streak_protection: state.streakProtection,
-  mystery_box_available: state.mysteryBoxAvailable,
-  mystery_box_price: state.mysteryBoxPrice,
-});
-
-const syncUserToSupabase = async (state: any, telegramId: number) => {
-  if (!isSupabaseConfigured) return;
-  // Browser/PWA guest — id is 0, no Telegram identity. Local-only mode.
-  if (!telegramId) return;
-
-  const dbData = mapStateToDbUser(state, telegramId);
-
-  // Prefer the server-routed /users/sync endpoint. The backend uses the
-  // service-role key (so it bypasses the broken JWT-claim RLS) and applies
-  // a column allow-list — it will silently drop attempts to write
-  // plan / coins / xp / level even if the client tries.
-  try {
-    await syncUserToServer(dbData);
-    return;
-  } catch (serverErr) {
-    console.warn('[Users] /users/sync unavailable, falling back to anon-key write:', serverErr);
-  }
-
-  const attempt = async () => {
-    const existing = await getUserByTelegramId(telegramId);
-    if (existing) {
-      const ok = await updateUser(telegramId, dbData);
-      if (!ok) throw new Error('updateUser returned false');
-    } else {
-      const created = await createUser({ ...dbData, id: 0 } as any);
-      if (!created) throw new Error('createUser returned null');
-    }
+    nextNotifications = [notification, ...nextNotifications];
   };
 
-  try {
-    await attempt();
-  } catch (firstError) {
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    try {
-      await attempt();
-    } catch (secondError) {
-      console.error('[Supabase] Sync failed after retry:', {
-        first: firstError,
-        second: secondError,
-      });
+  if (response.plan === 'premium') {
+    const premiumClaimKey = `${PREMIUM_PLAN_REWARD_KEY_PREFIX}:${entitlementSeed}`;
+    if (!nextClaimedRewardKeys.includes(premiumClaimKey)) {
+      nextCoins += PREMIUM_PLAN_REWARD.coins;
+      nextGems += PREMIUM_PLAN_REWARD.gems;
+      nextPremiumGiftMysteryBoxes += PREMIUM_PLAN_REWARD.premiumGiftMysteryBoxes;
+
+      const { ticket, participant } = buildPremiumRaffleTicket(state, now);
+      grantedTicket = ticket;
+      nextTickets = [...nextTickets, ticket];
+      nextEventParticipants = [...nextEventParticipants, participant];
+      nextClaimedRewardKeys.push(premiumClaimKey);
+
+      pushNotification('Premium бонустары берілді: +10000 crystals, +10000 coins, +10 cases және raffle ticket.');
     }
   }
-};
 
-const subscribeToSupabaseChanges = (telegramId: number, setState: (partial: any) => void) => {
-  if (!isSupabaseConfigured) return;
-  if (!telegramId) return;
-
-  if (supabaseChannel) {
-    supabaseChannel.unsubscribe();
-  }
-
-  supabaseChannel = subscribeToUserChanges(telegramId, (dbUser) => {
-    const mapped = mapDbUserToState(dbUser);
-    setState((state: any) => ({
-      coins: mapped.coins,
-      gems: mapped.gems,
-      xp: mapped.xp,
-      level: mapped.level,
-      brainStats: normalizeBrainStats(mapped.brainStats, state.history),
-      skinInventory: mapped.skinInventory,
-      activeSkin: mapped.activeSkin,
-      plan: mapped.plan,
-      planExpiry: mapped.planExpiry,
-      hp: mapped.hp,
-      maxHp: mapped.maxHp,
-      fecBalance: mapped.fecBalance,
-      inventory: mapped.inventory,
-      dailyGoalMinutes: mapped.dailyGoalMinutes,
-      streak: mapped.streak,
-      dailyRewardStreak: mapped.dailyRewardStreak,
-      lastDailyRewardDate: mapped.lastDailyRewardDate,
-      promotionEndISO: mapped.promotionEndISO,
-      dailyQuest: mapped.dailyQuest,
-    }));
-  });
-};
-
-const mapCanonicalUserToState = (user: CanonicalUser) => ({
-  coins: user.coins,
-  gems: user.gems,
-  xp: user.xp,
-  level: user.level,
-  brainStats: normalizeBrainStats(user.brainStats),
-  skinInventory: user.skinInventory,
-  activeSkin: user.activeSkin,
-  plan: user.plan,
-  planExpiry: user.planExpiry,
-  hp: user.hp,
-  maxHp: user.maxHp,
-  fecBalance: user.fecBalance,
-  inventory: user.inventory,
-  dailyGoalMinutes: user.dailyGoalMinutes,
-  streak: user.streak,
-  dailyRewardStreak: user.dailyRewardStreak,
-  lastDailyRewardDate: user.lastDailyRewardDate,
-  promotionEndISO: user.promotionEndISO,
-  dailyQuest: normalizeDailyQuest(user.dailyQuest),
-});
-
-const loadUserFromSupabase = async (telegramId: number, setState: (partial: any) => void) => {
-  if (!isSupabaseConfigured) return;
-  if (!telegramId) return;
-
-  // Prefer the server-routed /users/me endpoint. The Node backend uses the
-  // service-role key, so it bypasses the JWT-claim RLS on the users table that
-  // silently blocks anon-key reads. Fall back to the direct anon-key path only
-  // if the server endpoint isn't reachable (older deployment, network blip).
-  try {
-    const response = await getUserMe();
-    if (response?.user) {
-      const mapped = mapCanonicalUserToState(response.user);
-      setState((state: any) => ({
-        ...mapped,
-        brainStats: normalizeBrainStats(mapped.brainStats, state.history),
-      }));
-      return;
+  if (response.plan === 'pro') {
+    const currentWeekKey = getWeekKeyMonday(now);
+    const weeklyTicketClaimKey = `${PRO_WEEKLY_TICKET_KEY_PREFIX}:${currentWeekKey}`;
+    if (!nextClaimedRewardKeys.includes(weeklyTicketClaimKey)) {
+      nextTournamentTickets += 1;
+      nextClaimedRewardKeys.push(weeklyTicketClaimKey);
+      pushNotification('Pro бонусы берілді: осы аптаға 1 tournament ticket қосылды.');
     }
-    // No row yet — let downstream code call createUser via syncUserToSupabase.
-    return;
-  } catch (serverErr) {
-    console.warn('[Users] /users/me unavailable, falling back to anon-key read:', serverErr);
   }
 
-  try {
-    const dbUser = await getUserByTelegramId(telegramId);
-    if (dbUser) {
-      const mapped = mapDbUserToState(dbUser);
-      setState((state: any) => ({
-        ...mapped,
-        brainStats: normalizeBrainStats(mapped.brainStats, state.history),
-      }));
-    }
-  } catch (err) {
-    console.error('[Supabase] Load error:', err);
+  const claimKeysChanged = nextClaimedRewardKeys.length !== (state.claimedPlanRewardKeys || []).length;
+  const notificationsChanged = nextNotifications.length !== state.notifications.length;
+
+  if (
+    !claimKeysChanged &&
+    !notificationsChanged &&
+    nextCoins === state.coins &&
+    nextGems === state.gems &&
+    nextFreeMysteryBoxes === state.freeMysteryBoxes &&
+    nextPremiumGiftMysteryBoxes === state.premiumGiftMysteryBoxes &&
+    nextTournamentTickets === state.tournamentTickets &&
+    nextTickets === state.tickets &&
+    nextEventParticipants === state.eventParticipants
+  ) {
+    return null;
   }
+
+  return {
+    grantedTicket,
+    statePatch: {
+      coins: nextCoins,
+      gems: nextGems,
+      freeMysteryBoxes: nextFreeMysteryBoxes,
+      premiumGiftMysteryBoxes: nextPremiumGiftMysteryBoxes,
+      tournamentTickets: nextTournamentTickets,
+      tickets: nextTickets,
+      eventParticipants: nextEventParticipants,
+      notifications: nextNotifications,
+      claimedPlanRewardKeys: trimClaimedPlanRewardKeys(nextClaimedRewardKeys),
+    },
+  };
 };
 
-const persistFeedbackEntry = async (
-  feedback: { userId: number; username: string; text: string; imageUrl?: string }
-) => {
-  try {
-    await submitFeedbackEntry({
-      userTelegramId: feedback.userId,
-      username: feedback.username,
-      text: feedback.text,
-      imageUrl: feedback.imageUrl,
-    });
-  } catch (error) {
-    console.error('[Admin API] Feedback sync error:', error);
-  }
+const isLegendaryJackpotReward = (reward: MysteryBox) =>
+  reward.type === 'raffle_ticket' || reward.type === 'iphone_17';
+
+const buildCaseRewardAdminMessage = (state: UserState, reward: MysteryBox) => {
+  const prizeName = reward.prizeTitle || (reward.type === 'raffle_ticket' ? 'Car Raffle Ticket' : 'iPhone 17');
+  const userLabel = state.user.username ? `@${state.user.username}` : state.user.firstName || 'player';
+  const ticketPart = reward.ticketNumber ? ` Ticket #${reward.ticketNumber}.` : '';
+  return `[LEGENDARY CASE JACKPOT] ${userLabel} (ID: ${state.user.id}) won ${prizeName}. Drop chance: 1%.${ticketPart}`;
 };
 
 const persistTicket = async (
   ticket: Ticket,
-  source: 'plan_upgrade' | 'ticket_purchase',
+  source: 'plan_upgrade' | 'ticket_purchase' | 'case_reward',
   targetPlan?: 'silver' | 'gold' | 'premium'
 ): Promise<{
   ticketId: string;
@@ -678,6 +264,24 @@ const persistTicket = async (
   }
 };
 
+const buildCaseRewardTicket = (state: UserState, reward: MysteryBox): Ticket | null => {
+  if (reward.type !== 'raffle_ticket' || !reward.ticketNumber || !reward.eventName || !reward.eventDate) {
+    return null;
+  }
+
+  return {
+    id: reward.id,
+    ticketNumber: reward.ticketNumber,
+    eventName: reward.eventName,
+    eventDate: reward.eventDate,
+    price: 0,
+    purchaseDate: new Date().toISOString(),
+    userId: state.user.id,
+    userName: state.user.firstName,
+    isUsed: false,
+  };
+};
+
 
 export const useStore = create<UserState>()(
   persist(
@@ -694,7 +298,7 @@ export const useStore = create<UserState>()(
         firstName: initialUserRaw.first_name || 'Guest',
         lastName: initialUserRaw.last_name || '',
         username: initialUserRaw.username || '',
-        photoUrl: initialUserRaw.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${initialUserRaw.first_name || 'Guest'}`,
+        photoUrl: initialUserRaw.photo_url || getDefaultAvatarUrl(initialUserRaw.first_name || 'Guest'),
         level: 1,
         xp: 0,
         achievements: []
@@ -707,7 +311,6 @@ export const useStore = create<UserState>()(
             const isDifferentUser = state.user.id !== 0 && state.user.id !== currentUser.id;
 
             if (isDifferentUser) {
-              console.log('[Store] User switch detected, resetting state');
               if (isSupabaseConfigured) {
                 loadUserFromSupabase(currentUser.id, set);
                 subscribeToSupabaseChanges(currentUser.id, set);
@@ -715,20 +318,25 @@ export const useStore = create<UserState>()(
               return {
                 ...initialState,
                 brainStats: normalizeBrainStats(initialState.brainStats, []),
+                freeMysteryBoxes: 5,
+                premiumGiftMysteryBoxes: 0,
                 user: {
                   id: currentUser.id,
                   gameId: generateGameId(),
                   firstName: currentUser.first_name,
                   lastName: currentUser.last_name,
                   username: currentUser.username,
-                  photoUrl: currentUser.photo_url || `https://api.dicebear.com/7.x/initials/svg?seed=${currentUser.first_name}`,
+                  photoUrl: currentUser.photo_url || getDefaultAvatarUrl(currentUser.first_name || 'Guest'),
                   level: 1,
                   xp: 0,
                   achievements: []
                 }
               };
             } else {
-              if (isSupabaseConfigured) {
+              // We don't need to refetch and resubscribe if the user hasn't changed.
+              // It's already subscribed. Just update Telegram specific info if needed.
+              if (isSupabaseConfigured && state.user.id === 0) {
+                // Initial load
                 loadUserFromSupabase(currentUser.id, set);
                 subscribeToSupabaseChanges(currentUser.id, set);
               }
@@ -748,6 +356,10 @@ export const useStore = create<UserState>()(
           });
         }
       },
+
+      setLanguage: (lang) => set({ language: lang }),
+      setTheme: (theme) => set({ theme }),
+      toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
 
       coins: 100,
       gems: 0,
@@ -774,12 +386,17 @@ export const useStore = create<UserState>()(
       hp: 100,
       maxHp: 100,
 
-      dailyRewardStreak: 0,
-      lastDailyRewardDate: null,
+      dailyRewardStreak: { count: 0, lastClaimDate: null, claimedDates: [] },
+      weeklyChallenge: { weekKey: null, dayProgress: {}, completedDays: [], isClaimed: false, reward: { coins: 250 } },
+      weekendEvent: { weekendKey: null, isActive: false, multiplier: 1 },
+      tournamentTickets: 0,
+      freeMysteryBoxes: 5,
+      premiumGiftMysteryBoxes: 0,
+      claimedPlanRewardKeys: [],
 
       tickets: [],
       eventParticipants: [],
-      promotionEndISO: '2026-04-26T08:00:00.000Z',
+      promotionEndISO: '2026-07-06T08:00:00.000Z',
       tournament: { ...initialState.tournament },
 
       dailyQuest: { ...DEFAULT_DAILY_QUEST },
@@ -790,14 +407,87 @@ export const useStore = create<UserState>()(
       streakProtection: 0,
       mysteryBoxAvailable: true,
       mysteryBoxPrice: 500,
-      setLanguage: (lang) => set({ language: lang }),
-      toggleSound: () => set((state) => ({ soundEnabled: !state.soundEnabled })),
-      setTheme: (nextTheme) => set({ theme: nextTheme }),
       claimDailyReward: (amount) =>
         set((state) => ({ coins: state.coins + (Number(amount) || 0) })),
-      updateUserProfile: (data) => set((state) => ({
-        user: { ...state.user, ...data }
-      })),
+
+      claimWeeklyChallengeReward: () => {
+        const state = get();
+        const challenge = state.weeklyChallenge;
+
+        if (!challenge?.weekKey) return false;
+        if (challenge.isClaimed) return false;
+        if ((challenge.completedDays || []).length < 7) return false;
+
+        const rewardCoins = challenge.reward?.coins ?? 0;
+        const notification: Notification = {
+          id: Math.random().toString(36).substr(2, 9),
+          title: 'Weekly challenge',
+          message: `${rewardCoins} coins алдыңыз!`,
+          date: new Date().toISOString(),
+          isRead: false,
+          type: 'success',
+        };
+
+        const newState = {
+          coins: state.coins + rewardCoins,
+          weeklyChallenge: { ...challenge, isClaimed: true },
+          notifications: [notification, ...state.notifications],
+        };
+
+        set(newState);
+        if (isSupabaseConfigured && state.user.id) {
+          syncUserToSupabase({ ...state, ...newState }, state.user.id);
+        }
+        return true;
+      },
+      updateUserProfile: (data) => set((state) => {
+        const newState = {
+          user: { ...state.user, ...data }
+        };
+
+        if (isSupabaseConfigured && state.user.id) {
+          syncUserToSupabase({ ...state, ...newState }, state.user.id);
+        }
+
+        return newState;
+      }),
+
+      saveAvatarImage: async (imageData: string) => {
+        const state = get();
+        if (state.user.id) {
+          await AvatarStorage.saveAvatar(state.user.id, imageData);
+        }
+      },
+
+      loadAvatarImage: async () => {
+        const state = get();
+        if (state.user.id) {
+          const savedAvatar = await AvatarStorage.getAvatar(state.user.id);
+          if (savedAvatar && !state.user.photoUrl) {
+            set((currentState) => ({
+              user: { ...currentState.user, photoUrl: savedAvatar }
+            }));
+          }
+          return savedAvatar;
+        }
+        return null;
+      },
+
+      isPremiumAvatar: (avatarId: string) => {
+        const avatar = PROFILE_AVATARS.find(a => a.id === avatarId);
+        return avatar?.isPremium || false;
+      },
+
+      canUseAvatar: (avatarId: string) => {
+        const state = get();
+        const avatar = PROFILE_AVATARS.find(a => a.id === avatarId);
+        if (!avatar) return false;
+        if (!avatar.isPremium) return true;
+
+        const isPremium = state.plan === 'premium' || state.plan === 'pro' || state.plan === 'gold' || state.plan === 'silver';
+        const isNotExpired = !state.planExpiry || Date.now() < state.planExpiry;
+        return isPremium && isNotExpired;
+      },
 
       addGameResult: (result) => {
         // Sanitize input. Anyone can call addGameResult, so clamp the credit a single
@@ -825,45 +515,19 @@ export const useStore = create<UserState>()(
         }
 
         const userIdForSubmit = preState.user.id;
+        const sanitizedResult = { ...result, gameId, score: sanitizedScore, coinsEarned: sanitizedCoins };
 
         set((state) => {
-        const sanitizedResult = { ...result, gameId, score: sanitizedScore, coinsEarned: sanitizedCoins };
-        const safeDailyQuest = normalizeDailyQuest(state.dailyQuest);
-        const safeWeeklyQuest = normalizeWeeklyQuest(state.weeklyQuest);
-        const xpGained = sanitizedCoins;
+        const now = new Date();
+        const todayKey = toDateKey(now);
+        const computedWeekendEvent = getWeekendEvent(now, state.user.id);
+        const appliedCoinsEarned = Math.round((sanitizedResult.coinsEarned || 0) * (computedWeekendEvent.multiplier || 1));
+
+        const xpGained = appliedCoinsEarned;
         const newXp = state.user.xp + xpGained;
         const newLevel = Math.floor(newXp / 1000) + 1;
 
-        const newStats = { ...state.brainStats };
-        const increment = 1;
-
-        switch (gameId) {
-          case 'schulte':
-          case 'odd_one_out':
-          case 'agent_spot':
-            newStats.focus = Math.min(100, newStats.focus + increment);
-            newStats.speed = Math.min(100, newStats.speed + increment);
-            break;
-          case 'memory':
-          case 'pairs':
-          case 'agent_sequence':
-            newStats.memory = Math.min(100, newStats.memory + increment);
-            newStats.logic = Math.min(100, newStats.logic + increment);
-            break;
-          case 'math':
-          case '2048':
-          case 'code_breaker':
-            newStats.logic = Math.min(100, newStats.logic + increment);
-            newStats.speed = Math.min(100, newStats.speed + increment);
-            break;
-          case 'stroop':
-          case 'tetris':
-            newStats.flexibility = Math.min(100, newStats.flexibility + increment);
-            newStats.focus = Math.min(100, newStats.focus + increment);
-            break;
-          default:
-            break;
-        }
+        const newStats = applyBrainStatProgress(state.brainStats, sanitizedResult.gameId, 1);
 
         const newUnclaimedRewards = [...(state.unclaimedLevelRewards || [])];
         if (newLevel > state.user.level) {
@@ -890,94 +554,43 @@ export const useStore = create<UserState>()(
           newAchievements.push('xp_master');
         }
 
+        const premiumSkinId = 'premium_gold';
+        const unlockedPremiumSkin = gameCount >= 100 && !state.skinInventory.includes(premiumSkinId);
+        if (gameCount >= 100 && !newAchievements.includes('first_100_games')) {
+          newAchievements.push('first_100_games');
+        }
+
         const updatedChallenges = state.challenges.map(ch => {
           if (ch.isClaimed) return ch;
           if (ch.type === 'play_count') return { ...ch, current: ch.current + 1 };
-          if (ch.type === 'total_coins') return { ...ch, current: ch.current + sanitizedCoins };
+          if (ch.type === 'total_coins') return { ...ch, current: ch.current + appliedCoinsEarned };
           return ch;
         });
 
-        const today = new Date().toISOString().split('T')[0];
-        const needsReset = safeDailyQuest.lastResetDate !== today;
-        const newGamesPlayed = needsReset
-          ? [gameId]
-          : [...safeDailyQuest.gamesPlayed, gameId];
-        const uniqueGames = new Set(newGamesPlayed);
-        const isNowComplete = uniqueGames.size >= 3;
-
-        let finalDailyQuest = safeDailyQuest;
-        if (needsReset) {
-          finalDailyQuest = {
-            id: 'daily_quest_3games',
-            gamesPlayed: [gameId],
-            isCompleted: uniqueGames.size >= 3,
-            isClaimed: false,
-            lastResetDate: today
-          };
-        } else {
-          finalDailyQuest = {
-            ...safeDailyQuest,
-            gamesPlayed: [...safeDailyQuest.gamesPlayed, gameId],
-            isCompleted: safeDailyQuest.isCompleted || isNowComplete
-          };
-        }
+        const finalDailyQuest = buildDailyQuestAfterGame(state.dailyQuest, sanitizedResult.gameId, todayKey);
+        const currentWeekKey = getWeekKeyMonday(now);
+        const nextWeeklyChallenge = buildWeeklyChallengeAfterGame(
+          state.weeklyChallenge,
+          todayKey,
+          currentWeekKey
+        );
 
         const energyCost = 5 + Math.floor(Math.random() * 5);
         const newEnergy = Math.max(0, state.energy - energyCost);
 
-        const now = new Date();
-        const weekNumber = Math.floor(now.getTime() / (7 * 24 * 60 * 60 * 1000));
-        const lastResetWeek = safeWeeklyQuest.lastResetDate 
-          ? Math.floor(new Date(safeWeeklyQuest.lastResetDate).getTime() / (7 * 24 * 60 * 60 * 1000))
-          : -1;
-
-        let finalWeeklyQuest = safeWeeklyQuest;
-        if (weekNumber !== lastResetWeek) {
-          finalWeeklyQuest = {
-            ...DEFAULT_WEEKLY_QUEST,
-            gamesPlayed: 1,
-            lastResetDate: new Date().toISOString()
-          };
-        } else {
-          finalWeeklyQuest = {
-            ...safeWeeklyQuest,
-            gamesPlayed: safeWeeklyQuest.gamesPlayed + 1
-          };
-        }
+        const finalWeeklyQuest = buildWeeklyQuestAfterGame(state.weeklyQuest, now);
 
         const playedAt = new Date().toISOString();
         const playedAtTimestamp = Date.now();
         const nextHistoryEntry = {
           ...sanitizedResult,
+          coinsEarned: appliedCoinsEarned,
           date: playedAt.split('T')[0],
           timestamp: playedAtTimestamp,
         };
-        const updatedHistory = [...state.history, nextHistoryEntry];
-        const schedule = getTournamentSchedule(new Date(playedAt));
-        const isCurrentTournamentRun = Boolean(
-          state.tournament.joinedAt &&
-          state.tournament.weekKey === schedule.weekKey &&
-          state.tournament.games.length < TOURNAMENT_GAMES_LIMIT
-        );
-
-        let nextTournament = state.tournament;
-        if (schedule.isOpen && isCurrentTournamentRun) {
-          const tournamentGames = calculateTournamentScoreProgress([
-            ...state.tournament.games,
-            {
-              gameId,
-              score: sanitizedScore,
-              playedAt,
-              tournamentBrainScore: 0,
-            },
-          ]);
-
-          nextTournament = {
-            ...state.tournament,
-            games: tournamentGames,
-            score: tournamentGames[tournamentGames.length - 1]?.tournamentBrainScore || state.tournament.score,
-          };
-        }
+        // Keep only the last 100 games to prevent localStorage overflow
+        const updatedHistory = [...state.history, nextHistoryEntry].slice(-100);
+        const nextTournament = buildTournamentStateAfterGame(state.tournament, sanitizedResult, playedAt);
 
         const shouldAddWorkoutNotification =
           Boolean(state.user.id) &&
@@ -994,8 +607,33 @@ export const useStore = create<UserState>()(
             }
           : null;
 
+        const weekendEventJustActivated =
+          computedWeekendEvent.isActive &&
+          (state.weekendEvent?.weekendKey !== computedWeekendEvent.weekendKey || !state.weekendEvent.isActive);
+        const weekendEventNotification: Notification | null = weekendEventJustActivated
+          ? {
+              id: Math.random().toString(36).substr(2, 9),
+              title: 'Weekend event',
+              message: 'Double coins белсенді: ойыннан түсетін coins x2',
+              date: new Date().toISOString(),
+              isRead: false,
+              type: 'info',
+            }
+          : null;
+
+        const achievementNotification: Notification | null = unlockedPremiumSkin
+          ? {
+              id: Math.random().toString(36).substr(2, 9),
+              title: 'Achievement',
+              message: 'First 100 games: Premium skin ашылды!',
+              date: new Date().toISOString(),
+              isRead: false,
+              type: 'success',
+            }
+          : null;
+
         const newState = {
-          coins: state.coins + sanitizedCoins,
+          coins: state.coins + appliedCoinsEarned,
           history: updatedHistory,
           user: {
             ...state.user,
@@ -1007,12 +645,20 @@ export const useStore = create<UserState>()(
           unclaimedLevelRewards: newUnclaimedRewards,
           brainStats: normalizeBrainStats(newStats, updatedHistory),
           dailyQuest: finalDailyQuest,
+          weeklyChallenge: nextWeeklyChallenge,
+          weekendEvent: computedWeekendEvent,
           energy: newEnergy,
           lastEnergyRegenTime: Date.now(),
           weeklyQuest: finalWeeklyQuest,
-          notifications: onboardingNotification
-            ? [onboardingNotification, ...state.notifications]
-            : state.notifications,
+          skinInventory: unlockedPremiumSkin
+            ? [...state.skinInventory, premiumSkinId]
+            : state.skinInventory,
+          notifications: [
+            ...(achievementNotification ? [achievementNotification] : []),
+            ...(weekendEventNotification ? [weekendEventNotification] : []),
+            ...(onboardingNotification ? [onboardingNotification] : []),
+            ...state.notifications,
+          ],
           tournament: nextTournament
         };
 
@@ -1141,6 +787,35 @@ export const useStore = create<UserState>()(
         });
       },
 
+      fetchEntitlements: async () => {
+        try {
+          const response = await fetchEntitlementsApi();
+          let grantedTicket: Ticket | undefined;
+
+          set((state) => {
+            const rewardPatch = buildPlanRewardPatch(state, response);
+            grantedTicket = rewardPatch?.grantedTicket;
+
+            return {
+              plan: response.plan,
+              planExpiry: response.planExpiry,
+              subscriptionDay: response.subscriptionDay,
+              ...(rewardPatch?.statePatch || {}),
+            };
+          });
+
+          if (grantedTicket) {
+            void persistTicket(grantedTicket, 'plan_upgrade');
+          }
+
+          if (isSupabaseConfigured && get().user.id) {
+            syncUserToSupabase(get(), get().user.id);
+          }
+        } catch (error) {
+          console.error('Failed to fetch entitlements:', error);
+        }
+      },
+
       buySkin: (skinId, cost) => {
         const { coins, skinInventory } = get();
         // Local pre-check is just for UX (don't even attempt if obviously
@@ -1188,7 +863,15 @@ export const useStore = create<UserState>()(
         return true;
       },
 
-      equipSkin: (skinId) => set({ activeSkin: skinId }),
+      equipSkin: (skinId) => {
+        const state = get();
+        const newState = { activeSkin: skinId };
+        set(newState);
+
+        if (isSupabaseConfigured && state.user.id) {
+          syncUserToSupabase({ ...state, ...newState }, state.user.id);
+        }
+      },
 
       inventory: {
         freezes: 0,
@@ -1238,134 +921,60 @@ export const useStore = create<UserState>()(
         }
 
         if (normalizedCode === 'STARTUP') {
-          set((state) => {
-            const currentPlan = state.plan;
-            const currentExpiry = state.planExpiry || Date.now();
-            let newExpiry = currentExpiry;
-            let newPlan = currentPlan;
+          if (!hasTelegramStartParam('startup')) {
+            return { success: false, message: 'Promocode is available only from a special link' };
+          }
 
-            if (currentPlan === 'free') {
-              newPlan = 'silver';
-              newExpiry = Date.now() + (3 * 24 * 60 * 60 * 1000);
-            } else {
-              newExpiry = currentExpiry + (3 * 24 * 60 * 60 * 1000);
-            }
-
-            return {
-              coins: coins + 500,
-              plan: newPlan,
-              planExpiry: newExpiry,
-              usedPromocodes: [...usedPromocodes, normalizedCode]
-            };
+          set({
+            coins: coins + 500,
+            usedPromocodes: [...usedPromocodes, normalizedCode]
           });
-          return { success: true, message: 'Startup Bonus: 500 Coins + 3 Days Silver!' };
+          return { success: true, message: 'Startup Bonus: 500 Coins!' };
         }
 
         return { success: false, message: 'Invalid promocode' };
       },
 
       claimDailyLoginReward: () => {
-        const { lastDailyRewardDate, dailyRewardStreak, user, plan, planExpiry } = get();
+        const { user, ...state } = get();
         const today = new Date().toISOString().split('T')[0];
-
-        if (lastDailyRewardDate === today) {
-          return { success: false, reward: { coins: 0, gems: 0, xp: 0 } };
+        const result = buildClaimDailyLoginRewardResult(state, today);
+        if (!result.success) {
+          return result;
         }
 
-        let newStreak = 1;
-        let streakPreservedByVip = false;
-
-        if (lastDailyRewardDate) {
-          const gapInDays = getDateDiffInDays(lastDailyRewardDate, today);
-
-          if (gapInDays === 1) {
-            newStreak = dailyRewardStreak + 1;
-          } else if (gapInDays === 2 && isVipDailyRewardGraceActive(plan, planExpiry)) {
-            newStreak = dailyRewardStreak + 1;
-            streakPreservedByVip = true;
-          }
-        }
-
-        const analyticsRewardMeta = getAnalyticsRewardForStreak(newStreak);
-        const reward = {
-          coins: 0,
-          gems: 0,
-          xp: 0,
-          ...analyticsRewardMeta,
-          streakPreservedByVip,
-        } as {
-          coins: number;
-          gems: number;
-          xp: number;
-        } & {
-          analyticsDay: number;
-          analyticsTitle: string;
-          analyticsDescription: string;
-          nextUnlockDay: number | null;
-          isNewUnlock: boolean;
-          streakPreservedByVip: boolean;
-        };
-
-        const newState = {
-          user,
-          dailyRewardStreak: newStreak,
-          lastDailyRewardDate: today,
-        };
-
-        set(newState);
+        set(result.statePatch);
 
         if (isSupabaseConfigured && user.id) {
-          syncUserToSupabase({ ...get(), ...newState }, user.id);
+          syncUserToSupabase({ ...get(), ...result.statePatch }, user.id);
         }
 
-        return { success: true, reward };
+        return { success: true, reward: result.reward };
       },
 
       joinTournament: (paymentMethod) => {
         const state = get();
-        const schedule = getTournamentSchedule();
-
-        if (!schedule.isOpen) {
-          return { success: false, message: 'Турнир тек жұма мен жексенбі аралығында ашық болады.' };
-        }
-
-        if (state.tournament.weekKey === schedule.weekKey && state.tournament.joinedAt) {
-          return { success: false, message: 'Сіз осы аптаның турниріне кіріп қойғансыз.' };
-        }
-
-        if (paymentMethod === 'vip') {
-          if (!isVipTournamentEligible(state.plan)) {
-            return { success: false, message: 'VIP тегін кіру premium жоспарымен ғана ашылады.' };
-          }
-
-          if (state.tournament.vipFreeEntryWeek === schedule.weekKey) {
-            return { success: false, message: 'Осы аптадағы VIP тегін кіру әлдеқашан қолданылған.' };
-          }
+        const outcome = buildJoinTournamentOutcome(state, paymentMethod);
+        if (!outcome.success) {
+          return outcome;
         }
 
         const previousTournament = state.tournament;
-        const newTournament = {
-          weekKey: schedule.weekKey,
-          joinedAt: new Date().toISOString(),
-          paymentMethod,
-          games: [],
-          score: 0,
-          vipFreeEntryWeek:
-            paymentMethod === 'vip' ? schedule.weekKey : state.tournament.vipFreeEntryWeek,
-        };
-
-        set({ tournament: newTournament });
+        const previousTickets = state.tournamentTickets;
+        set(outcome.statePatch);
 
         // Server-side gate: VIP-tier check + once-per-week dedup happen in the
         // backend with service-role auth. If the server rejects, revert the
-        // optimistic local join and surface the reason.
-        if (isSupabaseConfigured && state.user.id) {
-          void joinTournamentRecord(paymentMethod)
+        // optimistic local join and surface the reason. Ticket-based entries
+        // are validated locally only (no server endpoint for ticket join).
+        if (isSupabaseConfigured && state.user.id && paymentMethod !== 'ticket') {
+          void joinTournamentRecord(paymentMethod as 'vip' | 'ton')
             .catch((err) => {
               console.error('[Tournaments] Join rejected by server:', err);
               const message = err instanceof Error ? err.message : 'Tournament join rejected';
               set((current) => ({
                 tournament: previousTournament,
+                tournamentTickets: previousTickets,
                 notifications: [
                   {
                     id: Math.random().toString(36).slice(2, 11),
@@ -1381,14 +990,7 @@ export const useStore = create<UserState>()(
             });
         }
 
-        if (paymentMethod === 'vip') {
-          return { success: true, message: 'VIP тегін кіру белсендірілді. Енді 3 ойын ойнап, нәтиже жинаңыз.' };
-        }
-
-        return {
-          success: true,
-          message: `${TOURNAMENT_ENTRY_FEE} ${paymentMethod === 'stars' ? 'Stars' : 'TON'} арқылы кіру дайын. Енді 3 ойын ойнаңыз.`,
-        };
+        return { success: true, message: outcome.message };
       },
 
       refreshChallenges: () => {
@@ -1485,7 +1087,21 @@ export const useStore = create<UserState>()(
         }
       },
 
-      claimSocialReward: (taskId) => {
+      fetchSocialTasks: async () => {
+        try {
+          const { tasks } = await fetchSocialTasksApi();
+          if (tasks && tasks.length > 0) {
+            set({ socialTasks: tasks });
+          } else {
+            set({ socialTasks: initialSocialTasks });
+          }
+        } catch (error) {
+          console.error('Failed to fetch social tasks:', error);
+          set({ socialTasks: initialSocialTasks });
+        }
+      },
+
+      claimSocialTask: async (taskId) => {
         const state = get();
         const task = state.socialTasks.find(t => t.id === taskId);
         if (!task || task.isClaimed) return;
@@ -1502,37 +1118,47 @@ export const useStore = create<UserState>()(
           ),
         });
 
-        if (isSupabaseConfigured) {
-          void grantSocialReward(taskId)
-            .then((response) => {
+        try {
+          if (isSupabaseConfigured) {
+            // Try new claim endpoint first (upstream payment-system flow),
+            // then fall back to legacy /rewards/social grant (HEAD flow).
+            try {
+              const { reward } = await claimSocialTaskApi(taskId);
+              set((current) => ({ gems: (current.gems || 0) - localReward + reward }));
+            } catch {
+              const response = await grantSocialReward(taskId);
               if (typeof response.gems === 'number') {
                 set({ gems: response.gems });
               }
-            })
-            .catch((err) => {
-              console.error('[Rewards] social reward rejected:', err);
-              // Revert: undo the optimistic gem credit and put the task back
-              // to unclaimed so the user can retry. 409 already_claimed will
-              // also revert here, which is correct: the server says they
-              // shouldn't have any pending state for this task.
-              set((current) => ({
-                gems: Math.max(0, (current.gems || 0) - localReward),
-                socialTasks: current.socialTasks.map(t =>
-                  t.id === taskId ? { ...t, isClaimed: false } : t
-                ),
-                notifications: [
-                  {
-                    id: Math.random().toString(36).slice(2, 11),
-                    title: 'Social reward declined',
-                    message: err instanceof Error ? err.message : 'Reward unavailable',
-                    date: new Date().toISOString(),
-                    isRead: false,
-                    type: 'error',
-                  },
-                  ...current.notifications,
-                ],
-              }));
-            });
+            }
+
+            if (state.user.id) {
+              syncUserToSupabase({ ...get() }, state.user.id);
+            }
+          }
+        } catch (err) {
+          console.error('[Rewards] social reward rejected:', err);
+          // Revert: undo the optimistic gem credit and put the task back
+          // to unclaimed so the user can retry. 409 already_claimed will
+          // also revert here, which is correct: the server says they
+          // shouldn't have any pending state for this task.
+          set((current) => ({
+            gems: Math.max(0, (current.gems || 0) - localReward),
+            socialTasks: current.socialTasks.map(t =>
+              t.id === taskId ? { ...t, isClaimed: false } : t
+            ),
+            notifications: [
+              {
+                id: Math.random().toString(36).slice(2, 11),
+                title: 'Social reward declined',
+                message: err instanceof Error ? err.message : 'Reward unavailable',
+                date: new Date().toISOString(),
+                isRead: false,
+                type: 'error',
+              },
+              ...current.notifications,
+            ],
+          }));
         }
       },
 
@@ -1668,13 +1294,11 @@ export const useStore = create<UserState>()(
         switch (gameId) {
           case 'schulte':
           case 'odd_one':
-          case 'agent_spot':
             newStats.focus = Math.min(100, newStats.focus + increment);
             newStats.speed = Math.min(100, newStats.speed + increment);
             break;
           case 'memory':
           case 'pairs':
-          case 'agent_sequence':
             newStats.memory = Math.min(100, newStats.memory + increment);
             newStats.logic = Math.min(100, newStats.logic + increment);
             break;
@@ -1898,7 +1522,6 @@ export const useStore = create<UserState>()(
           dailyGoalMinutes: 10,
           streak: 0,
           history: [],
-          lastDailyRewardDate: null,
           challenges: generateDailyChallenges(),
           lastChallengeDate: new Date().toISOString().split('T')[0],
           socialTasks: initialSocialTasks,
@@ -1906,12 +1529,16 @@ export const useStore = create<UserState>()(
           notifications: [],
           plan: 'free',
           planExpiry: null,
+          claimedPlanRewardKeys: [],
           hp: 100,
           maxHp: 100,
-          dailyRewardStreak: 0,
+          dailyRewardStreak: { count: 0, lastClaimDate: null, claimedDates: [] },
+          weeklyChallenge: { weekKey: null, dayProgress: {}, completedDays: [], isClaimed: false, reward: { coins: 250 } },
+          weekendEvent: { weekendKey: null, isActive: false, multiplier: 1 },
+          tournamentTickets: 0,
           tickets: [],
           eventParticipants: [],
-          promotionEndISO: '2026-04-26T08:00:00.000Z',
+          promotionEndISO: '2026-07-06T08:00:00.000Z',
           tournament: { ...initialState.tournament },
           dailyQuest: { ...DEFAULT_DAILY_QUEST },
           inventory: { freezes: 0, hints: 0, shields: 0 },
@@ -1920,6 +1547,8 @@ export const useStore = create<UserState>()(
           maxEnergy: 100,
           lastEnergyRegenTime: Date.now(),
           streakProtection: 0,
+          freeMysteryBoxes: 5,
+          premiumGiftMysteryBoxes: 0,
           mysteryBoxAvailable: true,
           mysteryBoxPrice: 500
         };
@@ -1989,6 +1618,39 @@ export const useStore = create<UserState>()(
           streakProtection: s.streakProtection + 1
         }));
         return true;
+      },
+
+      openCase: (caseId) => {
+        const state = get();
+        const outcome = rollCaseOutcome(state, caseId, Math.random(), Math.random(), Math.random());
+
+        if (!outcome.success || !outcome.reward) {
+          return outcome;
+        }
+
+        if (outcome.statePatch) {
+          set(outcome.statePatch);
+          const nextState = { ...state, ...outcome.statePatch };
+          if (isSupabaseConfigured) {
+            syncUserToSupabase(nextState, state.user.id);
+          }
+
+          if (caseId === 'legendary_case' && isLegendaryJackpotReward(outcome.reward)) {
+            void persistFeedbackEntry({
+              userId: state.user.id,
+              username: state.user.username || state.user.firstName || 'legendary_case',
+              text: buildCaseRewardAdminMessage(state, outcome.reward),
+              imageUrl: outcome.reward.prizeImageUrl,
+            });
+          }
+
+          const rewardTicket = buildCaseRewardTicket(nextState, outcome.reward);
+          if (rewardTicket) {
+            void persistTicket(rewardTicket, 'case_reward');
+          }
+        }
+
+        return outcome;
       },
 
       openMysteryBox: async () => {
@@ -2107,10 +1769,12 @@ export const useStore = create<UserState>()(
       },
       storage: createJSONStorage(() => telegramStorage),
       merge: (persistedState, currentState) => {
-        const mergedState = {
+        const persisted = persistedState as Partial<UserState> | undefined;
+        const hasPersistedState = Boolean(persisted && typeof persisted === 'object');
+        const mergedState: UserState = {
           ...currentState,
           ...(persistedState as object),
-        } as any;
+        };
 
         return {
           ...mergedState,
@@ -2118,6 +1782,19 @@ export const useStore = create<UserState>()(
           dailyQuest: normalizeDailyQuest(mergedState.dailyQuest),
           weeklyQuest: normalizeWeeklyQuest(mergedState.weeklyQuest),
           tournament: normalizeTournamentState(mergedState.tournament),
+          socialTasks: mergedState.socialTasks || [],
+          freeMysteryBoxes:
+            typeof persisted?.freeMysteryBoxes === 'number'
+              ? Math.max(persisted.freeMysteryBoxes, 0)
+              : hasPersistedState
+                ? currentState.freeMysteryBoxes
+                : currentState.freeMysteryBoxes,
+          premiumGiftMysteryBoxes:
+            typeof persisted?.premiumGiftMysteryBoxes === 'number'
+              ? Math.max(persisted.premiumGiftMysteryBoxes, 0)
+              : hasPersistedState
+                ? currentState.premiumGiftMysteryBoxes
+                : currentState.premiumGiftMysteryBoxes,
         };
       },
     }

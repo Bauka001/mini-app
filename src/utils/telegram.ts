@@ -1,4 +1,5 @@
 import WebApp from '@twa-dev/sdk';
+import { getDefaultAvatarUrl } from '../constants/avatars';
 
 export type HapticType = 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error';
 
@@ -45,6 +46,24 @@ export const getTelegramUser = () => {
   return null;
 };
 
+export const getTelegramStartParam = () => {
+  const unsafeStartParam = window.Telegram?.WebApp?.initDataUnsafe?.start_param;
+  if (unsafeStartParam) {
+    return `${unsafeStartParam}`.trim().toLowerCase();
+  }
+
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const fallbackStartParam = params.get('tgWebAppStartParam') || params.get('startapp') || params.get('start_param');
+    return fallbackStartParam ? fallbackStartParam.trim().toLowerCase() : '';
+  } catch {
+    return '';
+  }
+};
+
+export const hasTelegramStartParam = (expectedValue: string) =>
+  getTelegramStartParam() === `${expectedValue}`.trim().toLowerCase();
+
 export const isTelegramWebApp = () => {
   return !!window.Telegram?.WebApp;
 };
@@ -54,5 +73,5 @@ export const MOCK_USER = {
   first_name: 'Traveler',
   last_name: '',
   username: 'traveler',
-  photo_url: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+  photo_url: getDefaultAvatarUrl('Traveler')
 };

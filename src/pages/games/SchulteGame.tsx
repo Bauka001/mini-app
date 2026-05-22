@@ -4,6 +4,31 @@ import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { useStore } from '../../store/useStoreImpl';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { Lock, Crown } from 'lucide-react';
+
+const SCHULTE_FREE_PLAYS_KEY = 'schulte_free_plays_v2';
+const SCHULTE_FREE_LIMIT = 3;
+const getSchultePlays = () => { try { return parseInt(localStorage.getItem(SCHULTE_FREE_PLAYS_KEY) || '0', 10) || 0; } catch { return 0; } };
+const incSchultePlays = () => { try { localStorage.setItem(SCHULTE_FREE_PLAYS_KEY, String(getSchultePlays() + 1)); } catch {} };
+
+const SchulteLocked = () => {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-stone-950 via-amber-950/40 to-stone-950">
+      <div className="max-w-md w-full rounded-3xl border-2 border-amber-400/60 bg-gradient-to-br from-amber-500/15 to-rose-500/10 p-8 text-center shadow-2xl shadow-amber-500/30">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 shadow-lg">
+          <Crown size={32} className="text-stone-950" fill="currentColor" />
+        </div>
+        <h2 className="text-2xl font-black text-amber-200 mb-2">Schulte — VIP</h2>
+        <p className="text-sm text-amber-100/80 mb-1">Тегін {SCHULTE_FREE_LIMIT} пробный ойын аяқталды.</p>
+        <p className="text-xs text-amber-100/60 mb-6 flex items-center justify-center gap-1"><Lock size={12} /> Шектеусіз ойнау үшін VIP қажет</p>
+        <button onClick={() => navigate('/shop')} className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-amber-400 via-yellow-500 to-amber-600 text-stone-950 shadow-lg shadow-amber-500/40 hover:scale-[1.02] transition">VIP ашу</button>
+        <button onClick={() => navigate(-1)} className="w-full mt-2 py-2.5 rounded-xl text-sm text-amber-200/80 hover:text-amber-200 transition">Артқа қайту</button>
+      </div>
+    </div>
+  );
+};
 
 const GRID_SIZE = 5;
 const TOTAL_NUMBERS = GRID_SIZE * GRID_SIZE;
@@ -15,9 +40,9 @@ const SKIN_STYLES: Record<string, string> = {
   matrix: "bg-green-500/10 text-green-400 border border-green-500/30 font-mono hover:bg-green-500/20",
 };
 
-export const SchulteGame = () => {
+const SchulteGameInner = () => {
   const { t } = useTranslation();
-  const { addGameResult } = useStore();
+  const { addGameResult, plan } = useStore();
   
   return (
     <GameWrapper
@@ -25,6 +50,9 @@ export const SchulteGame = () => {
       instructions={t('schulte_desc', 'Find numbers from 1 to 25 in ascending order. Keep your eyes on the center of the grid.')}
     >
       {({ onEnd, isPaused, theme }) => <SchulteBoard onEnd={(score, coins) => {
+        if (plan !== 'pro' && plan !== 'premium') {
+          incSchultePlays();
+        }
         setTimeout(() => {
           addGameResult({ gameId: 'schulte', score, coinsEarned: coins });
         }, 0);
@@ -182,6 +210,14 @@ export const SchulteBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string
       </motion.div>
     </div>
   );
+};
+
+export const SchulteGame = () => {
+  const tier = useStore((state) => state.plan);
+  const [plays] = useState(() => getSchultePlays());
+  const unlimited = tier === 'pro' || tier === 'premium';
+  if (!unlimited && plays >= SCHULTE_FREE_LIMIT) return <SchulteLocked />;
+  return <SchulteGameInner />;
 };
 
 export default SchulteGame;

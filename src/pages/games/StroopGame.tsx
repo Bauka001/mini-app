@@ -6,10 +6,35 @@ import { useStore } from '../../store/useStoreImpl';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ReviveModal } from '../../components/modals/ReviveModal';
 import { SKIN_STYLES } from '../../utils/skins';
+import { useNavigate } from 'react-router-dom';
+import { Lock, Zap } from 'lucide-react';
 
-export const StroopGame = () => {
+const STROOP_FREE_PLAYS_KEY = 'stroop_free_plays_v2';
+const STROOP_FREE_LIMIT = 3;
+const getStroopPlays = () => { try { return parseInt(localStorage.getItem(STROOP_FREE_PLAYS_KEY) || '0', 10) || 0; } catch { return 0; } };
+const incStroopPlays = () => { try { localStorage.setItem(STROOP_FREE_PLAYS_KEY, String(getStroopPlays() + 1)); } catch {} };
+
+const StroopLocked = () => {
+  const navigate = useNavigate();
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-stone-950 via-indigo-950/40 to-stone-950">
+      <div className="max-w-md w-full rounded-3xl border-2 border-yellow-400/60 bg-gradient-to-br from-yellow-500/15 to-orange-500/10 p-8 text-center shadow-2xl shadow-yellow-500/30">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 shadow-lg">
+          <Zap size={32} className="text-stone-950" fill="currentColor" />
+        </div>
+        <h2 className="text-2xl font-black text-yellow-200 mb-2">Stroop Test — VIP</h2>
+        <p className="text-sm text-yellow-100/80 mb-1">Тегін {STROOP_FREE_LIMIT} ойын аяқталды.</p>
+        <p className="text-xs text-yellow-100/60 mb-6 flex items-center justify-center gap-1"><Lock size={12} /> Шектеусіз ойнау үшін VIP қажет</p>
+        <button onClick={() => navigate('/shop')} className="w-full py-3 rounded-xl font-bold bg-gradient-to-r from-yellow-400 to-orange-500 text-stone-950 shadow-lg shadow-yellow-500/40 hover:scale-[1.02] transition">VIP ашу</button>
+        <button onClick={() => navigate(-1)} className="w-full mt-2 py-2.5 rounded-xl text-sm text-yellow-200/80 hover:text-yellow-200 transition">Артқа қайту</button>
+      </div>
+    </div>
+  );
+};
+
+const StroopGameInner = () => {
   const { t } = useTranslation();
-  const { addGameResult } = useStore();
+  const { addGameResult, plan } = useStore();
   
   return (
     <GameWrapper
@@ -17,6 +42,9 @@ export const StroopGame = () => {
       instructions={t('stroop_desc', 'Select the COLOR of the text, not what the text says. Complete 10 rounds.')}
     >
       {({ onEnd, isPaused, theme }) => <StroopBoard onEnd={(score, coins) => {
+        if (plan !== 'pro' && plan !== 'premium') {
+          incStroopPlays();
+        }
         setTimeout(() => {
           addGameResult({ gameId: 'stroop', score, coinsEarned: coins });
         }, 0);
@@ -238,6 +266,14 @@ const StroopBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins:
       </AnimatePresence>
     </div>
   );
+};
+
+export const StroopGame = () => {
+  const tier = useStore((state) => state.plan);
+  const [plays] = useState(() => getStroopPlays());
+  const unlimited = tier === 'pro' || tier === 'premium';
+  if (!unlimited && plays >= STROOP_FREE_LIMIT) return <StroopLocked />;
+  return <StroopGameInner />;
 };
 
 export default StroopGame;

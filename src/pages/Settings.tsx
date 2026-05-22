@@ -1,10 +1,10 @@
 import { useTranslation } from 'react-i18next';
 import { Language } from '../store/useStore';
 import { useStore } from '../store/useStoreImpl';
-import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut } from 'lucide-react';
+import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut, Instagram } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
-import { useState, type ElementType } from 'react';
+import { useState, useEffect, type ElementType } from 'react';
 import { InfoGuideModal } from '../components/InfoGuideModal';
 import { FeedbackModal } from '../components/FeedbackModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
@@ -84,7 +84,7 @@ const SocialTaskCard = ({
   isClaimed,
   onClick,
 }: {
-  platform: 'youtube' | 'telegram';
+  platform: 'youtube' | 'telegram' | 'instagram' | 'twitter' | 'other';
   reward: number;
   isClaimed: boolean;
   onClick: () => void;
@@ -92,35 +92,47 @@ const SocialTaskCard = ({
   const { t } = useTranslation();
   const { isClaude } = useThemeStyles();
 
-  const getIcon = (claude: boolean) => {
+  const getIcon = (claude: boolean = false) => {
+    if (claude) {
+      switch (platform) {
+        case 'youtube':
+          return (
+            <Youtube size={20} strokeWidth={1.75} style={{ color: claudeTokens.textPrimary }} />
+          );
+        case 'telegram':
+          return (
+            <Send size={20} strokeWidth={1.75} style={{ color: claudeTokens.textPrimary }} />
+          );
+        case 'instagram':
+          return (
+            <Instagram size={20} strokeWidth={1.75} style={{ color: claudeTokens.textPrimary }} />
+          );
+        case 'twitter':
+          return (
+            <Share2 size={20} strokeWidth={1.75} style={{ color: claudeTokens.textPrimary }} />
+          );
+        default:
+          return (
+            <Share2 size={20} strokeWidth={1.75} style={{ color: claudeTokens.textPrimary }} />
+          );
+      }
+    }
     switch (platform) {
-      case 'youtube':
-        return (
-          <Youtube
-            size={20}
-            strokeWidth={claude ? 1.75 : 2}
-            className={claude ? '' : 'text-red-500'}
-            style={claude ? { color: claudeTokens.textPrimary } : undefined}
-          />
-        );
-      case 'telegram':
-        return (
-          <Send
-            size={20}
-            strokeWidth={claude ? 1.75 : 2}
-            className={claude ? '' : 'text-blue-400'}
-            style={claude ? { color: claudeTokens.textPrimary } : undefined}
-          />
-        );
+      case 'youtube': return <Youtube size={24} className="text-red-500" />;
+      case 'telegram': return <Send size={24} className="text-blue-400" />;
+      case 'instagram': return <Instagram size={24} className="text-pink-500" />;
+      case 'twitter': return <Share2 size={24} className="text-blue-400" />;
+      default: return <Share2 size={24} className="text-gray-400" />;
     }
   };
 
   const getName = () => {
     switch (platform) {
-      case 'youtube':
-        return t('task_youtube');
-      case 'telegram':
-        return t('task_telegram');
+      case 'youtube': return t('task_youtube');
+      case 'telegram': return t('task_telegram');
+      case 'instagram': return t('task_instagram');
+      case 'twitter': return t('task_twitter');
+      default: return t('social_network');
     }
   };
 
@@ -184,10 +196,10 @@ const SocialTaskCard = ({
 
   const getGradient = () => {
     switch (platform) {
-      case 'youtube':
-        return 'from-red-500/20 to-orange-500/20 hover:from-red-500/30 hover:to-orange-500/30';
-      case 'telegram':
-        return 'from-blue-500/20 to-cyan-500/20 hover:from-blue-500/30 hover:to-cyan-500/30';
+      case 'youtube': return 'from-red-500/20 to-orange-500/20 hover:from-red-500/30 hover:to-orange-500/30';
+      case 'telegram': return 'from-blue-500/20 to-cyan-500/20 hover:from-blue-500/30 hover:to-cyan-500/30';
+      case 'instagram': return 'from-pink-500/20 to-purple-500/20 hover:from-pink-500/30 hover:to-purple-500/30';
+      default: return 'from-gray-500/20 to-gray-400/20 hover:from-gray-500/30 hover:to-gray-400/30';
     }
   };
 
@@ -238,11 +250,18 @@ export const SettingsContent = () => {
     theme,
     setTheme,
     socialTasks,
-    claimSocialReward,
+    fetchSocialTasks,
+    claimSocialTask,
     user,
     logout,
   } = useStore();
   const { isClaude } = useThemeStyles();
+
+  useEffect(() => {
+    void fetchSocialTasks();
+  }, [fetchSocialTasks]);
+
+  const isLight = theme === 'light';
 
   const handleLanguageChange = (lang: Language) => {
     setLanguage(lang);
@@ -258,7 +277,7 @@ export const SettingsContent = () => {
   const handleSocialClick = (taskId: string, url: string) => {
     WebApp.openLink(url);
     setTimeout(() => {
-      claimSocialReward(taskId);
+      void claimSocialTask(taskId);
       WebApp.HapticFeedback.notificationOccurred('success');
     }, 5000);
   };
@@ -341,24 +360,22 @@ export const SettingsContent = () => {
           </button>
         </SettingItem>
 
-        <SettingItem icon={MessageSquare} title={t('support')} onClick={() => setShowFeedback(true)}>
+        <SettingItem icon={MessageSquare} title={t('feedback_support', t('support'))} onClick={() => setShowFeedback(true)}>
           <button
             className="text-[11px] uppercase tracking-[0.22em] font-medium"
             style={isClaude ? { color: claudeTokens.accent, fontFamily: claudeTokens.serifStack } : undefined}
           >
-            {!isClaude ? <span className="text-xs font-bold text-primary">{t('open')}</span> : t('open')}
+            {!isClaude ? <span className="text-xs font-bold text-primary">{t('write_btn', t('open'))}</span> : t('write_btn', t('open'))}
           </button>
         </SettingItem>
 
         <SettingItem icon={Share2} title={t('share_app')}>
           <button
             onClick={() => {
-              const shareText =
-                i18n.language === 'kz'
-                  ? 'Focus mini app-те көз миін дамытқандай! Мен деңгейім ' + (user?.level || 1) + ' деңгейде. Сен де ойнай аласың ба? 🧠'
-                  : i18n.language === 'ru'
-                    ? 'Развивай свой мозг в Focus mini app! Мой уровень ' + (user?.level || 1) + '. А ты готов к вызову? 🧠'
-                    : 'Boost your brain with Focus mini app! My level is ' + (user?.level || 1) + '. Are you ready? 🧠';
+              const shareText = t(
+                i18n.language === 'kz' ? 'share_text_kz' : i18n.language === 'ru' ? 'share_text_ru' : 'share_text_en',
+                { level: user?.level || 1 }
+              );
 
               const shareUrl = 'https://t.me/Focus_game_bot?start=app';
 
@@ -473,9 +490,9 @@ export const SettingsContent = () => {
 
         <SettingItem
           icon={LogOut}
-          title="Log out / Шығу"
+          title={t('log_out')}
           onClick={() => {
-            if (confirm('Are you sure you want to log out? / Шығуды қалайсыз ба?')) {
+            if (confirm(t('logout_confirm'))) {
               logout();
               WebApp.close();
             }
@@ -489,9 +506,9 @@ export const SettingsContent = () => {
             style={isClaude ? { color: claudeTokens.warning, fontFamily: claudeTokens.serifStack } : undefined}
           >
             {!isClaude ? (
-              <span className="text-xs font-bold text-red-500">Log out</span>
+              <span className="text-xs font-bold text-red-500">{t('log_out')}</span>
             ) : (
-              'Log out'
+              t('log_out')
             )}
           </span>
         </SettingItem>

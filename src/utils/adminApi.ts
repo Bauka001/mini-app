@@ -1,4 +1,5 @@
 import WebApp from '@twa-dev/sdk';
+import { buildApiUrl } from './apiBase';
 
 export interface AdminSession {
   userId: number;
@@ -249,7 +250,8 @@ export interface TicketIssuePayload {
   eventDate: string;
   price: number;
   purchaseDate: string;
-  source: 'plan_upgrade' | 'ticket_purchase';
+  // Union of HEAD ('plan_upgrade'/'ticket_purchase') and upstream ('case_reward').
+  source: 'plan_upgrade' | 'ticket_purchase' | 'case_reward';
   targetPlan?: 'silver' | 'gold' | 'premium';
 }
 
@@ -261,16 +263,12 @@ export interface TicketIssueResponse {
   plan: { plan: string; planExpiry: number | null } | null;
 }
 
-import { apiUrl as resolveApiUrl } from './env';
-
-const apiUrl = resolveApiUrl();
-
 const getTelegramInitData = () => {
   return window.Telegram?.WebApp?.initData || WebApp?.initData || '';
 };
 
 async function postJson<T>(path: string, body: Record<string, any> = {}): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, {
+  const response = await fetch(buildApiUrl(path), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -436,3 +434,25 @@ export const getTournamentLeaderboard = (weekKey?: string) =>
 
 export const issueTicketRecord = (payload: TicketIssuePayload) =>
   postJson<TicketIssueResponse>('/tickets/issue', payload);
+
+export interface AdminSocialTask {
+  id: string;
+  platform: 'youtube' | 'telegram' | 'instagram' | 'twitter' | 'other';
+  url: string;
+  reward: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export const getAdminTasks = () =>
+  postJson<{ tasks: AdminSocialTask[] }>('/api/admin/tasks');
+
+export const addAdminTask = (payload: Omit<AdminSocialTask, 'created_at' | 'updated_at'>) =>
+  postJson<{ task: AdminSocialTask }>('/api/admin/tasks/add', payload);
+
+export const updateAdminTask = (payload: Omit<AdminSocialTask, 'created_at' | 'updated_at'>) =>
+  postJson<{ task: AdminSocialTask }>('/api/admin/tasks/update', payload);
+
+export const deleteAdminTask = (id: string) =>
+  postJson<{ ok: true }>('/api/admin/tasks/delete', { id });

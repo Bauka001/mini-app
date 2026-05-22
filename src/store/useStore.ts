@@ -36,7 +36,7 @@ export interface Challenge {
 
 export interface SocialTask {
   id: string;
-  platform: 'youtube' | 'telegram';
+  platform: 'youtube' | 'telegram' | 'instagram' | 'twitter' | 'other';
   url: string;
   reward: number;
   isClaimed: boolean;
@@ -86,10 +86,64 @@ export interface WeeklyQuest {
 
 export interface MysteryBox {
   id: string;
-  type: 'coins' | 'crystals' | 'fec' | 'skin' | 'booster';
+  type: 'coins' | 'crystals' | 'fec' | 'skin' | 'booster' | 'raffle_ticket' | 'iphone_17';
   amount: number;
   skinId?: string;
   boosterType?: 'freezes' | 'hints' | 'shields';
+  prizeTitle?: string;
+  prizeImageUrl?: string;
+  eventName?: string;
+  eventDate?: string;
+  ticketNumber?: number;
+}
+
+export type CaseId = 'basic_case' | 'rare_case' | 'legendary_case';
+export type CasePriceCurrency = 'coins' | 'gems';
+
+export interface CaseRewardProbability {
+  type: MysteryBox['type'];
+  probability: number;
+}
+
+export interface CaseDefinition {
+  id: CaseId;
+  titleKey: string;
+  subtitleKey: string;
+  descriptionKey: string;
+  price: number;
+  priceCurrency: CasePriceCurrency;
+  probabilities: CaseRewardProbability[];
+  previewRewardTypes: MysteryBox['type'][];
+}
+
+export interface CaseOpenResult {
+  success: boolean;
+  reward: MysteryBox | null;
+  error?: 'not_enough_coins' | 'not_enough_crystals' | 'case_unavailable';
+  spentCoins?: number;
+  spentGems?: number;
+  usedFreeOpen?: boolean;
+  caseId?: CaseId;
+}
+
+export interface DailyRewardStreak {
+  count: number;
+  lastClaimDate: string | null;
+  claimedDates: string[];
+}
+
+export interface WeeklyChallenge {
+  weekKey: string | null;
+  dayProgress: Record<string, number>;
+  completedDays: string[];
+  isClaimed: boolean;
+  reward: { coins: number };
+}
+
+export interface WeekendEvent {
+  weekendKey: string | null;
+  isActive: boolean;
+  multiplier: number;
 }
 
 export interface Ticket {
@@ -127,8 +181,7 @@ export interface BrainStats {
   dailyWorkoutModifier?: number;
 }
 
-export type TournamentPaymentMethod = 'stars' | 'ton' | 'vip';
-
+export type TournamentPaymentMethod = 'ton' | 'vip' | 'ticket';
 export interface TournamentGame {
   gameId: string;
   score: string | number;
@@ -176,14 +229,18 @@ export interface UserState {
   feedbacks: Feedback[];
   notifications: Notification[];
 
-  dailyRewardStreak: number;
-  lastDailyRewardDate: string | null;
+  dailyRewardStreak: DailyRewardStreak;
+  weeklyChallenge: WeeklyChallenge;
+  weekendEvent: WeekendEvent;
+  tournamentTickets: number;
 
-  plan: 'free' | 'silver' | 'gold' | 'premium';
+  plan: 'free' | 'silver' | 'gold' | 'basic' | 'pro' | 'premium';
 
   tickets: Ticket[];
   eventParticipants: EventParticipant[];
   planExpiry: number | null;
+  subscriptionDay: number;
+  claimedPlanRewardKeys: string[];
 
   promotionEndISO: string | null;
 
@@ -201,6 +258,8 @@ export interface UserState {
   maxEnergy: number;
   lastEnergyRegenTime: number | null;
   streakProtection: number;
+  freeMysteryBoxes: number;
+  premiumGiftMysteryBoxes: number;
   mysteryBoxAvailable: boolean;
   mysteryBoxPrice: number;
   tournament: TournamentState;
@@ -212,6 +271,7 @@ export interface UserState {
   syncUserFromTelegram: () => void;
   addGameResult: (result: Omit<GameResult, 'date' | 'timestamp'>) => void;
   upgradePlan: (plan: 'silver' | 'gold' | 'premium', days: number) => void;
+  fetchEntitlements: () => Promise<void>;
   buySkin: (skinId: string, cost: number) => boolean;
   equipSkin: (skinId: string) => void;
 
@@ -219,13 +279,28 @@ export interface UserState {
   consumeBooster: (type: 'freezes' | 'hints' | 'shields') => boolean;
 
   claimDailyReward: (amount: number) => void;
-  claimDailyLoginReward: () => { success: boolean; reward: { coins: number; gems: number; xp: number } };
+  claimDailyLoginReward: () => {
+    success: boolean;
+    reward: {
+      coins: number;
+      gems: number;
+      xp: number;
+      tournamentTickets: number;
+      milestoneDay: number;
+      milestoneTitle: string;
+      milestoneDescription: string;
+      nextMilestoneDay: number | null;
+      isMilestoneReached: boolean;
+      streakPreservedByVip: boolean;
+    };
+  };
   redeemPromocode: (code: string) => { success: boolean; message: string };
 
   refreshChallenges: () => void;
   claimChallengeReward: (challengeId: string) => void;
   watchAd: (reward: number) => void;
-  claimSocialReward: (taskId: string) => void;
+  fetchSocialTasks: () => Promise<void>;
+  claimSocialTask: (taskId: string) => Promise<void>;
   addFec: (amount: number) => void;
   addCoins: (amount: number) => void;
   spendCoins: (amount: number) => boolean;
@@ -263,12 +338,19 @@ export interface UserState {
   useStreakProtection: () => boolean;
   buyStreakProtection: () => boolean;
 
+  openCase: (caseId: CaseId) => CaseOpenResult;
   openMysteryBox: () => Promise<MysteryBox | null>;
   setMysteryBoxAvailable: (available: boolean) => void;
 
   updateWeeklyQuest: () => void;
   claimWeeklyQuestMilestone: (milestoneIndex: number) => boolean;
   joinTournament: (paymentMethod: TournamentPaymentMethod) => { success: boolean; message: string };
+  claimWeeklyChallengeReward: () => boolean;
+
+  saveAvatarImage: (imageData: string) => Promise<void>;
+  loadAvatarImage: () => Promise<string | null>;
+  isPremiumAvatar: (avatarId: string) => boolean;
+  canUseAvatar: (avatarId: string) => boolean;
 }
 
 const tgUser = getTelegramUser();
@@ -322,6 +404,13 @@ export const initialSocialTasks: SocialTask[] = [
     isClaimed: false
   },
   {
+    id: 'ig_founding',
+    platform: 'instagram',
+    url: 'https://www.instagram.com/focus_game_clube?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw==',
+    reward: 10,
+    isClaimed: false
+  },
+  {
     id: 'tg_founding',
     platform: 'telegram',
     url: 'https://t.me/+od_Mx-6Iz3Q3NWEy',
@@ -329,6 +418,38 @@ export const initialSocialTasks: SocialTask[] = [
     isClaimed: false
   }
 ];
+
+type TelegramWindow = Window & {
+  Telegram?: {
+    WebApp?: {
+      initDataUnsafe?: {
+        user?: {
+          language_code?: string;
+        };
+      };
+    };
+  };
+};
+
+const getInitialLanguage = (): Language => {
+  if (typeof window === 'undefined') return 'ru';
+  
+  const tg = (window as TelegramWindow).Telegram?.WebApp;
+  if (tg?.initDataUnsafe?.user?.language_code) {
+    const tgLang = tg.initDataUnsafe.user.language_code.toLowerCase();
+    if (tgLang === 'ru') return 'ru';
+    if (tgLang === 'kk' || tgLang === 'kz' || tgLang === 'ky') return 'kz';
+    if (tgLang === 'en') return 'en';
+  }
+
+  if (typeof navigator !== 'undefined' && navigator.language) {
+    const browserLang = navigator.language.toLowerCase();
+    if (browserLang.startsWith('ru')) return 'ru';
+    if (browserLang.startsWith('kk') || browserLang.startsWith('kz') || browserLang.startsWith('ky')) return 'kz';
+  }
+  
+  return 'ru';
+};
 
 export const initialState = {
   language: detectInitialLanguage(),
@@ -345,20 +466,31 @@ export const initialState = {
   dailyGoalMinutes: 10,
   streak: 0,
   history: [],
-  lastDailyRewardDate: null,
+  dailyRewardStreak: { count: 0, lastClaimDate: null, claimedDates: [] } as DailyRewardStreak,
+  weeklyChallenge: {
+    weekKey: null,
+    dayProgress: {},
+    completedDays: [],
+    isClaimed: false,
+    reward: { coins: 250 },
+  } as WeeklyChallenge,
+  weekendEvent: { weekendKey: null, isActive: false, multiplier: 1 } as WeekendEvent,
+  tournamentTickets: 0,
   challenges: generateDailyChallenges(),
   lastChallengeDate: new Date().toISOString().split('T')[0],
   socialTasks: initialSocialTasks,
   feedbacks: [],
   notifications: [],
-  plan: 'free' as 'free' | 'silver' | 'gold' | 'premium',
+  plan: 'free' as 'free' | 'silver' | 'gold' | 'basic' | 'pro' | 'premium',
   planExpiry: null,
   hp: 100,
   maxHp: 100,
-  dailyRewardStreak: 0,
+  
   tickets: [],
   eventParticipants: [],
-  promotionEndISO: '2026-04-26T08:00:00.000Z',
+  promotionEndISO: '2026-07-15T08:00:00.000Z',
+  subscriptionDay: 0,
+  claimedPlanRewardKeys: [],
   dailyQuest: {
     id: 'daily_quest_3games',
     gamesPlayed: [],
@@ -384,6 +516,8 @@ export const initialState = {
   maxEnergy: 100,
   lastEnergyRegenTime: Date.now(),
   streakProtection: 0,
+  freeMysteryBoxes: 5,
+  premiumGiftMysteryBoxes: 0,
   mysteryBoxAvailable: true,
   mysteryBoxPrice: 500,
   tournament: {

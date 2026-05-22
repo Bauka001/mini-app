@@ -13,15 +13,16 @@ import OnboardingScreen2 from './components/onboarding/OnboardingScreen2';
 import OnboardingScreen3 from './components/onboarding/OnboardingScreen3';
 import { useStore } from './store/useStoreImpl';
 import i18n from './i18n/i18n';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 
 // Admin bundle is split out — only loads when an admin actually navigates to /admin/*.
 const AdminLayout = lazy(() => import('./components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
-const AdminUsers = lazy(() => import('./pages/admin/AdminUsers').then((m) => ({ default: m.AdminUsers })));
-const AdminChat = lazy(() => import('./pages/admin/AdminChat').then((m) => ({ default: m.AdminChat })));
-const AdminGames = lazy(() => import('./pages/admin/AdminGames').then((m) => ({ default: m.AdminGames })));
-const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
-const AdminPanel = lazy(() => import('./pages/AdminPanel'));
+const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const AdminUsers = lazyWithRetry(() => import('./pages/admin/AdminUsers').then((m) => ({ default: m.AdminUsers })));
+const AdminGames = lazyWithRetry(() => import('./pages/admin/AdminGames').then((m) => ({ default: m.AdminGames })));
+const AdminTasks = lazyWithRetry(() => import('./pages/admin/AdminTasks'));
+const AdminSettings = lazyWithRetry(() => import('./pages/admin/AdminSettings'));
+const AdminPanel = lazyWithRetry(() => import('./pages/AdminPanel'));
 
 const AdminFallback = () => (
   <div className="flex h-screen items-center justify-center text-sm text-gray-400">Loading admin…</div>
@@ -34,9 +35,9 @@ const RouteFallback = () => (
 // Wallet/chart-heavy pages are lazy so @tonconnect/ui-react and recharts
 // don't ship in the initial bundle. Other primary pages stay eager so the
 // home flow has zero extra fetches.
-const ShopPage = lazy(() => import('./pages/Shop'));
-const ProfilePage = lazy(() => import('./pages/Profile'));
-const AirdropPage = lazy(() => import('./pages/Airdrop'));
+const ShopPage = lazyWithRetry(() => import('./pages/Shop'));
+const ProfilePage = lazyWithRetry(() => import('./pages/Profile'));
+const AirdropPage = lazyWithRetry(() => import('./pages/Airdrop'));
 const TonConnectShell = lazy(() => import('./telegram/TonConnectShell'));
 
 import Home from './pages/Home';
@@ -49,17 +50,13 @@ import TermsPage from './pages/Terms';
 import PrivacyPage from './pages/Privacy';
 
 // Games
-import SchulteGame from './pages/games/SchulteGame';
-import MathGame from './pages/games/MathGame';
-import StroopGame from './pages/games/StroopGame';
-import MemoryGame from './pages/games/MemoryGame';
-import OddOneOutGame from './pages/games/OddOneOutGame';
-import PairsGame from './pages/games/PairsGame';
-import TetrisGame from './pages/games/TetrisGame';
-import Merge2048Game from './pages/games/Merge2048Game';
-import AgentSpotGame from './pages/games/AgentSpotGame';
-import AgentSequenceGame from './pages/games/AgentSequenceGame';
-import CodeBreakerGame from './pages/games/CodeBreakerGame';
+const SchulteGame = lazyWithRetry(() => import('./pages/games/SchulteGame'));
+const MathGame = lazyWithRetry(() => import('./pages/games/MathGame'));
+const StroopGame = lazyWithRetry(() => import('./pages/games/StroopGame'));
+const MemoryGame = lazyWithRetry(() => import('./pages/games/MemoryGame'));
+const OddOneOutGame = lazyWithRetry(() => import('./pages/games/OddOneOutGame'));
+const PairsGame = lazyWithRetry(() => import('./pages/games/PairsGame'));
+const Merge2048Game = lazyWithRetry(() => import('./pages/games/Merge2048Game'));
 
 type HistoryEntry = {
   gameId: string;
@@ -101,11 +98,7 @@ const workoutOnboardingGames: WorkoutOnboardingGame[] = [
   { id: 'pairs', routeId: 'pairs', historyIds: ['pairs'] },
   { id: 'odd-one', routeId: 'odd-one', historyIds: ['odd_one_out'] },
   { id: 'stroop', routeId: 'stroop', historyIds: ['stroop'] },
-  { id: 'tetris', routeId: 'tetris', historyIds: ['tetris'] },
   { id: '2048', routeId: '2048', historyIds: ['2048'] },
-  { id: 'agent-spot', routeId: 'agent-spot', historyIds: ['agent_spot'] },
-  { id: 'agent-sequence', routeId: 'agent-sequence', historyIds: ['agent_sequence'] },
-  { id: 'code-breaker', routeId: 'code-breaker', historyIds: ['code_breaker'] },
 ];
 
 const getTodayKey = () => new Date().toISOString().split('T')[0];
@@ -155,7 +148,11 @@ const writeWorkoutSession = (session: WorkoutSession) => {
 
 const ensureWorkoutSession = () => {
   const stored = readStoredWorkoutSession();
-  if (stored?.date === getTodayKey() && stored.gameIds.length === 3) {
+  if (
+    stored?.date === getTodayKey() &&
+    stored.gameIds.length === 3 &&
+    stored.gameIds.every((gameId) => Boolean(getWorkoutGameById(gameId)))
+  ) {
     return stored;
   }
 
@@ -176,6 +173,9 @@ const createInitialOnboardingProgress = (): OnboardingProgress => ({
 });
 
 const getOnboardingStorageKey = (userId: number) => `${ONBOARDING_STORAGE_PREFIX}-${userId}`;
+
+let lastSyncTime = 0;
+const SYNC_THROTTLE_MS = 60000;
 
 const readOnboardingProgress = (userId: number): OnboardingProgress | null => {
   if (typeof window === 'undefined') return null;
@@ -218,11 +218,24 @@ function AppRoutes() {
   const location = useLocation();
   const userId = useStore((state) => state.user.id);
   const history = useStore((state) => state.history as HistoryEntry[]);
+  const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
   const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress | null>(null);
 
   const isRoot = ROOT_ROUTES.has(location.pathname);
   const goBack = useCallback(() => navigate(-1), [navigate]);
   useBackButton(isRoot ? null : goBack);
+
+  const throttledSync = useCallback(() => {
+    const now = Date.now();
+    if (now - lastSyncTime > SYNC_THROTTLE_MS) {
+      lastSyncTime = now;
+      syncUserFromTelegram();
+    }
+  }, [syncUserFromTelegram]);
+
+  useEffect(() => {
+    throttledSync();
+  }, [location.pathname, throttledSync]);
 
   const updateOnboardingProgress = (patch: Partial<OnboardingProgress>) => {
     if (!userId || !onboardingProgress) return;
@@ -292,8 +305,6 @@ function AppRoutes() {
     if (!isDailyWorkout && !isAdminRoute && !allowedDuringWorkout) {
       navigate('/daily-workout', { replace: true });
     }
-    // updateOnboardingProgress intentionally omitted — it's a stable closure
-    // and including it would re-fire the route guard on every progress write.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, navigate, onboardingProgress, userId]);
 
@@ -327,8 +338,6 @@ function AppRoutes() {
     }
 
     updateOnboardingProgress({ screen: 2 });
-    // updateOnboardingProgress is a stable closure; including it would loop
-    // because every progress write changes its identity in this scope.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstWorkoutResult, onboardingProgress]);
 
@@ -426,17 +435,13 @@ function AppRoutes() {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
 
-          <Route path="/game/schulte" element={<SchulteGame />} />
-          <Route path="/game/math" element={<MathGame />} />
-          <Route path="/game/stroop" element={<StroopGame />} />
-          <Route path="/game/memory" element={<MemoryGame />} />
-          <Route path="/game/odd-one" element={<OddOneOutGame />} />
-          <Route path="/game/pairs" element={<PairsGame />} />
-          <Route path="/game/tetris" element={<TetrisGame />} />
-          <Route path="/game/2048" element={<Merge2048Game />} />
-          <Route path="/game/agent-spot" element={<AgentSpotGame />} />
-          <Route path="/game/agent-sequence" element={<AgentSequenceGame />} />
-          <Route path="/game/code-breaker" element={<CodeBreakerGame />} />
+          <Route path="/game/schulte" element={<Suspense fallback={<RouteFallback />}><SchulteGame /></Suspense>} />
+          <Route path="/game/math" element={<Suspense fallback={<RouteFallback />}><MathGame /></Suspense>} />
+          <Route path="/game/stroop" element={<Suspense fallback={<RouteFallback />}><StroopGame /></Suspense>} />
+          <Route path="/game/memory" element={<Suspense fallback={<RouteFallback />}><MemoryGame /></Suspense>} />
+          <Route path="/game/odd-one" element={<Suspense fallback={<RouteFallback />}><OddOneOutGame /></Suspense>} />
+          <Route path="/game/pairs" element={<Suspense fallback={<RouteFallback />}><PairsGame /></Suspense>} />
+          <Route path="/game/2048" element={<Suspense fallback={<RouteFallback />}><Merge2048Game /></Suspense>} />
 
           <Route
             path="/admin"
@@ -450,8 +455,8 @@ function AppRoutes() {
           >
             <Route index element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
             <Route path="users" element={<Suspense fallback={<AdminFallback />}><AdminUsers /></Suspense>} />
-            <Route path="chat" element={<Suspense fallback={<AdminFallback />}><AdminChat /></Suspense>} />
             <Route path="games" element={<Suspense fallback={<AdminFallback />}><AdminGames /></Suspense>} />
+            <Route path="tasks" element={<Suspense fallback={<AdminFallback />}><AdminTasks /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
             <Route path="tickets" element={<Suspense fallback={<AdminFallback />}><AdminPanel /></Suspense>} />
           </Route>
@@ -493,10 +498,10 @@ function AppRoutes() {
 function App() {
   const { t } = useTranslation();
   const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
+  const fetchEntitlements = useStore((state) => state.fetchEntitlements);
   const addNotification = useStore((state) => state.addNotification);
   const userId = useStore((state) => state.user.id);
   const language = useStore((state) => state.language);
-  const logout = useStore((state) => state.logout);
 
   // Sync the persisted store language into i18next on mount and on every change
   // so a user's previously chosen language survives a refresh and overrides the
@@ -510,24 +515,50 @@ function App() {
   // Sync user data immediately and handle account switching.
   // Telegram lifecycle (ready/expand/theme) is owned by src/telegram/bootstrap.ts.
   useEffect(() => {
+    // Only wipe app-owned keys that store user state
+    const APP_KEY_PREFIXES = ['focus-app-', 'focus-daily-', 'focus-onboarding-', 'welcome_shown_'];
+    const clearAppStorage = () => {
+      try {
+        const storages: Storage[] = [localStorage, sessionStorage];
+        for (const storage of storages) {
+          const toRemove: string[] = [];
+          for (let i = 0; i < storage.length; i += 1) {
+            const key = storage.key(i);
+            if (key && APP_KEY_PREFIXES.some((prefix) => key.startsWith(prefix))) {
+              toRemove.push(key);
+            }
+          }
+          toRemove.forEach((key) => storage.removeItem(key));
+        }
+      } catch (e) {
+        console.warn('Failed to clear app storage:', e);
+      }
+    };
+
     const checkAccount = () => {
       const tgUser = WebApp?.initDataUnsafe?.user || (window as any).Telegram?.WebApp?.initDataUnsafe?.user;
-      
+
       if (tgUser && userId && userId !== 0 && userId !== tgUser.id) {
-        console.warn('Account switch detected! Clearing local data and reloading...');
-        // Force clear everything related to this app
-        localStorage.clear(); 
-        sessionStorage.clear();
-        window.location.reload();
+        console.warn('Account switch detected! Clearing app storage...');
+        clearAppStorage();
         return true;
       }
       return false;
     };
 
-    if (!checkAccount()) {
-      syncUserFromTelegram();
+    const isSwitched = checkAccount();
+
+    syncUserFromTelegram();
+    fetchEntitlements();
+
+    if (isSwitched) {
+      if (WebApp.isVersionAtLeast('6.2')) {
+        WebApp.showAlert(t('account_switched'));
+      } else {
+        alert(t('account_switched'));
+      }
     }
-  }, [syncUserFromTelegram, userId, logout]);
+  }, [syncUserFromTelegram, fetchEntitlements, userId, t]);
 
   // Sync HTML data-theme attribute with store
   const theme = useStore((state) => state.theme);
@@ -540,15 +571,16 @@ function App() {
     const handleVisible = () => {
       if (document.visibilityState === 'visible') {
         syncUserFromTelegram();
+        fetchEntitlements();
       }
     };
     document.addEventListener('visibilitychange', handleVisible);
-    window.addEventListener('focus', syncUserFromTelegram);
+    window.addEventListener('focus', handleVisible);
     return () => {
       document.removeEventListener('visibilitychange', handleVisible);
-      window.removeEventListener('focus', syncUserFromTelegram);
+      window.removeEventListener('focus', handleVisible);
     };
-  }, [syncUserFromTelegram]);
+  }, [syncUserFromTelegram, fetchEntitlements]);
 
   useEffect(() => {
     if (userId && typeof userId === 'number') {

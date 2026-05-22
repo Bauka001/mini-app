@@ -1,6 +1,7 @@
 import { ChevronRight, Crown, History, LayoutGrid, Route as RouteIcon, Star, TrendingUp, Zap } from 'lucide-react';
 import { clsx } from 'clsx';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 
 type AnalyticsContentProps = {
   analytics: any;
@@ -17,7 +18,10 @@ export const VipAnalyticsLockedCard = ({
   styles,
   onUnlock,
   isPlanExpired,
-}: AnalyticsLockedCardProps) => (
+}: AnalyticsLockedCardProps) => {
+  const { t } = useTranslation();
+
+  return (
   <motion.div
     initial={{ opacity: 0, y: 16 }}
     animate={{ opacity: 1, y: 0 }}
@@ -28,9 +32,9 @@ export const VipAnalyticsLockedCard = ({
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className={clsx('text-[10px] font-black uppercase tracking-[0.3em]', styles.textSecondary)}>VIP Analytics</div>
-          <h3 className={clsx('mt-2 text-2xl font-black', styles.textPrimary)}>Кеңейтілген аналитика VIP ішінде</h3>
+          <h3 className={clsx('mt-2 text-2xl font-black', styles.textPrimary)}>{t('vip_analytics_extended')}</h3>
           <p className={clsx('mt-3 text-sm leading-6', styles.textSecondary)}>
-            Соңғы 30 күн графигін, Brain Score өзгерісін, Telegram орташасымен салыстыруды және әр ойынның бөлікті көрсеткішін ашыңыз.
+            {t('vip_analytics_extended_desc')}
           </p>
         </div>
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-yellow-400 to-orange-500 flex items-center justify-center shadow-xl">
@@ -39,7 +43,7 @@ export const VipAnalyticsLockedCard = ({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {['30 күн графигі', 'Brain Score тренді', 'Telegram benchmark', 'Ойын breakdown'].map((item) => (
+        {[t('vip_analytics_30d_chart'), t('vip_analytics_brain_score_trend'), t('vip_analytics_tg_benchmark'), t('vip_analytics_game_breakdown')].map((item) => (
           <div
             key={item}
             className={clsx('rounded-2xl border px-4 py-3 text-sm font-bold', styles.panelClass)}
@@ -50,7 +54,7 @@ export const VipAnalyticsLockedCard = ({
       </div>
 
       <div className={clsx('rounded-2xl px-4 py-3 text-xs font-bold', styles.textSecondary, 'bg-black/5 dark:bg-white/5')}>
-        {isPlanExpired ? 'VIP мерзімі аяқталған. Аналитиканы қайта ашу үшін VIP-ті жаңартыңыз.' : 'Analytics беті premium VIP қолданушысына ғана толық ашылады.'}
+        {isPlanExpired ? t('vip_analytics_expired') : t('vip_analytics_locked_msg')}
       </div>
 
       <button
@@ -58,14 +62,16 @@ export const VipAnalyticsLockedCard = ({
         onClick={onUnlock}
         className="w-full rounded-2xl bg-primary text-black font-black py-4 px-4 flex items-center justify-center gap-2 shadow-[0_0_18px_rgba(255,215,0,0.25)]"
       >
-        VIP ашу
+        {t('vip_analytics_unlock')}
         <ChevronRight size={18} />
       </button>
     </div>
   </motion.div>
-);
+  );
+};
 
 export const VipAnalyticsPanel = ({ analytics, styles }: AnalyticsContentProps) => {
+  const { t } = useTranslation();
   const maxBarValue = Math.max(...analytics.dailySeries.map((item: any) => item.value), 1);
 
   return (
@@ -76,13 +82,13 @@ export const VipAnalyticsPanel = ({ analytics, styles }: AnalyticsContentProps) 
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className={clsx('text-[10px] font-black uppercase tracking-[0.3em]', styles.textSecondary)}>VIP Analytics</div>
-              <h3 className={clsx('mt-2 text-xl font-black', styles.textPrimary)}>Соңғы {analytics.dayRange} күннің динамикасы</h3>
+              <h3 className={clsx('mt-2 text-xl font-black', styles.textPrimary)}>{t('vip_analytics_last_days', { days: analytics.dayRange })}</h3>
               <p className={clsx('mt-2 text-sm', styles.textSecondary)}>
-                Нәтиже графигі күндік өнімділік ұпайына негізделеді.
+                {t('vip_analytics_result_graph')}
               </p>
             </div>
             <div className="text-right">
-              <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>Белсенді күн</div>
+              <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>{t('vip_analytics_active_days')}</div>
               <div className={clsx('text-2xl font-black', styles.textPrimary)}>{analytics.activeDays}</div>
             </div>
           </div>
@@ -109,22 +115,22 @@ export const VipAnalyticsPanel = ({ analytics, styles }: AnalyticsContentProps) 
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <StatCard icon={TrendingUp} value={analytics.currentBrainScore} label="Brain Score" color="text-emerald-500" styles={styles} />
+        <StatCard icon={TrendingUp} value={analytics.currentBrainScore} label={t('vip_analytics_brain_score')} color="text-emerald-500" styles={styles} />
         <StatCard
           icon={Crown}
           value={analytics.brainScoreChange > 0 ? `+${analytics.brainScoreChange}` : analytics.brainScoreChange}
-          label="30d Change"
+          label={t('vip_analytics_30d_change')}
           color={analytics.brainScoreChange >= 0 ? 'text-cyan-500' : 'text-rose-500'}
           styles={styles}
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <StatCard icon={History} value={analytics.totalSessions} label="Sessions" color="text-violet-500" styles={styles} />
+        <StatCard icon={History} value={analytics.totalSessions} label={t('vip_analytics_sessions')} color="text-violet-500" styles={styles} />
         <StatCard
           icon={Star}
           value={`${analytics.currentBrainScore - analytics.telegramAverage > 0 ? '+' : ''}${analytics.currentBrainScore - analytics.telegramAverage}`}
-          label="Vs Telegram"
+          label={t('vip_analytics_vs_tg')}
           color={analytics.currentBrainScore >= analytics.telegramAverage ? 'text-emerald-500' : 'text-orange-500'}
           styles={styles}
         />
@@ -132,23 +138,23 @@ export const VipAnalyticsPanel = ({ analytics, styles }: AnalyticsContentProps) 
 
       <div className={clsx('rounded-[28px] border p-5', styles.panelClass)}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={clsx('text-lg font-black', styles.textPrimary)}>Telegram орташасымен салыстыру</h3>
+          <h3 className={clsx('text-lg font-black', styles.textPrimary)}>{t('vip_analytics_tg_compare')}</h3>
           <span className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>
-            LIVE SNAPSHOT
+            {t('vip_analytics_live_snapshot')}
           </span>
         </div>
         <div className="space-y-4">
           {analytics.comparison.map((item: any) => (
-            <AnalyticsMetricRow key={item.key} item={item} styles={styles} />
+            <AnalyticsMetricRow key={item.key} item={item} styles={styles} t={t} />
           ))}
         </div>
       </div>
 
       <div className={clsx('rounded-[28px] border p-5', styles.panelClass)}>
         <div className="flex items-center justify-between mb-4">
-          <h3 className={clsx('text-lg font-black', styles.textPrimary)}>Әр ойынның бөлікті көрсеткіші</h3>
+          <h3 className={clsx('text-lg font-black', styles.textPrimary)}>{t('vip_analytics_game_stats')}</h3>
           <span className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>
-            LAST 30 DAYS
+            {t('vip_analytics_last_30_days')}
           </span>
         </div>
         {analytics.gameBreakdown.length > 0 ? (
@@ -163,23 +169,23 @@ export const VipAnalyticsPanel = ({ analytics, styles }: AnalyticsContentProps) 
                     <div className="min-w-0">
                       <div className={clsx('text-sm font-black truncate', styles.textPrimary)}>{formatGameName(item.gameId)}</div>
                       <div className={clsx('text-[10px] font-bold uppercase tracking-widest', styles.textSecondary)}>
-                        {item.plays} session
+                        {item.plays} {t('vip_analytics_session_count')}
                       </div>
                     </div>
                   </div>
                   <div className="text-right">
                     <div className={clsx('text-lg font-black', styles.textPrimary)}>{item.averageScore}</div>
-                    <div className={clsx('text-[10px] font-bold', styles.textSecondary)}>avg score</div>
+                    <div className={clsx('text-[10px] font-bold', styles.textSecondary)}>{t('vip_analytics_avg_score')}</div>
                   </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <div className="rounded-2xl bg-black/5 dark:bg-white/5 px-3 py-2">
-                    <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>Best</div>
+                    <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>{t('vip_analytics_best')}</div>
                     <div className={clsx('mt-1 text-sm font-black', styles.textPrimary)}>{item.bestScore}</div>
                   </div>
                   <div className="rounded-2xl bg-black/5 dark:bg-white/5 px-3 py-2">
-                    <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>Last</div>
+                    <div className={clsx('text-[10px] font-black uppercase tracking-widest', styles.textSecondary)}>{t('vip_analytics_last')}</div>
                     <div className={clsx('mt-1 text-sm font-black', styles.textPrimary)}>{item.lastScore}</div>
                   </div>
                 </div>
@@ -189,7 +195,7 @@ export const VipAnalyticsPanel = ({ analytics, styles }: AnalyticsContentProps) 
         ) : (
           <div className={clsx('rounded-3xl p-10 border border-dashed flex flex-col items-center justify-center', styles.panelClass, styles.textSecondary)}>
             <Zap size={32} className="mb-2 opacity-20" />
-            <p className="text-sm font-medium text-center">Analytics ашу үшін соңғы 30 күнде кемі бір ойын ойнаңыз.</p>
+            <p className="text-sm font-medium text-center">{t('vip_analytics_empty')}</p>
           </div>
         )}
       </div>
@@ -197,7 +203,7 @@ export const VipAnalyticsPanel = ({ analytics, styles }: AnalyticsContentProps) 
   );
 };
 
-const AnalyticsMetricRow = ({ item, styles }: any) => {
+const AnalyticsMetricRow = ({ item, styles, t }: any) => {
   const progressWidth = Math.max(item.userValue, item.telegramValue, 1);
 
   return (
@@ -218,8 +224,8 @@ const AnalyticsMetricRow = ({ item, styles }: any) => {
           </div>
         </div>
         <div className={clsx('text-[10px] font-black uppercase tracking-widest text-right', styles.textSecondary)}>
-          <div>You {item.userValue}</div>
-          <div>TG {item.telegramValue}</div>
+          <div>{t('vip_analytics_you')} {item.userValue}</div>
+          <div>{t('vip_analytics_tg')} {item.telegramValue}</div>
         </div>
       </div>
     </div>
@@ -244,8 +250,6 @@ const getGameIcon = (gameId: string) => {
       return <LayoutGrid size={20} />;
     case 'schulte':
       return <Star size={20} />;
-    case 'agent_sequence':
-      return <RouteIcon size={20} />;
     case 'tetris':
       return <LayoutGrid size={20} />;
     case '2048':
@@ -259,8 +263,6 @@ const formatGameName = (gameId: string) => {
   switch (gameId.toLowerCase()) {
     case 'odd_one_out':
       return 'Odd One Out';
-    case 'agent_sequence':
-      return 'Agent Sequence';
     default:
       return gameId.replace(/[_-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
   }

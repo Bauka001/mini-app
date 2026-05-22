@@ -98,7 +98,7 @@ export const telegramStorage = {
     if (WebApp.isVersionAtLeast('6.9') && WebApp.CloudStorage) {
       WebApp.CloudStorage.setItem(key, value, (err) => {
         if (err && import.meta.env.DEV) {
-          console.error('[CloudStorage] Set Error:', err);
+          console.error(`[CloudStorage] Set Error for ${key}:`, err);
         }
       });
     }

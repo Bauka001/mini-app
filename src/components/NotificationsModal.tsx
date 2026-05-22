@@ -196,19 +196,19 @@ export const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps)
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+      <div className="modal-shell fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
         <motion.div
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
-          className="bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl h-[80vh] flex flex-col"
+          className="modal-card bg-white dark:bg-gray-900 w-full max-w-md rounded-3xl overflow-hidden shadow-2xl flex flex-col"
         >
           <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-white/50 dark:bg-gray-900/50 backdrop-blur-md sticky top-0 z-10">
             <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
               <Bell size={20} className="text-yellow-500 fill-current" />
               Notifications
             </h3>
-            <button onClick={onClose} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors">
+            <button onClick={onClose} className="p-2 min-h-[44px] min-w-[44px] rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 transition-colors">
               <X size={20} />
             </button>
           </div>
@@ -247,9 +247,9 @@ export const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps)
                     )}>
                       {getIcon(notif.type)}
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <h4 className={clsx(
-                        "text-sm font-bold mb-1",
+                        "text-sm sm:text-base font-bold mb-1 truncate",
                         notif.isRead ? "text-gray-600 dark:text-gray-400" : "text-gray-900 dark:text-white"
                       )}>
                         {notif.title}

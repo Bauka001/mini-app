@@ -6,7 +6,8 @@ import {
   Brain, Calculator, Type, Trophy, Bell,
   Zap, Eye, Copy, Flame, Coins, Gem, Sparkles,
   Settings, Gift, User, ChevronRight, ArrowRight,
-  Wallet, Grid, Blocks, Grid2x2, Target, Crown, BarChart3, Lock, Route
+  Wallet, Grid, Grid2x2, Target, Crown, BarChart3, Lock,
+  Youtube, Send, Instagram, Share2, CheckCircle, Car
 } from 'lucide-react';
 import { useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
@@ -35,18 +36,48 @@ const itemVariants: Variants = {
 };
 
 const gameButtons = [
-  { title: 'game_memory', icon: Grid, path: '/game/memory' },
   { title: 'game_schulte', icon: Brain, path: '/game/schulte' },
-  { title: 'game_agent_sequence', icon: Route, path: '/game/agent-sequence' },
+  { title: 'game_stroop', icon: Type, path: '/game/stroop' },
+  { title: 'game_memory', icon: Grid, path: '/game/memory' },
   { title: 'game_math', icon: Calculator, path: '/game/math' },
   { title: 'game_pairs', icon: Copy, path: '/game/pairs' },
   { title: 'game_odd_one', icon: Eye, path: '/game/odd-one' },
-  { title: 'game_agent_spot', icon: Target, path: '/game/agent-spot' },
-  { title: 'game_code_breaker', icon: Lock, path: '/game/code-breaker' },
-  { title: 'game_stroop', icon: Type, path: '/game/stroop' },
-  { title: 'game_tetris', icon: Blocks, path: '/game/tetris' },
   { title: 'game_2048', icon: Grid2x2, path: '/game/2048' },
 ];
+
+const vipGamePaths = new Set(['/game/schulte', '/game/stroop']);
+const VIP_TRIAL_LIMIT = 3;
+const DAILY_REWARD_MODAL_LAST_SHOWN_KEY = 'focus-daily-reward-modal-last-shown';
+
+const getStoredPlays = (key: string) => {
+  try {
+    return parseInt(localStorage.getItem(key) || '0', 10) || 0;
+  } catch {
+    return 0;
+  }
+};
+
+const getVipTrialsLeft = (path: string) => {
+  if (path === '/game/schulte') return Math.max(0, VIP_TRIAL_LIMIT - getStoredPlays('schulte_free_plays_v2'));
+  if (path === '/game/stroop') return Math.max(0, VIP_TRIAL_LIMIT - getStoredPlays('stroop_free_plays_v2'));
+  return VIP_TRIAL_LIMIT;
+};
+
+const getDailyRewardModalLastShown = () => {
+  try {
+    return localStorage.getItem(DAILY_REWARD_MODAL_LAST_SHOWN_KEY);
+  } catch {
+    return null;
+  }
+};
+
+const setDailyRewardModalLastShown = (dayKey: string) => {
+  try {
+    localStorage.setItem(DAILY_REWARD_MODAL_LAST_SHOWN_KEY, dayKey);
+  } catch {
+    // Ignore storage failures and keep UX functional.
+  }
+};
 
 type StatAccent = 'amber' | 'yellow' | 'cyan' | 'violet' | 'emerald' | 'rose';
 
@@ -212,12 +243,27 @@ const Home = () => {
   const gems = useStore(state => state.gems);
   const streak = useStore(state => state.streak);
   const history = useStore(state => state.history);
+  const _watchAd = useStore(state => state.watchAd);
+  void _watchAd;
+  const dailyRewardStreak = useStore(state => state.dailyRewardStreak);
+  const weeklyChallenge = useStore(state => state.weeklyChallenge);
+  const weekendEvent = useStore(state => state.weekendEvent);
+  const tournamentTickets = useStore(state => state.tournamentTickets);
+  const claimWeeklyChallengeReward = useStore(state => state.claimWeeklyChallengeReward);
+  const plan = useStore(state => state.plan);
+  const socialTasks = useStore(state => state.socialTasks);
+  const claimSocialTask = useStore(state => state.claimSocialTask);
+  const fetchSocialTasks = useStore(state => state.fetchSocialTasks);
 
   const styles = useThemeStyles();
   const { isClaude, isLight, textPrimary, textSecondary, bgClass, headerClass, panelClass } = styles;
 
   const [showDailyReward, setShowDailyReward] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+    void fetchSocialTasks();
+  }, [fetchSocialTasks]);
 
   const notifications = useStore(state => state.notifications);
   const unreadCount = notifications.filter(n => !n.isRead).length;
@@ -253,13 +299,16 @@ const Home = () => {
 
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
-    if (lastDailyRewardDate !== today) {
+    const wasShownToday = getDailyRewardModalLastShown() === today;
+
+    if (dailyRewardStreak?.lastClaimDate !== today && !wasShownToday) {
       const timer = setTimeout(() => {
+        setDailyRewardModalLastShown(today);
         setShowDailyReward(true);
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [lastDailyRewardDate]);
+  }, [dailyRewardStreak?.lastClaimDate]);
 
   const handleGameClick = (path: string) => {
     hapticFeedback.click();
@@ -688,7 +737,7 @@ const Home = () => {
 
   // ---------- Legacy themes (dark / light / blue / gold) — unchanged ----------
   return (
-    <div className={clsx("min-h-screen pb-20 font-sans transition-colors duration-500", bgClass)}>
+    <div className={clsx("mobile-page min-h-screen w-full max-w-full font-sans transition-colors duration-500", bgClass)}>
 
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -755,11 +804,51 @@ const Home = () => {
       <GuestBanner />
 
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
-        className="px-4 pt-4"
+        className="px-4 pt-4 space-y-3"
       >
+        {/* Premium prize banner from upstream */}
+        <motion.button
+          whileTap={{ scale: 0.98 }}
+          onClick={() => { hapticFeedback.click(); navigate('/shop'); }}
+          className="relative w-full aspect-[16/5] rounded-2xl overflow-hidden group cursor-pointer border border-amber-500/30 shadow-[0_8px_30px_rgb(0,0,0,0.3)]"
+        >
+          <img
+            src="/mustang.jpg"
+            alt="Ford Mustang"
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/50 to-transparent z-10" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />
+
+          <div className="absolute top-2 left-2 z-20">
+            <div className="px-2 py-0.5 rounded bg-amber-500 text-[10px] font-black text-black uppercase shadow-lg border border-amber-300">
+              {t('plan_premium')}
+            </div>
+          </div>
+
+          <div className="absolute left-5 bottom-3 z-20 flex max-w-[220px] flex-col items-start">
+            <div className="flex items-center gap-2 mb-0.5">
+              <Car size={14} className="text-amber-400" />
+              <span className="text-[10px] font-black text-amber-300 uppercase tracking-widest">{t('main_prize')}</span>
+            </div>
+            <h3 className="text-base font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-left">
+              {t('win_car')}
+            </h3>
+            <p className="text-[10px] text-white/70 mt-0.5 text-left">Ford Mustang GT - {t('premium_pack')}</p>
+            <div className="flex items-center gap-2 mt-2">
+              <div className="flex items-center gap-1.5 bg-white/15 backdrop-blur-sm rounded-xl px-3 py-1.5">
+                <Gem size={14} className="text-blue-400" />
+                <span className="text-[11px] font-black text-white">{t('learn_more')}</span>
+              </div>
+              <ChevronRight size={18} className="text-white/50 group-hover:text-white/90 transition-colors" />
+            </div>
+          </div>
+        </motion.button>
+
+        {/* Quick-action shortcuts grid */}
         <div className="grid grid-cols-2 gap-2.5">
           <motion.button
             whileTap={{ scale: 0.97 }}
@@ -865,6 +954,157 @@ const Home = () => {
         </div>
       </motion.div>
 
+      <div className={clsx(
+        "p-4 mt-4 rounded-2xl mx-4 transition-colors duration-500",
+        panelClass
+      )}>
+        <div className="flex items-end justify-between gap-4 mb-4">
+          <div>
+            <h2 className={clsx("text-lg font-bold", textPrimary)}>{t('practice')}</h2>
+            <p className={clsx("text-sm mt-1", textSecondary)}>
+              {t('practice_desc')}
+            </p>
+          </div>
+          <div className={clsx("text-xs font-semibold uppercase tracking-[0.12em] sm:tracking-[0.18em]", textSecondary)}>
+            {t('games_count', { count: gameButtons.length })}
+          </div>
+        </div>
+        <motion.div
+          className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4"
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+        >
+          {gameButtons.map((game) => {
+            const Icon = game.icon;
+            const isVipGame = vipGamePaths.has(game.path);
+            const isUnlimitedVipGame = isVipGame && (plan === 'pro' || plan === 'premium');
+            const trialsLeft = isVipGame ? getVipTrialsLeft(game.path) : null;
+            return (
+              <motion.button
+                key={game.title}
+                whileTap={{ scale: 0.92 }}
+                onClick={() => handleGameClick(game.path)}
+                variants={itemVariants}
+                className={clsx(
+                  "relative flex flex-col items-center gap-2 p-3 rounded-2xl min-h-[112px] transition-all duration-300",
+                  styles.isLight ? "hover:bg-slate-100 active:bg-slate-200" :
+                  styles.isBlue ? "hover:bg-blue-800/30 active:bg-blue-800/50" :
+                  styles.isGold ? "hover:bg-stone-800/50 active:bg-stone-800/70" :
+                  "hover:bg-zinc-800/50 active:bg-zinc-800"
+                )}
+              >
+                {isVipGame ? (
+                  <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full border border-amber-300/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-300">
+                    <Crown size={10} />
+                    <span>VIP</span>
+                  </div>
+                ) : null}
+                <div className={clsx(
+                  "w-14 h-14 flex items-center justify-center rounded-2xl shadow-sm transition-colors duration-300",
+                  styles.cardClass
+                )}>
+                  <Icon size={26} className={styles.textAccent} />
+                </div>
+                <span className={clsx("text-sm text-center font-medium leading-tight", styles.textPrimary)}>{t(game.title)}</span>
+                {isVipGame ? (
+                  <span className={clsx("text-[11px] font-semibold text-center leading-tight", styles.textSecondary)}>
+                    {isUnlimitedVipGame ? 'Шексіз' : `Пробный: ${trialsLeft}/${VIP_TRIAL_LIMIT}`}
+                  </span>
+                ) : null}
+              </motion.button>
+            );
+          })}
+        </motion.div>
+        
+        {/* Social Tasks Section */}
+        {socialTasks.length > 0 && (
+          <div className="mt-6 border-t border-white/5 pt-4">
+            <h3 className={clsx("text-sm font-bold uppercase mb-3 flex items-center gap-2", textSecondary)}>
+              {t('earn_crystals')}
+            </h3>
+            <div className="space-y-3">
+              {socialTasks.map(task => {
+                const isClaimed = task.isClaimed;
+                
+                const getIcon = () => {
+                  switch(task.platform) {
+                    case 'youtube': return <Youtube size={20} className="text-red-500" />;
+                    case 'telegram': return <Send size={20} className="text-blue-400" />;
+                    case 'instagram': return <Instagram size={20} className="text-pink-500" />;
+                    case 'twitter': return <Share2 size={20} className="text-blue-400" />;
+                    default: return <Share2 size={20} className="text-gray-400" />;
+                  }
+                };
+
+                const getName = () => {
+                  switch(task.platform) {
+                    case 'youtube': return t('task_youtube');
+                    case 'telegram': return t('task_telegram');
+                    case 'instagram': return t('task_instagram');
+                    case 'twitter': return t('task_twitter');
+                    default: return t('social_network');
+                  }
+                };
+
+                const getGradient = () => {
+                  switch(task.platform) {
+                    case 'youtube': return 'from-red-500/10 to-orange-500/10 hover:from-red-500/20 hover:to-orange-500/20';
+                    case 'telegram': return 'from-blue-500/10 to-cyan-500/10 hover:from-blue-500/20 hover:to-cyan-500/20';
+                    case 'instagram': return 'from-pink-500/10 to-purple-500/10 hover:from-pink-500/20 hover:to-purple-500/20';
+                    default: return 'from-gray-500/10 to-gray-400/10 hover:from-gray-500/20 hover:to-gray-400/20';
+                  }
+                };
+
+                const handleSocialClick = (taskId: string, url: string) => {
+                  WebApp.openLink(url);
+                  setTimeout(() => {
+                      void claimSocialTask(taskId);
+                      WebApp.HapticFeedback.notificationOccurred('success');
+                  }, 5000); 
+                };
+
+                return (
+                  <button 
+                    key={task.id}
+                    onClick={() => handleSocialClick(task.id, task.url)}
+                    disabled={isClaimed}
+                    className={clsx(
+                      "w-full p-3 rounded-2xl flex items-center justify-between border border-white/5 transition-all active:scale-[0.98]",
+                      isClaimed ? "bg-white/5 opacity-50" : `bg-gradient-to-r ${getGradient()}`,
+                      styles.cardClass
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={clsx("w-10 h-10 rounded-full flex items-center justify-center bg-black/20")}>
+                        {getIcon()}
+                      </div>
+                      <div className="text-left">
+                        <div className={clsx("text-sm font-bold", textPrimary)}>{getName()}</div>
+                        <div className={clsx("text-xs", textSecondary)}>{t('support_community')}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {isClaimed ? (
+                        <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                          <CheckCircle size={14} /> {t('claimed')}
+                        </span>
+                      ) : (
+                        <div className="flex items-center gap-1 bg-black/20 px-3 py-1.5 rounded-lg text-xs font-bold text-white">
+                          <Gem size={14} className="text-blue-400" />
+                          +{String(task.reward)}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
       <motion.section
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -882,10 +1122,10 @@ const Home = () => {
             <div className="min-w-0 flex-1">
               <div className={clsx("text-[11px] uppercase tracking-[0.2em] font-semibold flex items-center gap-2", textSecondary)}>
                 <span className={clsx("inline-block w-1.5 h-1.5 rounded-full", workoutComplete ? "bg-emerald-400" : "bg-amber-400 animate-pulse")} />
-                {workoutComplete ? "Today's Session · Complete" : "Today's Session"}
+                {workoutComplete ? "Today's Session · Complete" : t('today_focus', "Today's Session")}
               </div>
               <h2 className={clsx("text-[26px] font-black mt-2 tracking-tight leading-none", textPrimary)}>
-                Daily Workout
+                {t('daily_workout', 'Daily Workout')}
               </h2>
               <p className={clsx("text-sm mt-2 leading-relaxed", textSecondary)}>
                 {workoutComplete
@@ -939,6 +1179,150 @@ const Home = () => {
         </div>
       </motion.section>
 
+      {/* Rewards calendar + weekly challenge (from upstream) */}
+      <motion.section
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.14 }}
+        className={clsx(
+          "mx-4 mt-4 p-5 rounded-3xl border transition-colors duration-500",
+          panelClass
+        )}
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className={clsx("text-xs uppercase tracking-[0.22em] font-semibold", textSecondary)}>
+              {t('rewards_calendar', { defaultValue: 'Сыйлықтар күнтізбесі' })}
+            </div>
+            <h3 className={clsx("text-xl font-black mt-2", textPrimary)}>
+              {t('daily_streak_label', { defaultValue: 'Күндік серия' })}: {dailyRewardStreak?.count || 0}
+            </h3>
+            <p className={clsx("text-sm mt-2 leading-relaxed", textSecondary)}>
+              {t('reward_milestones')}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
+            {weekendEvent?.isActive ? (
+              <div className="inline-flex items-center gap-2 rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-amber-400">
+                <Crown size={12} />
+                {t('double_coins')}
+              </div>
+            ) : null}
+
+            {tournamentTickets > 0 ? (
+              <div className="inline-flex items-center gap-2 rounded-full bg-purple-500/15 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-purple-300">
+                <Trophy size={12} />
+                {t('tickets_label', { count: tournamentTickets })}
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {(() => {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+
+          const claimedDates = Array.isArray(dailyRewardStreak?.claimedDates) ? dailyRewardStreak.claimedDates : [];
+          const fallbackClaimedDates = (() => {
+            if (claimedDates.length > 0) return claimedDates;
+            if (!dailyRewardStreak?.lastClaimDate || !dailyRewardStreak?.count) return [];
+            const base = new Date(`${dailyRewardStreak.lastClaimDate}T00:00:00`);
+            return Array.from({ length: Math.min(30, dailyRewardStreak.count) }, (_, idx) => {
+              const date = new Date(base);
+              date.setDate(base.getDate() - (Math.min(30, dailyRewardStreak.count) - 1 - idx));
+              return date.toISOString().split('T')[0];
+            });
+          })();
+
+          const claimedSet = new Set(fallbackClaimedDates);
+          const days = Array.from({ length: 14 }, (_, idx) => {
+            const date = new Date(today);
+            date.setDate(today.getDate() - (13 - idx));
+            return {
+              key: date.toISOString().split('T')[0],
+              label: String(date.getDate()).padStart(2, '0'),
+            };
+          });
+
+          const todayKey = today.toISOString().split('T')[0];
+          const lastClaimKey = dailyRewardStreak?.lastClaimDate || null;
+          const canClaim = lastClaimKey !== todayKey;
+
+          return (
+            <div className="mt-5">
+              <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+                {days.map((day) => {
+                  const claimed = claimedSet.has(day.key);
+                  const isToday = day.key === todayKey;
+                  return (
+                    <div
+                      key={day.key}
+                      className={clsx(
+                        "h-9 sm:h-10 rounded-xl sm:rounded-2xl flex items-center justify-center text-xs font-black",
+                        claimed && "bg-emerald-500/20 text-emerald-300 border border-emerald-400/20",
+                        !claimed && isToday && canClaim && "bg-indigo-500/20 text-indigo-200 border border-indigo-400/30",
+                        !claimed && !isToday && "bg-white/5 text-white/40 border border-white/10",
+                        !claimed && isToday && !canClaim && "bg-white/10 text-white/60 border border-white/10"
+                      )}
+                    >
+                      {day.label}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <motion.button
+                whileTap={{ scale: 0.97 }}
+                onClick={() => { hapticFeedback.click(); setShowDailyReward(true); }}
+                className={clsx(
+                  "w-full mt-4 flex items-center justify-center gap-2 px-5 py-3 rounded-2xl font-bold",
+                  styles.btnPrimary
+                )}
+              >
+                <Gift size={18} />
+                {canClaim ? t('claim_daily_reward', { defaultValue: 'Claim daily reward' }) : t('daily_reward_claimed', { defaultValue: 'Claimed' })}
+              </motion.button>
+            </div>
+          );
+        })()}
+
+        <div className={clsx("mt-5 rounded-2xl p-4", styles.cardClass)}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className={clsx("text-xs uppercase tracking-[0.14em] sm:tracking-[0.2em]", textSecondary)}>
+                {t('weekly_challenge', { defaultValue: 'Weekly challenge' })}
+              </div>
+              <div className={clsx("text-sm font-bold mt-1", textPrimary)}>
+                {t('weekly_challenge_desc')}
+              </div>
+              <div className={clsx("text-xs mt-1", textSecondary)}>
+                {t('days_progress', { current: Math.min(7, weeklyChallenge?.completedDays?.length || 0), total: 7 })}
+              </div>
+            </div>
+
+            <div className="flex flex-col items-start gap-2 sm:items-end">
+              <div className={clsx("text-xs font-black", textPrimary)}>
+                +{weeklyChallenge?.reward?.coins ?? 250} {t('coins_unit')}
+              </div>
+              <button
+                type="button"
+                onClick={() => { hapticFeedback.click(); claimWeeklyChallengeReward(); }}
+                disabled={(weeklyChallenge?.completedDays?.length || 0) < 7 || Boolean(weeklyChallenge?.isClaimed)}
+                className={clsx(
+                  "min-h-[44px] px-4 py-2 rounded-xl text-xs font-black uppercase tracking-[0.14em] sm:tracking-[0.18em] transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                  styles.btnSecondary
+                )}
+              >
+                {weeklyChallenge?.isClaimed
+                  ? t('claimed', { defaultValue: 'Claimed' })
+                  : t('claim', { defaultValue: 'Claim' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.section>
+
       <motion.div
         initial={{ opacity: 0, y: 20, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -955,13 +1339,13 @@ const Home = () => {
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-[10px] font-bold text-amber-300/90 uppercase tracking-[0.22em]">
-              Weekend tournament
+              {t('weekend_tournament', 'Weekend tournament')}
             </div>
             <h3 className="text-base font-black text-amber-50 mt-0.5 leading-tight">
-              Premium players play free
+              {t('tournament_vip_title', 'Premium players play free')}
             </h3>
             <p className="text-[11px] text-amber-100/70 mt-1 leading-snug">
-              Friday → Sunday · 3 games · top 50 win prizes
+              {t('tournament_vip_desc', 'Friday → Sunday · 3 games · top 50 win prizes')}
             </p>
           </div>
           <ArrowRight size={18} className="text-amber-300/80 shrink-0" />
@@ -999,6 +1383,9 @@ const Home = () => {
             const Icon = game.icon;
             const gameId = game.title.replace(/^game_/, '').replace(/-/g, '_');
             const isPopular = mostPlayedGameId === gameId;
+            const isVipGame = vipGamePaths.has(game.path);
+            const trialsLeft = isVipGame ? getVipTrialsLeft(game.path) : null;
+            const isLocked = isVipGame && plan !== 'pro' && plan !== 'premium' && trialsLeft === 0;
             return (
               <motion.button
                 key={game.title}
@@ -1016,6 +1403,11 @@ const Home = () => {
                 {isPopular && (
                   <span className="absolute top-1 right-1 z-10 px-1.5 py-0.5 rounded-full bg-amber-400 text-[8px] font-black uppercase tracking-wider text-stone-900 shadow-[0_2px_8px_rgba(245,158,11,0.45)]">
                     Top
+                  </span>
+                )}
+                {isLocked && (
+                  <span className="absolute top-1 left-1 z-10 p-1 rounded-full bg-stone-900/60 backdrop-blur">
+                    <Lock size={10} className="text-amber-300" />
                   </span>
                 )}
                 <div className={clsx(

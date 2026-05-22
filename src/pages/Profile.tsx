@@ -1,28 +1,33 @@
-import { useState, useRef, useMemo } from 'react';
+import { useState, useRef, useMemo, lazy, Suspense, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Camera, Edit2, Gift,
   Coins, Diamond, Zap, History, Star,
   Award, TrendingUp, Calendar, LayoutGrid,
   Flame, Shield, Crown, Zap as ZapIcon, Calculator, Target, Lock,
-  Ticket as TicketIcon, Car, CheckCircle, BarChart3
+  BarChart3, Sparkles
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { buildVipAnalyticsSnapshot, useStore } from '../store/useStoreImpl';
 import { clsx } from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import WebApp from '@twa-dev/sdk';
-import { BrainProfile } from '../components/BrainProfile';
 import { Achievements } from '../components/Achievements';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { usePlanGate } from '../hooks/usePlanGate';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
 import ProfileClaude from './ProfileClaude';
+import { getProfileAvatarImage, PROFILE_AVATARS, ProfileAvatar } from '../constants/avatars';
+
+// Lazy load BrainProfile to split recharts dependency
+const BrainProfile = lazy(() => import('../components/BrainProfile').then(m => ({ default: m.BrainProfile })));
 
 const PLAN_CONFIG = {
   free: { icon: Star, name: 'Free', color: 'from-gray-500 to-gray-600', borderColor: 'border-gray-500' },
   silver: { icon: Shield, name: 'Silver', color: 'from-blue-500 to-blue-600', borderColor: 'border-blue-500' },
   gold: { icon: ZapIcon, name: 'Gold', color: 'from-orange-500 to-red-500', borderColor: 'border-orange-500' },
+  basic: { icon: Shield, name: 'Basic', color: 'from-sky-500 to-cyan-600', borderColor: 'border-sky-500' },
+  pro: { icon: ZapIcon, name: 'Pro', color: 'from-fuchsia-500 to-purple-600', borderColor: 'border-fuchsia-500' },
   premium: { icon: Crown, name: 'Premium', color: 'from-yellow-400 to-yellow-600', borderColor: 'border-yellow-400' }
 };
 
@@ -33,6 +38,8 @@ const ACHIEVEMENTS = [
   { id: 'xp_master', name: 'XP Master', description: 'Earned 5000 XP', icon: '⚡', color: 'bg-yellow-500' },
 ];
 
+const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
+
 // Theme switcher — keeps the dark / light / blue / gold markup unchanged
 // in LegacyProfilePage and routes the Claude theme to the editorial layout.
 const ProfilePage = () => {
@@ -41,11 +48,14 @@ const ProfilePage = () => {
 };
 
 const LegacyProfilePage = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { 
     user, 
     updateUserProfile, 
+    skinInventory,
+    activeSkin,
+    equipSkin,
     history, 
     brainStats,
     unclaimedLevelRewards, 
@@ -55,7 +65,9 @@ const LegacyProfilePage = () => {
     streak,
     plan,
     planExpiry,
-    tickets
+    canUseAvatar,
+    loadAvatarImage,
+    saveAvatarImage
   } = useStore();
 
   const styles = useThemeStyles();
@@ -63,12 +75,19 @@ const LegacyProfilePage = () => {
   
   const currentPlan = PLAN_CONFIG[plan];
   const isPlanExpired = planExpiry ? Date.now() > planExpiry : false;
+  const locale = i18n.language === 'ru' || i18n.language === 'kz' ? i18n.language : 'en';
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [activeSection, setActiveSection] = useState<'profile' | 'analytics'>('profile');
   const [firstName, setFirstName] = useState(user.firstName);
   const [username, setUsername] = useState(user.username || '');
+  const profileInitial = (user.firstName?.trim()?.[0] || user.username?.trim()?.[0] || 'U').toUpperCase();
+  const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+
+  useEffect(() => {
+    loadAvatarImage();
+  }, []);
 
   // Calculate XP progress
   const xpProgress = useMemo(() => {
@@ -91,15 +110,29 @@ const LegacyProfilePage = () => {
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        updateUserProfile({ photoUrl: base64String });
-        WebApp.HapticFeedback.impactOccurred('medium');
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      WebApp.showAlert(t('select_only_image'));
+      event.target.value = '';
+      return;
     }
+
+    if (file.size > MAX_PROFILE_IMAGE_SIZE) {
+      WebApp.showAlert(t('image_size_limit'));
+      event.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      await saveAvatarImage(base64String);
+      updateUserProfile({ photoUrl: base64String });
+      WebApp.HapticFeedback.impactOccurred('medium');
+      event.target.value = '';
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleClaimReward = (level: number) => {
@@ -111,19 +144,58 @@ const LegacyProfilePage = () => {
     return [...(history || [])].sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
   }, [history]);
 
+  const selectedAvatarPreset = useMemo(
+    () => PROFILE_AVATARS.find((avatar) => avatar.id === activeSkin) || PROFILE_AVATARS[0],
+    [activeSkin]
+  );
+
+  const profileAvatarSrc = user.photoUrl || getProfileAvatarImage(selectedAvatarPreset);
+
   const vipAnalytics = useMemo(() => {
     return buildVipAnalyticsSnapshot(history || [], brainStats);
   }, [brainStats, history]);
 
+  const availableAvatars = useMemo(() => PROFILE_AVATARS, []);
+
   // Server-canonical VIP check. The local `plan` from the store is still
   // used for badges / tier display (cosmetic), but unlocking actual VIP
-  // content is gated on what /users/me says.
+  // content is gated on what /users/me says, with local fallback.
   const { isPremiumActive } = usePlanGate();
-  const isVipAnalyticsUnlocked = isPremiumActive === true;
+  const isVipAnalyticsUnlocked =
+    isPremiumActive === true || ((plan === 'pro' || plan === 'premium') && !isPlanExpired);
 
   const handleUnlockVipAnalytics = () => {
     WebApp.HapticFeedback.impactOccurred('medium');
     navigate('/shop');
+  };
+
+  const handleAvatarUploadClick = () => {
+    setShowAvatarSelector(false);
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarSelect = async (avatar: ProfileAvatar) => {
+    if (!canUseAvatar(avatar.id)) {
+      WebApp.showAlert(t('avatar_premium_required'));
+      return;
+    }
+
+    const avatarImage = getProfileAvatarImage(avatar);
+    equipSkin(avatar.id);
+    await saveAvatarImage(avatarImage);
+    updateUserProfile({ photoUrl: avatarImage });
+    setShowAvatarSelector(false);
+    WebApp.HapticFeedback.notificationOccurred('success');
+  };
+
+  const getAvatarDisplay = (avatar: ProfileAvatar) => {
+    if (avatar.imageUrl) {
+      return <img src={avatar.imageUrl} alt={avatar.name.en} className="w-full h-full object-contain" />;
+    }
+    if (avatar.emoji) {
+      return <span className="text-3xl">{avatar.emoji}</span>;
+    }
+    return <span className="text-3xl">✨</span>;
   };
 
   return (
@@ -193,11 +265,17 @@ const LegacyProfilePage = () => {
                 className="w-24 h-24 rounded-2xl p-1 bg-gradient-to-tr from-primary via-blue-400 to-cyan-300 shadow-lg relative"
               >
                 <div className="w-full h-full rounded-xl bg-[#111] overflow-hidden relative border border-white/10">
-                  <img 
-                    src={user.photoUrl || "https://img.freepik.com/premium-photo/3d-avatar-boy-character_914455-603.jpg"} 
-                    alt="Profile" 
-                    className="w-full h-full object-cover" 
-                  />
+                  {profileAvatarSrc ? (
+                    <img
+                      src={profileAvatarSrc}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-black text-3xl font-black text-white">
+                      {profileInitial}
+                    </div>
+                  )}
                   <AnimatePresence>
                     {isEditing && (
                       <motion.button 
@@ -239,9 +317,27 @@ const LegacyProfilePage = () => {
                     placeholder="username"
                     className="w-full bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-white/70 font-mono text-xs focus:outline-none focus:border-primary/50"
                   />
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowAvatarSelector((prev) => !prev)}
+                      className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
+                    >
+                      <LayoutGrid size={14} />
+                      {showAvatarSelector ? t('hide_avatar_choices', 'Hide avatars') : t('choose_avatar', 'Choose avatar')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAvatarUploadClick}
+                      className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
+                    >
+                      <Camera size={14} />
+                      {user.photoUrl ? t('change_photo') : t('upload_photo')}
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-2">
                   <motion.h2 
                     initial={{ x: 10, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
@@ -267,10 +363,103 @@ const LegacyProfilePage = () => {
                       <span className="text-[10px] font-bold text-orange-500">{streak} Days</span>
                     </div>
                   </div>
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowAvatarSelector((prev) => !prev)}
+                      className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
+                    >
+                      <LayoutGrid size={14} />
+                      {showAvatarSelector ? t('hide_avatar_choices', 'Hide avatars') : t('choose_avatar', 'Choose avatar')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAvatarUploadClick}
+                      className={clsx("inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-black", styles.btnSecondary)}
+                    >
+                      <Camera size={14} />
+                      {user.photoUrl ? t('change_photo') : t('upload_photo')}
+                    </button>
+                    {activeSkin !== 'default' ? (
+                        <div className="inline-flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] font-black text-emerald-500">
+                        <LayoutGrid size={14} />
+                        {i18n.language === 'kz' ? 'Белсенді стикер:' : i18n.language === 'ru' ? 'Активный аватар:' : 'Active Avatar:'} {PROFILE_AVATARS.find((sticker) => sticker.id === activeSkin)?.name[locale] || activeSkin}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               )}
             </div>
           </div>
+
+          <AnimatePresence>
+            {showAvatarSelector && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 12 }}
+                className={clsx("mt-5 rounded-[28px] border p-4", panelClass)}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className={clsx("text-sm font-black", textPrimary)}>{t('choose_avatar', 'Choose avatar')}</div>
+                    <div className={clsx("mt-1 text-xs", textSecondary)}>
+                      {t('avatar_picker_desc', 'Pick a ready avatar for your profile or keep your uploaded photo')}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowAvatarSelector(false)}
+                    className={clsx("rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-widest", styles.btnSecondary)}
+                  >
+                    {t('close', 'Close')}
+                  </button>
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  {availableAvatars.map((avatar) => {
+                    const canUse = canUseAvatar(avatar.id);
+                    const isSelected = activeSkin === avatar.id;
+
+                    return (
+                      <button
+                        key={avatar.id}
+                        type="button"
+                        onClick={() => handleAvatarSelect(avatar)}
+                        disabled={!canUse}
+                        className={clsx(
+                          "rounded-2xl border p-3 text-left transition-all",
+                          panelClass,
+                          isSelected && "border-emerald-500 bg-emerald-500/10",
+                          !canUse && "opacity-50"
+                        )}
+                      >
+                        <div className="relative mx-auto flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-black/10">
+                          {getAvatarDisplay(avatar)}
+                          {avatar.isPremium ? (
+                            <div className="absolute right-1 top-1">
+                              <Crown size={12} className="text-amber-400" />
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className={clsx("mt-3 text-center text-[11px] font-black leading-tight", textPrimary)}>
+                          {avatar.name[locale] || avatar.name.en}
+                        </div>
+                        <div className={clsx("mt-1 text-center text-[9px]", textSecondary)}>
+                          {isSelected
+                            ? t('profile_sticker_selected')
+                            : !canUse
+                            ? t('avatar_unlock')
+                            : t('tap_to_select', 'Tap to select')}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Plan Info (Compact) */}
           <div className="mt-6 pt-4 border-t border-gray-500/20">
@@ -311,9 +500,9 @@ const LegacyProfilePage = () => {
               <BarChart3 size={20} />
             </div>
             <div>
-              <div className={clsx("text-sm font-black", textPrimary)}>VIP Analytics беті</div>
+              <div className={clsx("text-sm font-black", textPrimary)}>{t('profile_analytics_title')}</div>
               <div className={clsx("text-xs mt-1", textSecondary)}>
-                {isVipAnalyticsUnlocked ? 'Толық аналитиканы ашу' : 'Analytics, gold border және турнир utility VIP ішінде'}
+                {isVipAnalyticsUnlocked ? t('profile_analytics_unlocked') : t('profile_analytics_locked')}
               </div>
             </div>
           </div>
@@ -342,66 +531,16 @@ const LegacyProfilePage = () => {
         {activeSection === 'profile' ? (
           <>
             {/* Brain Profile Section */}
-            <div className="w-full">
-              <BrainProfile />
+            <div className="w-full mt-2">
+              <Suspense fallback={<div className="h-[250px] w-full flex items-center justify-center"><div className="w-8 h-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" /></div>}>
+                <BrainProfile />
+              </Suspense>
             </div>
 
             {/* Achievements Section */}
             <div className="w-full mt-6">
               <Achievements />
             </div>
-
-            {/* Tickets Section */}
-            {tickets.length > 0 && (
-              <div className="w-full max-w-sm mt-6">
-                <div className="flex items-center justify-between mb-4 px-2">
-                  <h3 className="text-lg font-black flex items-center gap-2">
-                    <TicketIcon size={20} className="text-yellow-400" />
-                    My Tickets
-                  </h3>
-                  <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">
-                    {tickets.length}
-                  </span>
-                </div>
-                
-                <div className="space-y-3">
-                  {tickets.map((ticket) => (
-                    <div
-                      key={ticket.id}
-                      className="relative bg-gradient-to-br from-yellow-400 via-yellow-500 to-amber-600 rounded-2xl p-1 shadow-2xl"
-                    >
-                      <div className="bg-gradient-to-br from-yellow-100 to-amber-200 rounded-xl p-4 h-full">
-                        <div className="absolute top-2 right-2">
-                          {ticket.isUsed ? (
-                            <div className="bg-green-500 text-white px-2 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-0.5">
-                              <CheckCircle className="w-2.5 h-2.5" />
-                              VERIFIED
-                            </div>
-                          ) : (
-                            <div className="bg-yellow-600 text-white px-2 py-0.5 rounded-full text-[10px] font-bold">
-                              ACTIVE
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          <div className="bg-gradient-to-br from-yellow-400 to-yellow-600 p-2.5 rounded-full shadow-lg flex-shrink-0">
-                            <Car className="w-8 h-8 text-yellow-900" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-2xl font-black text-yellow-800 font-mono tracking-wider">
-                              {String(ticket.ticketNumber).padStart(8, '0')}
-                            </div>
-                            <div className="text-[9px] text-yellow-600 font-medium tracking-widest uppercase">Ticket Number</div>
-                            <p className="text-xs font-bold text-yellow-800 truncate">{ticket.eventName}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Level Progress Card */}
             <div className={clsx("w-full max-w-sm rounded-3xl p-5 border mb-6 relative overflow-hidden group transition-colors duration-500", panelClass)}>
@@ -437,6 +576,89 @@ const LegacyProfilePage = () => {
               <StatCard icon={Diamond} value={gems} label="Gems" color="text-blue-500" styles={styles} />
               <StatCard icon={Star} value={user.xp} label="Total XP" color="text-purple-500" styles={styles} />
               <StatCard icon={LayoutGrid} value={(history || []).length} label="Games" color="text-green-500" styles={styles} />
+            </div>
+
+            <div className="w-full max-w-sm mb-8">
+              <div className="flex items-center justify-between mb-4 px-2">
+                <h3 className={clsx("text-lg font-black flex items-center gap-2", textPrimary)}>
+                  <LayoutGrid size={20} className={textSecondary} />
+                  {t('profile_sticker_collection')}
+                </h3>
+                <span className={clsx("text-[10px] font-black uppercase tracking-widest", textSecondary)}>
+                  {PROFILE_AVATARS.length}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {availableAvatars.map((avatar) => {
+                  const isSelected = activeSkin === avatar.id;
+                  const isPremiumAvatar = avatar.isPremium;
+                  const canUse = canUseAvatar(avatar.id);
+
+                  return (
+                    <div
+                      key={avatar.id}
+                      className={clsx(
+                        "rounded-3xl border p-4 transition-all duration-300",
+                        panelClass,
+                        isSelected && "border-emerald-500 bg-emerald-500/10",
+                        isPremiumAvatar && !canUse && "opacity-50"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="relative">
+                          <div className={clsx(
+                            "flex h-14 w-14 items-center justify-center rounded-2xl shadow-inner overflow-hidden",
+                            avatar.previewClass || "bg-gradient-to-br from-primary/10 to-primary/5"
+                          )}>
+                            {getAvatarDisplay(avatar)}
+                          </div>
+                          {isPremiumAvatar && (
+                            <div className="absolute -top-1 -right-1">
+                              <Sparkles size={12} className="text-amber-400 fill-amber-400" />
+                            </div>
+                          )}
+                        </div>
+                        {isSelected ? (
+                          <span className="rounded-full bg-emerald-500 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-white">
+                            {t('profile_sticker_selected')}
+                          </span>
+                        ) : isPremiumAvatar && !canUse ? (
+                          <Crown size={16} className="text-amber-400" />
+                        ) : null}
+                      </div>
+
+                      <div className="mt-3">
+                        <div className={clsx("text-sm font-black", textPrimary)}>{avatar.name[locale] || avatar.name.en}</div>
+                        <div className={clsx("mt-1 text-xs", textSecondary)}>
+                          {isPremiumAvatar && !canUse ? t('avatar_premium') : t('profile_sticker_desc')}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleAvatarSelect(avatar)}
+                        disabled={!canUse || isSelected}
+                        className={clsx(
+                          "mt-4 w-full rounded-xl px-3 py-2 text-xs font-black transition-colors flex items-center justify-center gap-1.5",
+                          isSelected 
+                            ? "bg-emerald-600 text-white cursor-default"
+                            : isPremiumAvatar && !canUse
+                            ? "bg-gray-500/20 text-gray-400 cursor-not-allowed"
+                            : styles.btnSecondary
+                        )}
+                      >
+                        {isSelected ? t('equipped') : isPremiumAvatar && !canUse ? (
+                          <>
+                            <Crown size={12} />
+                            {t('avatar_unlock')}
+                          </>
+                        ) : t('equip')}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Achievements Section */}
@@ -575,6 +797,7 @@ const LegacyProfilePage = () => {
           />
         )}
       </div>
+
     </div>
   );
 };
@@ -610,7 +833,6 @@ const getGameIcon = (gameId: string) => {
     case 'math': return <Calculator size={20} />;
     case 'memory': return <LayoutGrid size={20} />;
     case 'schulte': return <Star size={20} />;
-    case 'agent_spot': return <Target size={20} />;
     case 'code_breaker': return <Lock size={20} />;
     case 'tetris': return <LayoutGrid size={20} />;
     case '2048': return <Zap size={20} />;

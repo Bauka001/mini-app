@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { claudeTokens } from './ui/claudeTokens';
 
-export type GameType = 'schulte' | 'stroop' | 'memory' | 'math' | 'tetris' | '2048' | 'odd_one' | 'pairs';
+export type GameType = 'schulte' | 'stroop' | 'memory' | 'math' | 'tetris' | '2048' | 'odd_one' | 'pairs' | 'general';
 
 interface GameInfo {
   title: string;
@@ -16,11 +16,11 @@ interface GameInfo {
 export const InfoGuideModal = ({ 
   isOpen, 
   onClose,
-  gameType 
+  gameType = 'general'
 }: { 
   isOpen: boolean; 
   onClose: () => void;
-  gameType: GameType;
+  gameType?: GameType;
 }) => {
   const { i18n } = useTranslation();
   const lang = i18n.language as 'kz' | 'ru' | 'en';
@@ -187,6 +187,26 @@ export const InfoGuideModal = ({
         benefits: ["Develops associative memory", "Improves concentration", "Forms imaginative thinking"],
         science: "Stimulates hippocampus activity. This area is responsible for memory and spatial navigation.",
         skills: ["Memory", "Imagery"]
+      }
+    },
+    general: {
+      kz: {
+        title: "Миға арналған жаттығулар",
+        benefits: ["Барлық когнитивті функцияларды жақсартады", "Есте сақтауды, зейінді және логиканы дамытады", "Мидың қартаюын баяулатады"],
+        science: "Жүйелі түрде миды жаттықтыру нейропластиканы арттырады және жаңа нейрондық байланыстар құруға көмектеседі.",
+        skills: ["Комплексті", "Нейропластика"]
+      },
+      ru: {
+        title: "Тренировка мозга",
+        benefits: ["Улучшает все когнитивные функции", "Развивает память, внимание и логику", "Замедляет старение мозга"],
+        science: "Регулярные тренировки мозга повышают нейропластичность и помогают создавать новые нейронные связи.",
+        skills: ["Комплексно", "Нейропластичность"]
+      },
+      en: {
+        title: "Brain Training",
+        benefits: ["Improves all cognitive functions", "Develops memory, attention and logic", "Slows down brain aging"],
+        science: "Regular brain training increases neuroplasticity and helps create new neural connections.",
+        skills: ["Complex", "Neuroplasticity"]
       }
     }
   };
@@ -359,30 +379,30 @@ export const InfoGuideModal = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+        className="modal-shell fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
       >
         <motion.div 
           initial={{ scale: 0.9, y: 20 }}
           animate={{ scale: 1, y: 0 }}
           exit={{ scale: 0.9, y: 20 }}
-          className="bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative"
+          className="modal-card bg-[#1a1a1a] w-full max-w-md rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative flex flex-col"
         >
            <button 
              onClick={onClose}
-             className="absolute top-4 right-4 p-2 bg-white/5 rounded-full text-gray-400 hover:bg-white/10 z-10"
+             className="absolute top-4 right-4 p-2 min-h-[44px] min-w-[44px] bg-white/5 rounded-full text-gray-400 hover:bg-white/10 z-10"
            >
              <X size={20} />
            </button>
 
-           <div className="p-6">
+           <div className="p-4 sm:p-6 overflow-y-auto">
              <div className="flex flex-col items-center mb-6">
                <div className="w-16 h-16 rounded-2xl bg-blue-500/20 flex items-center justify-center mb-4">
                  <Brain size={32} className="text-blue-400" />
                </div>
-               <h2 className="text-2xl font-bold text-white text-center">{currentData.title}</h2>
+               <h2 className="text-xl sm:text-2xl font-bold text-white text-center">{currentData.title}</h2>
                <div className="flex gap-2 mt-2">
                  {currentData.skills.map((skill, i) => (
-                   <span key={i} className="text-[10px] uppercase font-bold px-2 py-1 rounded-lg bg-white/10 text-gray-400">
+                     <span key={i} className="text-xs uppercase font-bold px-2 py-1 rounded-lg bg-white/10 text-gray-400">
                      {skill}
                    </span>
                  ))}
@@ -418,7 +438,7 @@ export const InfoGuideModal = ({
 
              <button 
                onClick={onClose}
-               className="w-full mt-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+               className="w-full min-h-[44px] mt-8 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
              >
                <Zap size={18} fill="currentColor" />
                {lang === 'kz' ? 'Бастау' : lang === 'ru' ? 'Начать' : 'Start'}

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import WebApp from '@twa-dev/sdk';
-import { getTelegramUser } from '../utils/telegram';
+import { getTelegramUser, isTelegramWebApp, MOCK_USER } from '../utils/telegram';
+import { verifyTelegramInitData } from '../utils/auth';
 
 interface AuthState {
   isAuthenticated: boolean;
@@ -17,6 +18,9 @@ interface AuthState {
   isGuest: boolean;
 }
 
+const canUseTelegramFallbackAuth = (reason?: string | null) =>
+  ['network_error', 'non_json_response'].includes(`${reason || ''}`);
+
 export const useTelegramAuth = () => {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
@@ -32,21 +36,22 @@ export const useTelegramAuth = () => {
 
     const authenticate = async () => {
       try {
+        const isDev = import.meta.env.DEV;
+        const isTelegram = isTelegramWebApp();
+
         // Initialize Telegram WebApp
         if (WebApp) {
           WebApp.ready();
           WebApp.expand();
         }
-        
-        // Check if running in Telegram
-        // In local development or browser, initData might be empty
-        const isTelegram = WebApp && WebApp.initData !== '';
-        
+
+        const initData = (window as any)?.Telegram?.WebApp?.initData || WebApp?.initData || '';
+
         if (!isMounted) return;
 
         // Get user data
         const user = getTelegramUser();
-        
+
         // Browser / PWA visitor — no Telegram identity. Allow local-only play
         // as a guest. The store skips server sync when user.id === 0, and the
         // backend rejects calls without initData via authLimiter + initData
@@ -63,7 +68,65 @@ export const useTelegramAuth = () => {
           return;
         }
 
-        if (!user && isTelegram) {
+        // Development fallback — no initData but we're in dev: use MOCK_USER
+        if (!initData) {
+          if (isDev) {
+            console.warn('Telegram initData not found, using mock user in development');
+            setAuthState({
+              isAuthenticated: true,
+              isLoading: false,
+              errorKey: null,
+              errorReason: null,
+              user: user || MOCK_USER,
+              isGuest: false,
+            });
+            return;
+          }
+
+          // No initData but not in dev and not guest path — treat as guest fallback
+          setAuthState({
+            isAuthenticated: true,
+            isLoading: false,
+            errorKey: null,
+            errorReason: null,
+            user: user || { id: 0, first_name: 'Guest' },
+            isGuest: !isTelegram,
+          });
+          return;
+        }
+
+        // Entitlement check via backend HMAC verification.
+        const verify = await verifyTelegramInitData(initData);
+        if (!verify?.ok) {
+          if (user && canUseTelegramFallbackAuth(verify?.reason)) {
+            console.warn('Telegram auth verification endpoint is unavailable, using WebApp user fallback');
+            setAuthState({
+              isAuthenticated: true,
+              isLoading: false,
+              errorKey: null,
+              errorReason: null,
+              user,
+              isGuest: false,
+            });
+            return;
+          }
+
+          // Verification failed — but UI gating on verify is intentionally soft
+          // since every authenticated endpoint re-verifies HMAC server-side.
+          // Surface the reason for diagnostics, but still allow render with the
+          // WebApp user (server endpoints will reject without valid initData).
+          setAuthState({
+            isAuthenticated: true,
+            isLoading: false,
+            errorKey: 'auth_error_verify_failed',
+            errorReason: verify?.reason || null,
+            user: user || { id: 0, first_name: 'Guest' },
+            isGuest: !isTelegram,
+          });
+          return;
+        }
+
+        if (!user) {
           setAuthState({
             isAuthenticated: false,
             isLoading: false,
