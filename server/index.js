@@ -1086,30 +1086,34 @@ app.post('/telegram/webhook', async (req, res) => {
 
   const update = req.body || {};
 
+  // Stars-module payloads (cases, revive, coins, $FOCUS, tickets, wheel spins —
+  // format `stars:<product>:<order>`) MUST be granted BEFORE we send the HTTP
+  // response: on Vercel serverless the function is frozen once the response is
+  // flushed, so any post-response `await` (DB writes, grants) is not guaranteed
+  // to run. We therefore await the grant first, then respond.
+  try {
+    const starsModule = require('./stars');
+    if (typeof starsModule.handleStarsWebhookUpdate === 'function') {
+      const handled = await starsModule.handleStarsWebhookUpdate(update, {
+        supabase,
+        applyPaidEntitlement,
+        sendTelegramMessage,
+        isMissingTableError,
+        answerPreCheckoutQuery,
+      });
+      if (handled) return res.status(200).json({ ok: true });
+    }
+  } catch (e) {
+    console.error('[telegram webhook] stars delegate error:', e && e.message ? e.message : e);
+    // fall through to xponend's own handling / 200 below
+  }
+
   // Always 200 to Telegram so it doesn't queue retries while we work. Errors
   // are logged here, not propagated, otherwise a transient failure can lock
   // the webhook into a retry storm.
   res.status(200).json({ ok: true });
 
   try {
-    // First, let the Stars module claim its own payloads (cases, revive,
-    // coins, $FOCUS, tickets, wheel spins — format `stars:<product>:<order>`).
-    try {
-      const starsModule = require('./stars');
-      if (typeof starsModule.handleStarsWebhookUpdate === 'function') {
-        const handled = await starsModule.handleStarsWebhookUpdate(update, {
-          supabase,
-          applyPaidEntitlement,
-          sendTelegramMessage,
-          isMissingTableError,
-          answerPreCheckoutQuery,
-        });
-        if (handled) return;
-      }
-    } catch (e) {
-      console.error('[telegram webhook] stars delegate error:', e && e.message ? e.message : e);
-    }
-
     if (update.pre_checkout_query) {
       const q = update.pre_checkout_query;
       const parsed = parseInvoicePayload(q.invoice_payload);
