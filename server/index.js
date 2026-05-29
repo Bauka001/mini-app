@@ -4863,9 +4863,13 @@ app.get('/referral/stats', async (req, res) => {
     const total = (rows || []).length;
     const rewarded = (rows || []).filter(r => r.status === 'rewarded').length;
     const botUsername = (process.env.BOT_USERNAME || 'Focus_game_bot').replace(/^@/, '');
+    // BOT_MINIAPP_SHORTNAME — when BotFather Direct Link Mini App is configured (recommended),
+    // we use /<shortname>?startapp= which opens the app reliably even without main_web_app.
+    const shortName = (process.env.BOT_MINIAPP_SHORTNAME || '').replace(/^\//, '').trim();
+    const path = shortName ? `/${shortName}` : '';
     return res.json({
       total, rewarded, pending: total - rewarded,
-      shareLink: `https://t.me/${botUsername}?start=ref_${uid}`,
+      shareLink: `https://t.me/${botUsername}${path}?startapp=ref_${uid}`,
     });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'referral_stats_error' });
