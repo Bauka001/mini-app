@@ -14,6 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import WebApp from '@twa-dev/sdk';
 import { Achievements } from '../components/Achievements';
 import { Web3Section } from '../components/Web3Section';
+import { ReferralCard } from '../components/ReferralCard';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { usePlanGate } from '../hooks/usePlanGate';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
@@ -546,6 +547,11 @@ const LegacyProfilePage = () => {
             {/* Web3 Section — Wallet, $FOCUS jetton, NFT trophies */}
             <div className="w-full mt-6">
               <Web3Section />
+            </div>
+
+            {/* Referral — invite friend → both earn $FOCUS */}
+            <div className="w-full mt-6">
+              <ReferralCard />
             </div>
 
             {/* Level Progress Card */}

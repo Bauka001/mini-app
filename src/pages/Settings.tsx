@@ -1,14 +1,16 @@
 import { useTranslation } from 'react-i18next';
 import { Language } from '../store/useStore';
 import { useStore } from '../store/useStoreImpl';
-import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut, Instagram } from 'lucide-react';
+import { Volume2, VolumeX, Moon, Sun, Globe, Youtube, Send, Info, CheckCircle, Gem, Share2, MessageSquare, LogOut, Instagram, Shield } from 'lucide-react';
 import { clsx } from 'clsx';
 import WebApp from '@twa-dev/sdk';
 import { useState, useEffect, type ElementType } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { InfoGuideModal } from '../components/InfoGuideModal';
 import { FeedbackModal } from '../components/FeedbackModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { claudeTokens } from '../components/ui/claudeTokens';
+import { useAdminAccess } from '../hooks/useAdminAccess';
 
 const SettingItem = ({
   icon: Icon,
@@ -256,6 +258,8 @@ export const SettingsContent = () => {
     logout,
   } = useStore();
   const { isClaude } = useThemeStyles();
+  const navigate = useNavigate();
+  const { isAdmin } = useAdminAccess();
 
   useEffect(() => {
     void fetchSocialTasks();
@@ -474,6 +478,21 @@ export const SettingsContent = () => {
           </div>
         </SettingItem>
 
+        {/* Admin panel — visible only to users in ADMIN_BOOTSTRAP_TELEGRAM_IDS */}
+        {isAdmin && (
+          <SettingItem
+            icon={Shield}
+            title={t('admin_panel', 'Admin Panel')}
+            onClick={() => {
+              WebApp.HapticFeedback.impactOccurred('medium');
+              navigate('/admin/dashboard');
+            }}
+          >
+            <span className={clsx('text-[11px] uppercase tracking-[0.22em] font-medium', !isClaude && 'text-amber-400')}>
+              Open
+            </span>
+          </SettingItem>
+        )}
         <SettingItem
           icon={LogOut}
           title={t('log_out')}

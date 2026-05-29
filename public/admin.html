@@ -336,10 +336,16 @@ function renderShell(content) {
       el('div', { class:'brand-name' }, 'Focus Admin'),
     ]),
     nav('dashboard', '📊', 'Дашборд'),
+    nav('stars',     '⭐', 'Stars төлемдер'),
+    nav('nft',       '🏆', 'NFT trophies'),
+    nav('focus',     '💎', '$FOCUS'),
     nav('promo',     '🎟️', 'Промокодтар'),
     nav('promotion', '🎉', 'Акция күні'),
     nav('users',     '👥', 'Қолданушылар'),
     nav('tickets',   '🎫', 'Тікеттер'),
+    nav('flash',     '⚡', 'Flash sale'),
+    nav('broadcast', '📣', 'Хабар тарату'),
+    nav('audit',     '📜', 'Audit log'),
     nav('info',      'ℹ️', 'Қосымша туралы'),
     nav('settings',  '⚙️', 'Баптаулар'),
     el('div', { class:'sidebar-foot' }, [
@@ -1073,10 +1079,304 @@ async function render() {
     case 'tickets':   view = await viewTickets();     break;
     case 'info':      view = await viewInfo();        break;
     case 'settings':  view = await viewSettings();    break;
+    case 'stars':     view = await viewStars();       break;
+    case 'nft':       view = await viewNftQueue();    break;
+    case 'focus':     view = await viewFocus();       break;
+    case 'broadcast': view = await viewBroadcast();   break;
+    case 'flash':     view = await viewFlashSales();  break;
+    case 'audit':     view = await viewAudit();       break;
     case 'dashboard':
     default:          view = await viewDashboard();   break;
   }
   slot.replaceWith(view);
+}
+
+/* ---------- STARS PAYMENTS ---------- */
+async function viewStars() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, '⭐ Stars төлемдер'),
+      el('div', { class:'page-sub' }, 'Соңғы тапсырыстар + 7 күндік табыс'),
+    ]),
+    el('button', { class:'btn ghost', onclick: () => render() }, '🔄  Жаңарту'),
+  ]));
+  try {
+    const r = await api('/api/admin-v2/stars/list?limit=100');
+    root.appendChild(el('div', { class:'card stat' }, [
+      el('div', { class:'label' }, '7 күндік табыс'),
+      el('div', { class:'value' }, (r.total7dStars || 0) + ' ⭐'),
+      el('div', { class:'delta' }, 'Жалпы тапсырыс: ' + r.count),
+    ]));
+    const table = el('div', { class:'card', style:'overflow-x:auto' });
+    const head = el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr 110px;gap:8px;font-weight:700;padding:8px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)' }, [
+      el('div',{},'User ID'), el('div',{},'Өнім'), el('div',{},'Kind'), el('div',{},'⭐'), el('div',{},'Статус'), el('div',{},'Уақыт'), el('div',{},'')
+    ]);
+    table.appendChild(head);
+    (r.rows || []).forEach(row => {
+      const refundBtn = (row.status === 'paid') ? el('button', { class:'btn danger sm', onclick: async () => {
+        if (!confirm('Stars-ты қайтару? Тапсырыс: ' + row.id)) return;
+        try { await api('/api/admin-v2/refund/stars', { method:'POST', body: JSON.stringify({ orderId: row.id }) }); alert('Қайтарылды'); render(); }
+        catch(e){ alert('Қате: ' + e.message); }
+      } }, 'Refund') : el('span',{ style:'color:var(--muted);font-size:11px' }, '—');
+      table.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr 110px;gap:8px;padding:8px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;align-items:center' }, [
+        el('div',{ style:'font-family:monospace' }, String(row.userId)),
+        el('div',{}, row.productCode || '—'),
+        el('div',{ style:'color:var(--muted)' }, row.kind || '—'),
+        el('div',{ style:'font-weight:700' }, String(row.amountStars)),
+        el('div',{ style:'color:'+(row.status==='paid'?'var(--ok)':row.status==='refunded'?'var(--warn)':'var(--muted)') }, row.status),
+        el('div',{ style:'color:var(--muted)' }, (row.paidAt || row.createdAt || '').slice(0,16)),
+        refundBtn,
+      ]));
+    });
+    root.appendChild(table);
+  } catch (e) { root.appendChild(el('div',{ class:'card', style:'color:var(--danger)' }, 'Қате: ' + e.message)); }
+  return root;
+}
+
+/* ---------- NFT TROPHIES ---------- */
+async function viewNftQueue() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, '🏆 NFT trophies'),
+      el('div', { class:'page-sub' }, 'Claim очереді + қол режимде беру'),
+    ]),
+    el('button', { class:'btn ghost', onclick: () => render() }, '🔄  Жаңарту'),
+  ]));
+  // Manual award form
+  const awardCard = el('div', { class:'card' });
+  awardCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '➕ Қолмен trophy беру'));
+  const uidIn = el('input', { placeholder:'User Telegram ID' });
+  const codeIn = el('input', { placeholder:'trophy_code (tournament_gold, brain_master т.б.)' });
+  const refIn = el('input', { placeholder:'Reference (мысалы: tournament_2026_w22)' });
+  awardCard.appendChild(el('div', { class:'field' }, [el('label',{},'User ID'), uidIn]));
+  awardCard.appendChild(el('div', { class:'field' }, [el('label',{},'Trophy code'), codeIn]));
+  awardCard.appendChild(el('div', { class:'field' }, [el('label',{},'Reference (қалауы бойынша)'), refIn]));
+  awardCard.appendChild(el('button', { class:'btn', onclick: async () => {
+    try { await api('/api/admin-v2/nft/award', { method:'POST', body: JSON.stringify({ userTelegramId: Number(uidIn.value), trophyCode: codeIn.value.trim(), reference: refIn.value.trim() }) });
+      alert('Trophy берілді'); render();
+    } catch(e){ alert('Қате: ' + e.message); }
+  } }, 'Беру'));
+  root.appendChild(awardCard);
+
+  try {
+    const r = await api('/api/admin-v2/nft/queue');
+    const table = el('div', { class:'card', style:'overflow-x:auto;margin-top:14px' });
+    table.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 2fr 1fr 240px;gap:8px;padding:8px;border-bottom:1px solid var(--line);font-weight:700;font-size:12px;color:var(--muted)' }, [
+      el('div',{},'User ID'), el('div',{},'Trophy'), el('div',{},'Статус'), el('div',{},'Wallet'), el('div',{},'Уақыт'), el('div',{},'Mint-confirmed (tx hash)')
+    ]));
+    (r.rows || []).forEach(row => {
+      const txIn = el('input', { placeholder:'tx hash' });
+      const btn = (row.status === 'claim_requested') ? el('button', { class:'btn ok sm', onclick: async () => {
+        const tx = txIn.value.trim(); if (!tx) return alert('tx hash керек');
+        try { await api('/api/admin-v2/nft/mark-minted', { method:'POST', body: JSON.stringify({ id: row.id, txHash: tx }) }); render(); }
+        catch(e){ alert('Қате: ' + e.message); }
+      } }, '✓ minted') : el('span',{ style:'color:var(--muted);font-size:11px' }, row.claim_tx ? row.claim_tx.slice(0,12)+'…' : '—');
+      table.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 2fr 1fr 240px;gap:8px;padding:8px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;align-items:center' }, [
+        el('div',{ style:'font-family:monospace' }, String(row.user_telegram_id)),
+        el('div',{ style:'font-weight:600' }, row.trophy_code),
+        el('div',{ style:'color:'+(row.status==='minted'?'var(--ok)':row.status==='claim_requested'?'var(--warn)':'var(--muted)') }, row.status),
+        el('div',{ style:'font-family:monospace;font-size:11px;word-break:break-all' }, row.claim_wallet || '—'),
+        el('div',{ style:'color:var(--muted)' }, (row.awarded_at || '').slice(0,16)),
+        el('div',{ style:'display:flex;gap:6px;align-items:center' }, [txIn, btn]),
+      ]));
+    });
+    root.appendChild(table);
+  } catch (e) { root.appendChild(el('div',{ class:'card', style:'color:var(--danger)' }, 'Қате: ' + e.message)); }
+  return root;
+}
+
+/* ---------- $FOCUS jetton ---------- */
+async function viewFocus() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, '💎 $FOCUS экономика'),
+      el('div', { class:'page-sub' }, 'Ledger + қолмен есептеу + claim очереді'),
+    ]),
+    el('button', { class:'btn ghost', onclick: () => render() }, '🔄  Жаңарту'),
+  ]));
+  // Manual credit
+  const credit = el('div', { class:'card' });
+  credit.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '➕ $FOCUS есептеу/алу'));
+  const uid = el('input', { placeholder:'User Telegram ID' });
+  const delta = el('input', { placeholder:'Сан (-те аз) — мысалы: 100 немесе -50' });
+  const reason = el('input', { placeholder:'Себеп (мысалы: contest_winner)' });
+  credit.appendChild(el('div', { class:'field' }, [el('label',{},'User ID'), uid]));
+  credit.appendChild(el('div', { class:'field' }, [el('label',{},'Delta (+/-)'), delta]));
+  credit.appendChild(el('div', { class:'field' }, [el('label',{},'Reason'), reason]));
+  credit.appendChild(el('button', { class:'btn', onclick: async () => {
+    try { await api('/api/admin-v2/focus/credit', { method:'POST', body: JSON.stringify({ userTelegramId: Number(uid.value), delta: Number(delta.value), reason: reason.value || 'admin_credit' }) });
+      alert('Жазылды'); render();
+    } catch(e){ alert('Қате: ' + e.message); }
+  } }, 'Жазу'));
+  root.appendChild(credit);
+
+  try {
+    // Claim queue
+    const claims = await api('/api/admin-v2/focus/claims');
+    const ct = el('div', { class:'card', style:'overflow-x:auto;margin-top:14px' });
+    ct.appendChild(el('div',{ style:'font-weight:700;padding:8px' },'On-chain claim queue'));
+    ct.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 2fr 1fr 220px;gap:8px;padding:8px;border-bottom:1px solid var(--line);font-weight:700;font-size:12px;color:var(--muted)' }, [
+      el('div',{},'User ID'), el('div',{},'Amount'), el('div',{},'Статус'), el('div',{},'Wallet'), el('div',{},'Уақыт'), el('div',{},'Mark success (tx hash)')
+    ]));
+    (claims.rows || []).forEach(row => {
+      const txIn = el('input', { placeholder:'tx hash' });
+      const ok = (row.status === 'pending' || row.status === 'processing') ? el('button', { class:'btn ok sm', onclick: async () => {
+        const tx = txIn.value.trim(); if (!tx) return alert('tx hash керек');
+        try { await api('/api/admin-v2/focus/claims/approve', { method:'POST', body: JSON.stringify({ id: row.id, txHash: tx, action: 'success' }) }); render(); }
+        catch(e){ alert('Қате: ' + e.message); }
+      } }, '✓ success') : el('span',{ style:'color:var(--muted);font-size:11px' }, row.tx_hash ? row.tx_hash.slice(0,12)+'…' : '—');
+      ct.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 2fr 1fr 220px;gap:8px;padding:8px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;align-items:center' }, [
+        el('div',{ style:'font-family:monospace' }, String(row.user_telegram_id)),
+        el('div',{ style:'font-weight:700' }, String(row.amount)),
+        el('div',{ style:'color:'+(row.status==='success'?'var(--ok)':row.status==='pending'?'var(--warn)':'var(--muted)') }, row.status),
+        el('div',{ style:'font-family:monospace;font-size:11px;word-break:break-all' }, row.wallet_address),
+        el('div',{ style:'color:var(--muted)' }, (row.created_at || '').slice(0,16)),
+        el('div',{ style:'display:flex;gap:6px;align-items:center' }, [txIn, ok]),
+      ]));
+    });
+    root.appendChild(ct);
+
+    // Recent ledger
+    const led = await api('/api/admin-v2/focus/ledger?limit=80');
+    const lt = el('div', { class:'card', style:'overflow-x:auto;margin-top:14px' });
+    lt.appendChild(el('div',{ style:'font-weight:700;padding:8px' },'Recent ledger (соңғы 80)'));
+    lt.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 2fr 1fr;gap:8px;padding:8px;border-bottom:1px solid var(--line);font-weight:700;font-size:12px;color:var(--muted)' }, [
+      el('div',{},'User ID'), el('div',{},'Delta'), el('div',{},'Reason'), el('div',{},'Reference'), el('div',{},'Уақыт')
+    ]));
+    (led.rows || []).forEach(row => {
+      lt.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 2fr 1fr;gap:8px;padding:8px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px' }, [
+        el('div',{ style:'font-family:monospace' }, String(row.user_telegram_id)),
+        el('div',{ style:'font-weight:700;color:'+(row.delta>=0?'var(--ok)':'var(--danger)') }, (row.delta>=0?'+':'') + row.delta),
+        el('div',{}, row.reason),
+        el('div',{ style:'color:var(--muted);font-family:monospace;font-size:11px' }, row.reference_id || '—'),
+        el('div',{ style:'color:var(--muted)' }, (row.created_at || '').slice(0,16)),
+      ]));
+    });
+    root.appendChild(lt);
+  } catch (e) { root.appendChild(el('div',{ class:'card', style:'color:var(--danger)' }, 'Қате: ' + e.message)); }
+  return root;
+}
+
+/* ---------- BROADCAST ---------- */
+async function viewBroadcast() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, '📣 Хабар тарату'),
+      el('div', { class:'page-sub' }, 'Бот арқылы қолданушыларға sendMessage'),
+    ]),
+  ]));
+  const card = el('div', { class:'card' });
+  const filter = el('select', {}, [
+    el('option', { value:'all' }, 'Барлығы'),
+    el('option', { value:'premium' }, 'VIP (pro/premium)'),
+    el('option', { value:'wallet_bound' }, 'Wallet қосылғандар'),
+  ]);
+  const text = el('textarea', { rows: 6, placeholder:'Хабар мәтіні (2-4000 таңба)' });
+  card.appendChild(el('div', { class:'field' }, [el('label',{},'Кімге'), filter]));
+  card.appendChild(el('div', { class:'field' }, [el('label',{},'Мәтін'), text]));
+  card.appendChild(el('button', { class:'btn', onclick: async () => {
+    if (!confirm('Шынымен барлығына жіберу керек пе?')) return;
+    try {
+      const r = await api('/api/admin-v2/broadcast', { method:'POST', body: JSON.stringify({ text: text.value, filter: filter.value }) });
+      alert('Жіберілді: ' + r.sent + ' / ' + r.totalUsers + '. Failed: ' + r.failed);
+    } catch(e){ alert('Қате: ' + e.message); }
+  } }, '📤  Жіберу'));
+  root.appendChild(card);
+  return root;
+}
+
+/* ---------- AUDIT LOG ---------- */
+async function viewAudit() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, '📜 Audit log'),
+      el('div', { class:'page-sub' }, 'Әкімші әрекеттерінің тарихы'),
+    ]),
+    el('button', { class:'btn ghost', onclick: () => render() }, '🔄  Жаңарту'),
+  ]));
+  try {
+    const r = await api('/api/admin-v2/audit?limit=200');
+    const t = el('div', { class:'card', style:'overflow-x:auto' });
+    t.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1.2fr 1fr 1fr 1.3fr;gap:8px;padding:8px;border-bottom:1px solid var(--line);font-weight:700;font-size:12px;color:var(--muted)' }, [
+      el('div',{},'Уақыт'), el('div',{},'Actor'), el('div',{},'Action'), el('div',{},'Entity'), el('div',{},'ID'), el('div',{},'Payload')
+    ]));
+    (r.rows || []).forEach(row => {
+      t.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1.2fr 1fr 1fr 1.3fr;gap:8px;padding:8px;border-bottom:1px solid rgba(255,255,255,.04);font-size:11px;align-items:start' }, [
+        el('div',{ style:'color:var(--muted)' }, (row.created_at || '').slice(0,19).replace('T',' ')),
+        el('div',{ style:'font-family:monospace' }, String(row.actor_telegram_id) + ' (' + row.actor_role + ')'),
+        el('div',{ style:'font-weight:600' }, row.action),
+        el('div',{}, row.entity_type || '—'),
+        el('div',{ style:'font-family:monospace' }, row.entity_id ? String(row.entity_id).slice(0,10) : '—'),
+        el('div',{ style:'font-family:monospace;color:var(--muted);max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap' }, row.payload ? JSON.stringify(row.payload).slice(0,80) : '—'),
+      ]));
+    });
+    root.appendChild(t);
+  } catch (e) { root.appendChild(el('div',{ class:'card', style:'color:var(--danger)' }, 'Қате: ' + e.message)); }
+  return root;
+}
+
+/* ---------- FLASH SALE ---------- */
+async function viewFlashSales() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, '⚡ Flash sale'),
+      el('div', { class:'page-sub' }, 'Уақытша −% акция (Shop баннерінде countdown көрінеді)'),
+    ]),
+    el('button', { class:'btn ghost', onclick: () => render() }, '🔄  Жаңарту'),
+  ]));
+  // Create form
+  const form = el('div', { class:'card' });
+  form.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '➕ Жаңа flash sale'));
+  const pc = el('input', { placeholder:'productCode (мысалы: vip_premium, bundle_pro)' });
+  const dp = el('input', { placeholder:'Дискаунт % (1..95)', type:'number' });
+  const hr = el('input', { placeholder:'Қанша сағат (1..168, default 24)', type:'number' });
+  const lb = el('input', { placeholder:'Label (мысалы: "Black Friday")' });
+  form.appendChild(el('div', { class:'field' }, [el('label',{},'Product code'), pc]));
+  form.appendChild(el('div', { class:'field' }, [el('label',{},'Discount %'), dp]));
+  form.appendChild(el('div', { class:'field' }, [el('label',{},'Hours'), hr]));
+  form.appendChild(el('div', { class:'field' }, [el('label',{},'Label'), lb]));
+  form.appendChild(el('button', { class:'btn', onclick: async () => {
+    try {
+      await api('/api/admin-v2/flash-sales', { method:'POST', body: JSON.stringify({
+        productCode: pc.value.trim(), discountPercent: Number(dp.value), hours: Number(hr.value || 24), label: lb.value.trim(),
+      })});
+      alert('Flash sale құрылды'); render();
+    } catch(e){ alert('Қате: ' + e.message); }
+  } }, 'Бастау'));
+  root.appendChild(form);
+
+  // List
+  try {
+    const r = await api('/api/admin-v2/flash-sales');
+    const t = el('div', { class:'card', style:'overflow-x:auto;margin-top:14px' });
+    t.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr 100px;gap:8px;padding:8px;border-bottom:1px solid var(--line);font-weight:700;font-size:12px;color:var(--muted)' }, [
+      el('div',{},'Product'), el('div',{},'Discount'), el('div',{},'Label'), el('div',{},'Басталу'), el('div',{},'Аяқталу'), el('div',{},'Active'), el('div',{},'')
+    ]));
+    (r.rows || []).forEach(row => {
+      const endBtn = row.is_active ? el('button', { class:'btn danger sm', onclick: async () => {
+        if (!confirm('Тоқтату?')) return;
+        try { await api('/api/admin-v2/flash-sales/end', { method:'POST', body: JSON.stringify({ id: row.id }) }); render(); }
+        catch(e){ alert('Қате: ' + e.message); }
+      } }, 'End') : el('span',{ style:'color:var(--muted);font-size:11px' }, 'ended');
+      t.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr 1fr 100px;gap:8px;padding:8px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px;align-items:center' }, [
+        el('div',{ style:'font-family:monospace;font-weight:600' }, row.product_code),
+        el('div',{ style:'color:var(--warn);font-weight:700' }, '-' + row.discount_percent + '%'),
+        el('div',{}, row.label || '—'),
+        el('div',{ style:'color:var(--muted)' }, (row.starts_at || '').slice(5,16)),
+        el('div',{ style:'color:var(--muted)' }, (row.ends_at || '').slice(5,16)),
+        el('div',{ style:'color:'+(row.is_active?'var(--ok)':'var(--muted)') }, row.is_active ? 'active' : '—'),
+        endBtn,
+      ]));
+    });
+    root.appendChild(t);
+  } catch (e) { root.appendChild(el('div',{ class:'card', style:'color:var(--danger)' }, 'Қате: ' + e.message)); }
+  return root;
 }
 
 render();

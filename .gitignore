@@ -101,3 +101,5 @@ server/admin-v2-data.json
 focus_game/
 mini-app/
 server/node_modules/
+.vercel
+.env*.local

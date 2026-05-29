@@ -22,8 +22,8 @@ const crypto = require('crypto');
 const STARS_PRODUCT_CATALOG = {
   // === VIP plans (yearly) ===
   vip_basic:    { kind: 'vip',      tierCode: 'basic',     durationDays: 365, amountStars: 140, label: 'BASIC Yearly',   description: 'BASIC VIP — 365 days' },
-  vip_pro:      { kind: 'vip',      tierCode: 'pro',       durationDays: 365, amountStars: 175, label: 'PRO Yearly',     description: 'PRO VIP — 365 days' },
-  vip_premium:  { kind: 'vip',      tierCode: 'premium',   durationDays: 365, amountStars: 205, label: 'PREMIUM Yearly', description: 'PREMIUM VIP — 365 days' },
+  vip_pro:      { kind: 'vip',      tierCode: 'pro',       durationDays: 365, amountStars: 180, label: 'PRO Yearly',     description: 'PRO VIP — 365 days' },
+  vip_premium:  { kind: 'vip',      tierCode: 'premium',   durationDays: 365, amountStars: 200, label: 'PREMIUM Yearly', description: 'PREMIUM VIP — 365 days' },
 
   // === Mystery cases ===
   case_basic:     { kind: 'case', caseId: 'basic_case',     amountStars: 25,  label: 'Basic Case',     description: 'One Basic Mystery Case' },
@@ -43,6 +43,36 @@ const STARS_PRODUCT_CATALOG = {
   // === $FOCUS jetton packs (DB-tracked, claimable on-chain when jetton is deployed) ===
   focus_100: { kind: 'focus', amount: 100, amountStars: 75,  label: '100 $FOCUS', description: 'Earn $FOCUS jetton credits — claim on-chain once jetton goes live' },
   focus_500: { kind: 'focus', amount: 500, amountStars: 300, label: '500 $FOCUS', description: 'Big $FOCUS jetton pack with bonus' },
+
+  // === Bundle deals (multi-grant: VIP + cases + $FOCUS at a single discounted price) ===
+  // Discount vs buying each item individually is shown in the UI as savedStars.
+  bundle_starter: {
+    kind: 'bundle', amountStars: 220, label: 'Starter Pack',
+    description: 'Basic VIP (1 year) + 1 Rare Case + 100 $FOCUS — ~17% off',
+    grants: [
+      { type: 'vip', tierCode: 'basic', durationDays: 365 },
+      { type: 'case', caseId: 'rare_case', qty: 1 },
+      { type: 'focus', amount: 100 },
+    ],
+  },
+  bundle_pro: {
+    kind: 'bundle', amountStars: 450, label: 'Pro Pack',
+    description: 'Pro VIP (1 year) + 3 Rare Cases + 300 $FOCUS — ~19% off',
+    grants: [
+      { type: 'vip', tierCode: 'pro', durationDays: 365 },
+      { type: 'case', caseId: 'rare_case', qty: 3 },
+      { type: 'focus', amount: 300 },
+    ],
+  },
+  bundle_legend: {
+    kind: 'bundle', amountStars: 800, label: 'Legend Pack',
+    description: 'Premium VIP (1 year) + 5 Legendary Cases + 500 $FOCUS — ~20% off',
+    grants: [
+      { type: 'vip', tierCode: 'premium', durationDays: 365 },
+      { type: 'case', caseId: 'legendary_case', qty: 5 },
+      { type: 'focus', amount: 500 },
+    ],
+  },
 };
 
 const STARS_PAYMENT_TTL_MS = 15 * 60 * 1000;
@@ -125,15 +155,96 @@ function registerStars(app, deps) {
         return res.status(400).json({ error: 'Unknown Stars product code', productCode });
       }
 
+      // === Promo code support (with auto-first-buy + flash sale stacking) ===
+      // Resolution order: explicit user promo → flash sale → first-buy auto.
+      // We pick the BEST single discount (not stacked) so customers can't
+      // combine multiple promos.
+      let promoCodeRaw = `${req.body?.promoCode || ''}`.trim().toUpperCase();
+      let appliedPromo = null;
+      let amountStars = product.amountStars;
+
+      // If no explicit promo, check first-buy eligibility: user with zero
+      // prior paid orders gets FIRSTBUY auto-applied.
+      if (!promoCodeRaw && supabase) {
+        try {
+          const { count: paidCount } = await supabase
+            .from('payment_orders')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_telegram_id', access.identity.userId)
+            .eq('status', 'paid');
+          if ((paidCount || 0) === 0) {
+            promoCodeRaw = 'FIRSTBUY';
+          }
+        } catch (_) { /* ignore — first-buy is best-effort */ }
+      }
+
+      // Active flash sale for this product wins if its discount beats the
+      // user's promo. (Same discount → keep user's promo for clearer UX.)
+      if (supabase) {
+        try {
+          const nowIso = new Date().toISOString();
+          const { data: fs } = await supabase
+            .from('flash_sales')
+            .select('product_code, discount_percent, ends_at')
+            .eq('product_code', productCode)
+            .eq('is_active', true)
+            .lte('starts_at', nowIso)
+            .gte('ends_at', nowIso)
+            .order('discount_percent', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (fs && fs.discount_percent > 0) {
+            // promo will be looked up below — let promoCodeRaw fight,
+            // and we override if flash sale is stronger after lookup.
+            req._flashSale = fs;
+          }
+        } catch (_) {}
+      }
+
+      if (promoCodeRaw && supabase) {
+        try {
+          const { data: pc } = await supabase
+            .from('promo_codes')
+            .select('code, discount_percent, plan_codes, valid_until, is_active, max_uses, used_count')
+            .eq('code', promoCodeRaw)
+            .maybeSingle();
+          if (pc && pc.is_active !== false) {
+            const expired = pc.valid_until && new Date(pc.valid_until) < new Date();
+            const exhausted = pc.max_uses && pc.used_count >= pc.max_uses;
+            const applicable = !pc.plan_codes || pc.plan_codes.length === 0
+              || pc.plan_codes.includes(product.tierCode || productCode)
+              || pc.plan_codes.includes(productCode);
+            if (!expired && !exhausted && applicable && pc.discount_percent > 0) {
+              const discount = Math.min(95, Math.max(1, Number(pc.discount_percent)));
+              amountStars = Math.max(1, Math.round(product.amountStars * (100 - discount) / 100));
+              appliedPromo = { code: pc.code, discountPercent: discount, originalStars: product.amountStars };
+            }
+          }
+        } catch (e) {
+          console.warn('[stars] promo lookup failed:', e.message);
+        }
+      }
+
+      // Flash sale beats user promo if its discount is strictly larger.
+      if (req._flashSale && req._flashSale.discount_percent > (appliedPromo?.discountPercent || 0)) {
+        const fsDiscount = Math.min(95, Math.max(1, Number(req._flashSale.discount_percent)));
+        amountStars = Math.max(1, Math.round(product.amountStars * (100 - fsDiscount) / 100));
+        appliedPromo = { code: 'FLASH_SALE', discountPercent: fsDiscount, originalStars: product.amountStars, flashSale: true };
+      }
+
       const paymentOrderId = crypto.randomUUID();
       const payload = buildStarsPayload(productCode, paymentOrderId);
 
+      const invoiceTitle = appliedPromo
+        ? `${product.label} (-${appliedPromo.discountPercent}%)`
+        : product.label;
+
       const invoiceLink = await callTelegramApi(BOT_TOKEN, 'createInvoiceLink', {
-        title: product.label,
+        title: invoiceTitle,
         description: product.description,
         payload,
         currency: 'XTR',
-        prices: [{ label: product.label, amount: product.amountStars }],
+        prices: [{ label: invoiceTitle, amount: amountStars }],
         provider_token: '',
       });
 
@@ -145,7 +256,7 @@ function registerStars(app, deps) {
           provider: 'telegram_stars',
           plan_code: product.kind === 'vip' ? product.tierCode : productCode,
           currency: 'XTR',
-          amount_nano: product.amountStars,
+          amount_nano: amountStars,
           status: 'created',
           memo: payload,
           provider_payload: {
@@ -153,6 +264,9 @@ function registerStars(app, deps) {
             productCode,
             kind: product.kind,
             productMeta: product,
+            promoCode: appliedPromo?.code || null,
+            discountPercent: appliedPromo?.discountPercent || 0,
+            originalStars: product.amountStars,
           },
           expires_at: new Date(Date.now() + STARS_PAYMENT_TTL_MS).toISOString(),
         })
@@ -167,7 +281,10 @@ function registerStars(app, deps) {
         kind: product.kind,
         provider: 'telegram_stars',
         invoiceLink,
-        amountStars: product.amountStars,
+        amountStars,                       // final (discounted) amount actually charged
+        originalStars: product.amountStars, // original list price for UI hint
+        promoCode: appliedPromo?.code || null,
+        discountPercent: appliedPromo?.discountPercent || 0,
         currency: data.currency,
         memo: data.memo,
         expiresAt: data.expires_at,
@@ -201,17 +318,21 @@ function registerStars(app, deps) {
 
         const product = STARS_PRODUCT_CATALOG[parsed.productCode];
         if (!product) return reject('Unknown product');
-        if (product.amountStars !== q.total_amount) return reject('Invalid amount');
 
+        // Verify amount against the persisted payment_order (handles promo discounts).
+        // Without DB we fall back to the catalog list price.
         if (supabase) {
           const { data: order } = await supabase
             .from('payment_orders')
-            .select('id, status, expires_at')
+            .select('id, status, expires_at, amount_nano')
             .eq('id', parsed.paymentOrderId)
             .maybeSingle();
           if (!order) return reject('Payment order not found');
           if (order.status === 'paid') return reject('Payment already processed');
           if (order.expires_at && Date.parse(order.expires_at) < Date.now()) return reject('Payment expired');
+          if (Number(order.amount_nano) !== Number(q.total_amount)) return reject('Invalid amount');
+        } else if (product.amountStars !== q.total_amount) {
+          return reject('Invalid amount');
         }
 
         await callTelegramApi(BOT_TOKEN, 'answerPreCheckoutQuery', {
@@ -275,6 +396,11 @@ function registerStars(app, deps) {
             product,
             verificationPayload,
           });
+          // Referral reward: if this user was referred and the referral is
+          // still 'pending', mark it rewarded and credit BOTH parties 100 $FOCUS.
+          try {
+            await processReferralReward(supabase, paymentOrder.user_telegram_id, sendTelegramMessage);
+          } catch (e) { console.warn('[Stars] referral reward error:', e.message); }
         } catch (grantError) {
           console.error('[Stars] grant error:', grantError);
           // Mark order as paid_pending_grant so admin can retry
@@ -337,6 +463,35 @@ function registerStars(app, deps) {
   });
 
   console.log('[stars] routes mounted (BOT_TOKEN ' + (BOT_TOKEN ? 'configured' : 'MISSING') + ')');
+}
+
+// Mark a pending referral as 'rewarded' and credit BOTH parties 100 $FOCUS.
+// Idempotent: only fires when the referee has a 'pending' referral row.
+async function processReferralReward(supabase, refereeId, sendTelegramMessage) {
+  if (!supabase || !refereeId) return;
+  const { data: ref } = await supabase
+    .from('referrals')
+    .select('id, referrer_telegram_id, status')
+    .eq('referee_telegram_id', Number(refereeId))
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (!ref) return;
+  const referrerId = Number(ref.referrer_telegram_id);
+  const nowIso = new Date().toISOString();
+  await supabase
+    .from('referrals')
+    .update({ status: 'rewarded', rewarded_at: nowIso })
+    .eq('id', ref.id);
+  // Credit 100 $FOCUS to both
+  await supabase.from('focus_token_ledger').insert([
+    { user_telegram_id: referrerId, delta: 100, reason: 'referral_reward', reference_id: `referee:${refereeId}`, created_at: nowIso },
+    { user_telegram_id: refereeId,  delta: 100, reason: 'referral_signup_bonus', reference_id: `referrer:${referrerId}`, created_at: nowIso },
+  ]).catch(() => {});
+  // Notify both
+  if (sendTelegramMessage) {
+    sendTelegramMessage(referrerId, `🎉 Сіздің достарыңыз сатып алу жасады — +100 $FOCUS!`);
+    sendTelegramMessage(refereeId, `🎁 Бонус: +100 $FOCUS (сіз сілтеме арқылы кірдіңіз)`);
+  }
 }
 
 async function grantStarsProduct({
@@ -491,6 +646,53 @@ async function grantStarsProduct({
         userTelegramId,
         `⭐ +${product.amount} $FOCUS — claim on-chain once jetton goes live`
       );
+      break;
+    }
+
+    case 'bundle': {
+      // Multi-grant: apply each entry in product.grants[].
+      const grants = Array.isArray(product.grants) ? product.grants : [];
+      for (const g of grants) {
+        try {
+          if (g.type === 'vip') {
+            // Reuse applyPaidEntitlement by constructing a synthetic order
+            const tierCode = g.tierCode || 'basic';
+            const durationDays = g.durationDays || 365;
+            await applyPaidEntitlement(
+              { ...paymentOrder, plan_code: tierCode, provider_payload: { ...(paymentOrder.provider_payload || {}), bundleTier: tierCode, durationDays } },
+              { ...verificationPayload, bundleGrant: 'vip', tierCode }
+            ).catch((e) => console.warn('[bundle] vip grant failed:', e.message));
+          } else if (g.type === 'case') {
+            const qty = Math.max(1, Number(g.qty || 1));
+            const { data: existing } = await supabase
+              .from('user_inventory')
+              .select('mystery_boxes')
+              .eq('user_telegram_id', userTelegramId).eq('case_id', g.caseId).maybeSingle();
+            if (existing) {
+              await supabase.from('user_inventory')
+                .update({ mystery_boxes: (existing.mystery_boxes || 0) + qty, updated_at: nowIso })
+                .eq('user_telegram_id', userTelegramId).eq('case_id', g.caseId);
+            } else {
+              await supabase.from('user_inventory').insert({
+                user_telegram_id: userTelegramId, case_id: g.caseId, mystery_boxes: qty, updated_at: nowIso,
+              });
+            }
+          } else if (g.type === 'focus') {
+            const amount = Math.max(0, Number(g.amount || 0));
+            if (amount > 0) {
+              await supabase.from('focus_token_ledger').insert({
+                user_telegram_id: userTelegramId, delta: amount, reason: 'stars_bundle',
+                reference_id: paymentOrder.id,
+                metadata: { productCode: verificationPayload.productCode, stars: product.amountStars, bundleGrant: 'focus' },
+                created_at: nowIso,
+              });
+            }
+          }
+        } catch (e) {
+          console.warn('[bundle] grant', g.type, 'failed:', e.message);
+        }
+      }
+      sendTelegramMessage(userTelegramId, `🎁 ${product.label} unlocked — VIP + cases + $FOCUS credited`);
       break;
     }
 

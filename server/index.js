@@ -1108,6 +1108,21 @@ app.post('/telegram/webhook', async (req, res) => {
     // fall through to xponend's own handling / 200 below
   }
 
+  // Bot was added/removed to a chat (group/channel/supergroup). Log the
+  // chat id so we can copy it for env vars like PROMO_REQUIRED_CHANNEL.
+  if (update.my_chat_member) {
+    const cm = update.my_chat_member;
+    const chat = cm.chat || {};
+    const newStatus = cm.new_chat_member?.status || '?';
+    console.log(`[chat-id-finder] bot ${newStatus} in chat → id=${chat.id} type=${chat.type} title="${chat.title || ''}" username="${chat.username || ''}"`);
+  }
+  // A post landed in a channel where the bot is admin. Also useful for
+  // discovering the channel id (forward-free, just post once).
+  if (update.channel_post) {
+    const c = update.channel_post.chat || {};
+    console.log(`[chat-id-finder] channel_post → id=${c.id} type=${c.type} title="${c.title || ''}"`);
+  }
+
   // Always 200 to Telegram so it doesn't queue retries while we work. Errors
   // are logged here, not propagated, otherwise a transient failure can lock
   // the webhook into a retry storm.
@@ -4705,6 +4720,157 @@ app.get('/plans', async (_req, res) => {
   }
 });
 
+// === Free promo via verified Telegram channel subscription ===
+//
+// To give a free promo code only to users who actually subscribed to your
+// Telegram channel, we verify membership server-side with getChatMember.
+// Requirements:
+//   - PROMO_REQUIRED_CHANNEL env: e.g. "@focus_game_news" or "-1001234567890"
+//   - The bot MUST be an admin of that channel (otherwise getChatMember fails)
+//   - PROMO_FREE_CODE env: the code returned to verified subscribers (e.g. "FOCUS50")
+//
+// Instagram/other socials CANNOT be verified by the bot — only Telegram
+// channels expose membership via the Bot API. Use a Telegram channel for a
+// verifiable "subscribe to unlock" promo.
+function telegramApiGet(method, params = {}) {
+  const botToken = process.env.BOT_TOKEN || '';
+  if (!botToken) return Promise.reject(new Error('BOT_TOKEN missing'));
+  const qs = new URLSearchParams(params).toString();
+  const url = `https://api.telegram.org/bot${botToken}/${method}?${qs}`;
+  return fetch(url).then((r) => r.json());
+}
+
+app.post('/promo/subscription/claim', authLimiter, async (req, res) => {
+  try {
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+
+    const channel = `${process.env.PROMO_REQUIRED_CHANNEL || ''}`.trim();
+    const freeCode = `${process.env.PROMO_FREE_CODE || ''}`.trim();
+    if (!channel || !freeCode) {
+      return res.status(503).json({
+        error: 'Subscription promo is not configured (PROMO_REQUIRED_CHANNEL / PROMO_FREE_CODE).',
+      });
+    }
+
+    const userId = access.identity.userId;
+    let result;
+    try {
+      result = await telegramApiGet('getChatMember', { chat_id: channel, user_id: userId });
+    } catch (e) {
+      return res.status(502).json({ error: 'Could not verify subscription', detail: e.message });
+    }
+
+    if (!result || !result.ok) {
+      // Common cause: bot is not an admin of the channel, or channel id wrong.
+      return res.status(502).json({
+        error: 'Subscription check failed. Make sure the bot is an admin of the channel.',
+        detail: result?.description || null,
+      });
+    }
+
+    const status = result.result?.status;
+    const subscribed = status === 'creator' || status === 'administrator' || status === 'member';
+
+    if (!subscribed) {
+      return res.json({
+        subscribed: false,
+        channel,
+        message: `Subscribe to ${channel} first, then claim your free promo code.`,
+      });
+    }
+
+    // Subscribed → hand out the free promo code (with discount from DB).
+    let discountPercent = 0;
+    try {
+      if (supabase) {
+        const { data: pc } = await supabase
+          .from('promo_codes').select('discount_percent')
+          .eq('code', freeCode).maybeSingle();
+        if (pc && pc.discount_percent) discountPercent = Number(pc.discount_percent) || 0;
+      }
+    } catch (_) {}
+    return res.json({
+      subscribed: true,
+      promoCode: freeCode,
+      discountPercent,
+      message: 'Verified! Use this promo code at checkout.',
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'subscription_promo_error' });
+  }
+});
+
+
+// === Public: active flash sales (Shop banner) ===
+app.get('/flash-sales/active', async (_req, res) => {
+  try {
+    if (!supabase) return res.json({ sales: [] });
+    const nowIso = new Date().toISOString();
+    const { data, error } = await supabase
+      .from('flash_sales')
+      .select('id, product_code, discount_percent, ends_at, label')
+      .eq('is_active', true)
+      .lte('starts_at', nowIso)
+      .gte('ends_at', nowIso)
+      .order('discount_percent', { ascending: false }).limit(10);
+    if (error && !isMissingTableError(error)) throw error;
+    return res.json({ sales: data || [] });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'flash_sales_error' });
+  }
+});
+
+// === Referral: track + claim ===
+//   POST /referral/track  body:{ initData, refUserId }  — called by frontend
+//   when a new user opens the app via start_param=ref_<userId>. Creates a
+//   pending referral row (idempotent). Self-referrals are blocked.
+app.post('/referral/track', authLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+    const refereeId = Number(access.identity.userId);
+    const referrerId = Number(req.body?.refUserId);
+    if (!refereeId || !referrerId) return res.status(400).json({ error: 'ids required' });
+    if (refereeId === referrerId) {
+      return res.json({ ok: false, reason: 'self_referral' });
+    }
+    const { data: existing } = await supabase
+      .from('referrals').select('id, status').eq('referee_telegram_id', refereeId).maybeSingle();
+    if (existing) return res.json({ ok: true, status: existing.status, existing: true });
+    const { error } = await supabase.from('referrals').insert({
+      referrer_telegram_id: referrerId, referee_telegram_id: refereeId, status: 'pending',
+    });
+    if (error && !isMissingTableError(error)) throw error;
+    return res.json({ ok: true, status: 'pending' });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'referral_track_error' });
+  }
+});
+
+//   GET /referral/stats — returns this user's referral count + share link
+app.get('/referral/stats', async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+    const uid = Number(access.identity.userId);
+    const { data: rows } = await supabase
+      .from('referrals')
+      .select('status')
+      .eq('referrer_telegram_id', uid);
+    const total = (rows || []).length;
+    const rewarded = (rows || []).filter(r => r.status === 'rewarded').length;
+    const botUsername = (process.env.BOT_USERNAME || 'Focus_game_bot').replace(/^@/, '');
+    return res.json({
+      total, rewarded, pending: total - rewarded,
+      shareLink: `https://t.me/${botUsername}?start=ref_${uid}`,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'referral_stats_error' });
+  }
+});
 
 // Mount Admin Panel V2 (browser-based: /api/admin-v2/*)
 try {

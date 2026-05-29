@@ -5,6 +5,27 @@
 'use strict';
 
 const crypto = require('crypto');
+let rateLimit;
+try { rateLimit = require('express-rate-limit'); } catch (_) { rateLimit = null; }
+
+// Brute-force guard for the admin login: max 5 attempts / 5 min per IP.
+const adminLoginLimiter = rateLimit
+  ? rateLimit({
+      windowMs: 5 * 60 * 1000,
+      max: 5,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Too many login attempts. Try again in a few minutes.' },
+    })
+  : (_req, _res, next) => next();
+
+// Constant-time string comparison (avoids timing attacks on the password).
+function safeEqual(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 function isMissingTableError(error) {
   return Boolean(
@@ -259,19 +280,24 @@ function registerAdminV2(app, deps) {
   });
 
   // ---------- AUTH ----------
-  app.post('/api/admin-v2/login', async (req, res) => {
+  app.post('/api/admin-v2/login', adminLoginLimiter, async (req, res) => {
     try {
       if (!ensureSupabaseForAuth()) return;
       const login = `${req.body?.login || ''}`.trim() || ADMIN_V2_LOGIN || 'admin';
       const password = `${req.body?.password || ''}`;
       const effectivePassword = getEffectivePassword();
-      if (effectivePassword) {
-        // Password is configured — require it
-        if (login !== ADMIN_V2_LOGIN || password !== effectivePassword) {
-          return res.status(401).json({ error: 'Invalid login or password' });
-        }
+      // SECURITY: never allow open access. A password MUST be configured
+      // (via ADMIN_PANEL_PASSWORD env or the in-app setting). Without it the
+      // admin panel is locked, not open.
+      if (!effectivePassword) {
+        return res.status(503).json({
+          error: 'Admin panel is not configured. Set ADMIN_PANEL_PASSWORD before logging in.',
+        });
       }
-      // Otherwise no password configured → allow login (open access)
+      // Constant-time comparison for both fields.
+      if (!safeEqual(login, ADMIN_V2_LOGIN) || !safeEqual(password, effectivePassword)) {
+        return res.status(401).json({ error: 'Invalid login or password' });
+      }
       const token = generateAdminToken();
       const expiresAt = new Date(Date.now() + ADMIN_V2_SESSION_TTL_MS).toISOString();
       if (isSupabaseUsable()) {
@@ -1026,6 +1052,303 @@ function registerAdminV2(app, deps) {
     } catch (error) {
       return res.status(500).json({ error: error instanceof Error ? error.message : 'users_error' });
     }
+  });
+
+  // =====================================================================
+  // EXTENDED ADMIN: Stars dashboard, NFT trophies, $FOCUS, Audit,
+  // Broadcast, Refund. All gated on requireAdminV2 (admin session token).
+  // =====================================================================
+  async function tgApi(method, body) {
+    const tok = process.env.BOT_TOKEN || '';
+    if (!tok) throw new Error('BOT_TOKEN missing');
+    const r = await fetch(`https://api.telegram.org/bot${tok}/${method}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    });
+    return r.json();
+  }
+
+  // ---------- Stars payments dashboard ----------
+  app.get('/api/admin-v2/stars/list', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+      const { data, error } = await supabase
+        .from('payment_orders')
+        .select('id, user_telegram_id, provider, plan_code, currency, amount_nano, status, paid_at, created_at, provider_payload')
+        .eq('provider', 'telegram_stars')
+        .order('created_at', { ascending: false }).limit(limit);
+      if (error && !isMissingTableError(error)) throw error;
+      const rows = (data || []).map(r => ({
+        id: r.id,
+        userId: r.user_telegram_id,
+        productCode: r.provider_payload?.productCode || r.plan_code,
+        kind: r.provider_payload?.kind || (/(basic|pro|premium)/.test(r.plan_code) ? 'vip' : 'unknown'),
+        amountStars: r.amount_nano,
+        status: r.status,
+        paidAt: r.paid_at,
+        createdAt: r.created_at,
+      }));
+      // 7-day revenue summary
+      const sinceIso = new Date(Date.now() - 7*24*3600*1000).toISOString();
+      const { data: agg } = await supabase
+        .from('payment_orders')
+        .select('amount_nano, paid_at')
+        .eq('provider', 'telegram_stars').eq('status', 'paid').gte('paid_at', sinceIso);
+      const total7d = (agg || []).reduce((s, r) => s + Number(r.amount_nano || 0), 0);
+      return res.json({ ok: true, rows, total7dStars: total7d, count: rows.length });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // ---------- NFT trophy queue + manual award + mark-minted ----------
+  app.get('/api/admin-v2/nft/queue', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const { data, error } = await supabase
+        .from('nft_trophy_awards')
+        .select('id, user_telegram_id, trophy_code, status, claim_wallet, awarded_at, claim_requested_at, claim_tx, reference')
+        .in('status', ['awarded', 'claim_requested', 'minted', 'failed'])
+        .order('awarded_at', { ascending: false }).limit(200);
+      if (error && !isMissingTableError(error)) throw error;
+      return res.json({ ok: true, rows: data || [] });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  app.post('/api/admin-v2/nft/award', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const uid = Number(req.body?.userTelegramId);
+      const code = `${req.body?.trophyCode || ''}`.trim();
+      if (!uid || !code) return res.status(400).json({ error: 'userTelegramId and trophyCode required' });
+      const id = crypto.randomUUID();
+      const { error } = await supabase.from('nft_trophy_awards').insert({
+        id, user_telegram_id: uid, trophy_code: code,
+        reference: `${req.body?.reference || 'admin_award'}`.slice(0, 200),
+        status: 'awarded', awarded_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'nft_award', 'nft_trophy_awards', id, { uid, code });
+      return res.json({ ok: true, id });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  app.post('/api/admin-v2/nft/mark-minted', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const id = `${req.body?.id || ''}`.trim();
+      const txHash = `${req.body?.txHash || ''}`.trim();
+      if (!id || !txHash) return res.status(400).json({ error: 'id and txHash required' });
+      const { error } = await supabase
+        .from('nft_trophy_awards')
+        .update({ status: 'minted', claim_tx: txHash, claimed_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'nft_mark_minted', 'nft_trophy_awards', id, { txHash });
+      return res.json({ ok: true });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // ---------- $FOCUS ledger + credit + claim queue + approve ----------
+  app.get('/api/admin-v2/focus/ledger', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
+      const { data, error } = await supabase
+        .from('focus_token_ledger')
+        .select('id, user_telegram_id, delta, reason, reference_id, created_at')
+        .order('created_at', { ascending: false }).limit(limit);
+      if (error && !isMissingTableError(error)) throw error;
+      return res.json({ ok: true, rows: data || [] });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  app.post('/api/admin-v2/focus/credit', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const uid = Number(req.body?.userTelegramId);
+      const delta = Math.trunc(Number(req.body?.delta));
+      const reason = `${req.body?.reason || 'admin_credit'}`.slice(0, 64);
+      if (!uid || !Number.isFinite(delta) || delta === 0) {
+        return res.status(400).json({ error: 'userTelegramId and non-zero delta required' });
+      }
+      const { error } = await supabase.from('focus_token_ledger').insert({
+        user_telegram_id: uid, delta, reason,
+        reference_id: `admin:${s.admin_login}`, created_at: new Date().toISOString(),
+      });
+      if (error) throw error;
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'focus_credit', 'focus_token_ledger', null, { uid, delta, reason });
+      return res.json({ ok: true });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  app.get('/api/admin-v2/focus/claims', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const { data, error } = await supabase
+        .from('focus_claim_requests')
+        .select('id, user_telegram_id, wallet_address, amount, status, tx_hash, created_at, updated_at')
+        .order('created_at', { ascending: false }).limit(200);
+      if (error && !isMissingTableError(error)) throw error;
+      return res.json({ ok: true, rows: data || [] });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  app.post('/api/admin-v2/focus/claims/approve', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const id = `${req.body?.id || ''}`.trim();
+      const txHash = `${req.body?.txHash || ''}`.trim();
+      const action = `${req.body?.action || 'success'}`; // success | failed
+      if (!id || (action === 'success' && !txHash)) {
+        return res.status(400).json({ error: 'id (+ txHash for success) required' });
+      }
+      const { error } = await supabase
+        .from('focus_claim_requests')
+        .update({ status: action, tx_hash: txHash || null, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+      await writeAuditLog(s.admin_telegram_id, 'admin', `focus_claim_${action}`, 'focus_claim_requests', id, { txHash });
+      return res.json({ ok: true });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // ---------- Audit log viewer ----------
+  app.get('/api/admin-v2/audit', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100));
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select('id, actor_telegram_id, actor_role, action, entity_type, entity_id, payload, created_at')
+        .order('created_at', { ascending: false }).limit(limit);
+      if (error && !isMissingTableError(error)) throw error;
+      return res.json({ ok: true, rows: data || [] });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // ---------- Broadcast message to users ----------
+  app.post('/api/admin-v2/broadcast', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const text = `${req.body?.text || ''}`.trim();
+      const filter = `${req.body?.filter || 'all'}`; // all | premium | wallet_bound
+      if (!text || text.length < 2 || text.length > 4000) {
+        return res.status(400).json({ error: 'text length 2..4000 required' });
+      }
+      // Build recipient list
+      let userIds = [];
+      if (filter === 'wallet_bound') {
+        const { data } = await supabase.from('user_wallet_links').select('user_telegram_id');
+        userIds = (data || []).map(r => Number(r.user_telegram_id)).filter(Boolean);
+      } else if (filter === 'premium') {
+        const { data } = await supabase.from('users').select('telegram_id').in('plan', ['pro','premium']);
+        userIds = (data || []).map(r => Number(r.telegram_id)).filter(Boolean);
+      } else {
+        const { data } = await supabase.from('users').select('telegram_id').limit(5000);
+        userIds = (data || []).map(r => Number(r.telegram_id)).filter(Boolean);
+      }
+      // Fire & forget batches (rate-respect: ~30 msg/sec)
+      let sent = 0, failed = 0;
+      const batch = 25;
+      for (let i = 0; i < userIds.length; i += batch) {
+        const slice = userIds.slice(i, i + batch);
+        const results = await Promise.allSettled(slice.map(uid => tgApi('sendMessage', { chat_id: uid, text })));
+        for (const r of results) {
+          if (r.status === 'fulfilled' && r.value && r.value.ok) sent++; else failed++;
+        }
+        // small delay between batches to stay under Telegram limit
+        await new Promise(r => setTimeout(r, 900));
+      }
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'broadcast', 'users', null, { filter, totalUsers: userIds.length, sent, failed, preview: text.slice(0, 80) });
+      return res.json({ ok: true, totalUsers: userIds.length, sent, failed });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // ---------- Flash sales (admin-controlled, time-limited) ----------
+  app.get('/api/admin-v2/flash-sales', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const { data, error } = await supabase
+        .from('flash_sales')
+        .select('id, product_code, discount_percent, starts_at, ends_at, is_active, label')
+        .order('ends_at', { ascending: false }).limit(100);
+      if (error && !isMissingTableError(error)) throw error;
+      return res.json({ ok: true, rows: data || [] });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  app.post('/api/admin-v2/flash-sales', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const product_code = `${req.body?.productCode || ''}`.trim();
+      const discount_percent = Math.min(95, Math.max(1, Number(req.body?.discountPercent || 0)));
+      const hours = Math.min(168, Math.max(1, Number(req.body?.hours || 24)));
+      const label = `${req.body?.label || ''}`.slice(0, 60) || null;
+      if (!product_code || !discount_percent) return res.status(400).json({ error: 'productCode + discountPercent required' });
+      const id = crypto.randomUUID();
+      const now = new Date();
+      const ends = new Date(now.getTime() + hours * 3600 * 1000);
+      const { error } = await supabase.from('flash_sales').insert({
+        id, product_code, discount_percent, starts_at: now.toISOString(), ends_at: ends.toISOString(),
+        is_active: true, label, created_by: s.admin_telegram_id,
+      });
+      if (error) throw error;
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'flash_sale_create', 'flash_sales', id, { product_code, discount_percent, hours });
+      return res.json({ ok: true, id, endsAt: ends.toISOString() });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  app.post('/api/admin-v2/flash-sales/end', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const id = `${req.body?.id || ''}`.trim();
+      if (!id) return res.status(400).json({ error: 'id required' });
+      const { error } = await supabase.from('flash_sales').update({ is_active: false }).eq('id', id);
+      if (error) throw error;
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'flash_sale_end', 'flash_sales', id, {});
+      return res.json({ ok: true });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // ---------- Refund Stars payment ----------
+  app.post('/api/admin-v2/refund/stars', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const orderId = `${req.body?.orderId || ''}`.trim();
+      if (!orderId) return res.status(400).json({ error: 'orderId required' });
+      const { data: order, error: e1 } = await supabase
+        .from('payment_orders')
+        .select('id, user_telegram_id, provider, provider_charge_id, status')
+        .eq('id', orderId).maybeSingle();
+      if (e1) throw e1;
+      if (!order) return res.status(404).json({ error: 'order not found' });
+      if (order.provider !== 'telegram_stars') return res.status(400).json({ error: 'only telegram_stars refundable' });
+      if (!order.provider_charge_id) return res.status(400).json({ error: 'missing telegram_payment_charge_id' });
+      const tg = await tgApi('refundStarPayment', {
+        user_id: Number(order.user_telegram_id),
+        telegram_payment_charge_id: order.provider_charge_id,
+      });
+      if (!tg.ok) return res.status(502).json({ error: 'Telegram refund failed', detail: tg.description });
+      await supabase.from('payment_orders').update({
+        status: 'refunded', updated_at: new Date().toISOString(),
+      }).eq('id', orderId);
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'stars_refund', 'payment_orders', orderId, { user: order.user_telegram_id });
+      return res.json({ ok: true });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
   });
 }
 

@@ -16,6 +16,7 @@ import { payWithStars } from '../utils/starsApi';
 import { hasTelegramStartParam, isTelegramWebApp } from '../utils/telegram';
 import { CASE_LIST } from '../store/cases';
 import { CaseList } from '../components/shop/CaseList';
+import { FlashSaleBanner } from '../components/FlashSaleBanner';
 import { CaseOpeningModal } from '../components/shop/CaseOpeningModal';
 import { CaseIcon } from '../components/shop/CaseIcon';
 
@@ -294,6 +295,43 @@ const PaymentModal = ({
     }
   };
 
+  const handleClaimSubscriptionPromo = async () => {
+    setPromoFeedback(null);
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiBase}/promo/subscription/claim`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: window.Telegram?.WebApp?.initData || WebApp.initData || '' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPromoFeedback({ type: 'error', message: data?.error || 'Не удалось проверить' });
+        return;
+      }
+      if (data.subscribed && data.promoCode) {
+        const pct = Number(data.discountPercent) || 10;
+        setPromoInput(data.promoCode);
+        // auto-apply
+        setAppliedPromo({
+          code: data.promoCode,
+          discountPercent: pct,
+          applicablePlans: [planCode],
+        });
+        setPromoFeedback({ type: 'success', message: t('shop_promo_applied', '{{code}} промокоды қолданылды. -{{percent}}%', { code: data.promoCode, percent: pct }) });
+        WebApp.HapticFeedback?.notificationOccurred?.('success');
+      } else {
+        // not subscribed — open channel
+        if (data.channel) {
+          WebApp.openTelegramLink ? WebApp.openTelegramLink(`https://t.me/${data.channel.replace('@','')}`) : window.open(`https://t.me/${data.channel.replace('@','')}`);
+        }
+        setPromoFeedback({ type: 'error', message: data.message || 'Каналға жазылыңыз да қайталаңыз' });
+      }
+    } catch (e) {
+      setPromoFeedback({ type: 'error', message: e instanceof Error ? e.message : 'subscription_check_failed' });
+    }
+  };
+
   const handlePayWithStars = async () => {
     WebApp.HapticFeedback.notificationOccurred('success');
     setErrorMessage('');
@@ -303,6 +341,7 @@ const PaymentModal = ({
       const productCode = `vip_${planCode}`;
       setStatusMessage(t('stars_opening_invoice', 'Opening Telegram Stars invoice…'));
       const result = await payWithStars(productCode, {
+        promoCode: appliedPromo?.code,
         onStatusChange: (s) => {
           if (s === 'paid') setStatusMessage(t('stars_payment_confirmed', 'Payment confirmed!'));
           if (s === 'pending_grant') setStatusMessage(t('stars_pending_grant', 'Processing — granting access…'));
@@ -433,6 +472,23 @@ const PaymentModal = ({
                 className="mt-3 min-h-[44px] w-full rounded-2xl bg-pink-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:bg-pink-300"
               >
                 {t('shop_promo_get_button', 'Промокод алу')}
+              </button>
+            </div>
+            {/* Telegram channel subscription → verified promo (auto-applies on success) */}
+            <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 p-3">
+              <div className="text-sm font-semibold text-black">
+                {t('shop_promo_tg_title', 'Telegram каналға жазыл — жеңілдік ал')}
+              </div>
+              <div className="mt-1 text-xs text-gray-600">
+                {t('shop_promo_tg_desc', 'Каналға жазылғаныңызды бот тексеріп, жеңілдік автоматты беріледі.')}
+              </div>
+              <button
+                type="button"
+                onClick={handleClaimSubscriptionPromo}
+                disabled={isSubmitting || Boolean(pendingPaymentId)}
+                className="mt-3 min-h-[44px] w-full rounded-2xl bg-sky-500 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:bg-sky-300"
+              >
+                {t('shop_promo_tg_button', '📢  Жазылуды тексеру')}
               </button>
             </div>
             {promoFeedback ? (
@@ -1751,6 +1807,9 @@ const LegacyShopPage = () => {
         </div>
       </div>
 
+      {/* Active flash sale banner (auto-renders only if a sale is live) */}
+      <FlashSaleBanner />
+
       <div className={clsx("flex p-1 rounded-xl mb-6 border", cardClass)}>
         <button
           onClick={() => setActiveTab('vip')}
@@ -1860,7 +1919,13 @@ const STARS_QUICK_BUY_PRODUCTS: Array<{
   description: string;
   stars: number;
   emoji: string;
+  highlight?: boolean;
 }> = [
+  // === Bundles (highlighted) ===
+  { code: 'bundle_starter',     label: 'Starter Pack',      description: 'VIP Basic + Rare Case + 100 $FOCUS · −17%', stars: 220, emoji: '🎁', highlight: true },
+  { code: 'bundle_pro',         label: 'Pro Pack',          description: 'VIP Pro + 3 Rare + 300 $FOCUS · −19%',     stars: 450, emoji: '🎁', highlight: true },
+  { code: 'bundle_legend',      label: 'Legend Pack',       description: 'VIP Premium + 5 Legendary + 500 $FOCUS · −20%', stars: 800, emoji: '👑', highlight: true },
+  // === Single items ===
   { code: 'case_basic',         label: 'Basic Case',        description: 'Mystery skin / booster',        stars: 25,  emoji: '📦' },
   { code: 'case_rare',          label: 'Rare Case',         description: 'Better odds',                   stars: 50,  emoji: '🎁' },
   { code: 'case_legendary',     label: 'Legendary Case',    description: 'Premium skins',                 stars: 100, emoji: '✨' },
@@ -1918,7 +1983,12 @@ export const StarsQuickBuySection = ({ styles }: { styles: any }) => {
             key={p.code}
             onClick={() => handleBuy(p.code, p.label)}
             disabled={busy !== null}
-            className="flex flex-col items-start gap-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-left transition-all hover:bg-amber-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+            className={clsx(
+              'flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60',
+              p.highlight
+                ? 'border-purple-400 bg-gradient-to-br from-purple-100 to-pink-100 hover:from-purple-200 hover:to-pink-200 shadow-md'
+                : 'border-amber-300 bg-amber-50 hover:bg-amber-100'
+            )}
           >
             <div className="text-xl">{p.emoji}</div>
             <div className="text-xs font-bold text-black">{p.label}</div>

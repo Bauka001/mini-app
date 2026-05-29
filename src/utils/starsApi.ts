@@ -87,8 +87,8 @@ export interface StarsPaymentStatus {
 export const listStarsProducts = () =>
   getJson<StarsProductsResponse>('/payments/stars/products');
 
-export const createStarsPayment = (productCode: string) =>
-  postJson<StarsPaymentIntent>('/payments/stars/create', { productCode });
+export const createStarsPayment = (productCode: string, promoCode?: string) =>
+  postJson<StarsPaymentIntent>('/payments/stars/create', { productCode, ...(promoCode ? { promoCode } : {}) });
 
 export const getStarsPaymentStatus = (paymentOrderId: string) =>
   getJson<StarsPaymentStatus>(`/payments/stars/${encodeURIComponent(paymentOrderId)}/status`);
@@ -104,8 +104,9 @@ export async function payWithStars(productCode: string, opts: {
   onStatusChange?: (status: StarsPaymentStatus['status']) => void;
   pollIntervalMs?: number;
   timeoutMs?: number;
+  promoCode?: string;
 } = {}): Promise<StarsPaymentStatus> {
-  const intent = await createStarsPayment(productCode);
+  const intent = await createStarsPayment(productCode, opts.promoCode);
 
   // Open Telegram's invoice UI
   if (typeof WebApp.openInvoice === 'function') {

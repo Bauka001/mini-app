@@ -36,6 +36,7 @@ import WebApp from '@twa-dev/sdk';
 import { BrainProfile } from '../components/BrainProfile';
 import { Achievements } from '../components/Achievements';
 import { Web3Section } from '../components/Web3Section';
+import { ReferralCard } from '../components/ReferralCard';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { usePlanGate } from '../hooks/usePlanGate';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
@@ -432,6 +433,9 @@ const ProfileClaude = () => {
 
             {/* Web3 — TON wallet, $FOCUS jetton, NFT trophies */}
             <Web3Section />
+
+            {/* Referral — invite friend → both earn $FOCUS */}
+            <ReferralCard />
 
             {tickets.length > 0 && (
               <section>

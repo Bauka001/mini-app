@@ -419,6 +419,7 @@ function AppRoutes() {
               }
             />
             <Route path="settings" element={<SettingsPage />} />
+            <Route path="tournaments" element={<TournamentsPage />} />
           </Route>
 
           <Route
@@ -433,7 +434,6 @@ function AppRoutes() {
           />
           <Route path="/analytics" element={<AnalyticsPage />} />
           <Route path="/daily-workout" element={<DailyWorkoutPage />} />
-          <Route path="/tournaments" element={<TournamentsPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
 
@@ -556,6 +556,24 @@ function App() {
 
     syncUserFromTelegram();
     fetchEntitlements();
+
+    // Referral tracking: if user opened via t.me/bot?start=ref_<userId>,
+    // post once to /referral/track (server dedupes via UNIQUE on referee).
+    try {
+      const startParam = WebApp.initDataUnsafe?.start_param || '';
+      const m = /^ref_(\d{5,})$/i.exec(startParam);
+      if (m && m[1]) {
+        const refUserId = Number(m[1]);
+        const initData = WebApp.initData || '';
+        if (initData && refUserId) {
+          fetch((import.meta.env.VITE_API_URL || '') + '/referral/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ initData, refUserId }),
+          }).catch(() => {});
+        }
+      }
+    } catch (_) { /* non-fatal */ }
 
     if (isSwitched) {
       if (WebApp.isVersionAtLeast('6.2')) {
