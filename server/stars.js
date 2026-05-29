@@ -501,7 +501,71 @@ async function grantStarsProduct({
   return { status: 'paid', kind: product.kind, productCode: verificationPayload.productCode };
 }
 
+/**
+ * Handle a Stars webhook update for MY payload format (`stars:<product>:<order>`).
+ * Returns true if this update was a Stars-module payload (and was handled),
+ * false if the payload is not ours (caller should fall through to its own logic).
+ *
+ * Lets the unified /telegram/webhook delegate non-plan Stars products
+ * (cases, revive, coins, $FOCUS, tickets, wheel spins) to this module.
+ */
+async function handleStarsWebhookUpdate(update, deps) {
+  const { supabase, applyPaidEntitlement, sendTelegramMessage, isMissingTableError, answerPreCheckoutQuery } = deps;
+  const BOT_TOKEN = process.env.BOT_TOKEN || '';
+
+  // pre_checkout_query
+  if (update.pre_checkout_query) {
+    const q = update.pre_checkout_query;
+    const parsed = parseStarsPayload(q.invoice_payload);
+    if (!parsed) return false; // not our payload
+    const product = STARS_PRODUCT_CATALOG[parsed.productCode];
+    const ok = Boolean(product) && product.amountStars === q.total_amount && q.currency === 'XTR';
+    if (typeof answerPreCheckoutQuery === 'function') {
+      await answerPreCheckoutQuery(q.id, ok, ok ? undefined : 'Invalid Stars product').catch(() => {});
+    } else if (BOT_TOKEN) {
+      await callTelegramApi(BOT_TOKEN, 'answerPreCheckoutQuery', {
+        pre_checkout_query_id: q.id, ok, ...(ok ? {} : { error_message: 'Invalid Stars product' }),
+      }).catch(() => {});
+    }
+    return true;
+  }
+
+  // successful_payment
+  const sp = update.successful_payment || update.message?.successful_payment || null;
+  if (sp) {
+    const parsed = parseStarsPayload(sp.invoice_payload);
+    if (!parsed) return false; // not our payload
+    if (!supabase) return true;
+    const product = STARS_PRODUCT_CATALOG[parsed.productCode];
+    if (!product) return true;
+
+    const { data: paymentOrder, error } = await supabase
+      .from('payment_orders').select('*').eq('id', parsed.paymentOrderId).single();
+    if (error || !paymentOrder) return true;
+    if (paymentOrder.status === 'paid') return true;
+
+    const verificationPayload = {
+      telegramPaymentChargeId: sp.telegram_payment_charge_id,
+      providerPaymentId: sp.provider_payment_charge_id,
+      currency: sp.currency,
+      totalAmount: sp.total_amount,
+      productCode: parsed.productCode,
+      kind: product.kind,
+    };
+    try {
+      await grantStarsProduct({ supabase, applyPaidEntitlement, sendTelegramMessage, isMissingTableError, paymentOrder, product, verificationPayload });
+    } catch (e) {
+      console.error('[stars] unified grant error:', e);
+    }
+    return true;
+  }
+
+  return false;
+}
+
 module.exports = registerStars;
 module.exports.STARS_PRODUCT_CATALOG = STARS_PRODUCT_CATALOG;
 module.exports.parseStarsPayload = parseStarsPayload;
 module.exports.buildStarsPayload = buildStarsPayload;
+module.exports.grantStarsProduct = grantStarsProduct;
+module.exports.handleStarsWebhookUpdate = handleStarsWebhookUpdate;

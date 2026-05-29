@@ -1092,6 +1092,24 @@ app.post('/telegram/webhook', async (req, res) => {
   res.status(200).json({ ok: true });
 
   try {
+    // First, let the Stars module claim its own payloads (cases, revive,
+    // coins, $FOCUS, tickets, wheel spins — format `stars:<product>:<order>`).
+    try {
+      const starsModule = require('./stars');
+      if (typeof starsModule.handleStarsWebhookUpdate === 'function') {
+        const handled = await starsModule.handleStarsWebhookUpdate(update, {
+          supabase,
+          applyPaidEntitlement,
+          sendTelegramMessage,
+          isMissingTableError,
+          answerPreCheckoutQuery,
+        });
+        if (handled) return;
+      }
+    } catch (e) {
+      console.error('[telegram webhook] stars delegate error:', e && e.message ? e.message : e);
+    }
+
     if (update.pre_checkout_query) {
       const q = update.pre_checkout_query;
       const parsed = parseInvoicePayload(q.invoice_payload);
