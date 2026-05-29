@@ -35,6 +35,7 @@ import { buildVipAnalyticsSnapshot, useStore } from '../store/useStoreImpl';
 import WebApp from '@twa-dev/sdk';
 import { BrainProfile } from '../components/BrainProfile';
 import { Achievements } from '../components/Achievements';
+import { Web3Section } from '../components/Web3Section';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { usePlanGate } from '../hooks/usePlanGate';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
@@ -428,6 +429,9 @@ const ProfileClaude = () => {
             <BrainProfile />
 
             <Achievements />
+
+            {/* Web3 — TON wallet, $FOCUS jetton, NFT trophies */}
+            <Web3Section />
 
             {tickets.length > 0 && (
               <section>

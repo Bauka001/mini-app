@@ -31,6 +31,8 @@ import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
 import { useStore } from '../store/useStoreImpl';
 import { TermsModal } from '../components/TermsModal';
 import { claudeTokens } from '../components/ui/claudeTokens';
+import { useThemeStyles } from '../hooks/useThemeStyles';
+import { StarsQuickBuySection } from './Shop';
 
 const MONTHLY_VIP_PRICE = '$4.99';
 const MONTHLY_VIP_STARS = '150 Stars';
@@ -721,6 +723,7 @@ const VIPTabClaude = ({
 // ---------- Page ----------
 const ShopClaude = () => {
   const { t } = useTranslation();
+  const styles = useThemeStyles();
   const { coins, skinInventory, activeSkin, buySkin, equipSkin, plan } = useStore();
   const [activeTab, setActiveTab] = useState<'vip' | 'skins'>('vip');
   const [showTerms, setShowTerms] = useState(false);
@@ -833,11 +836,17 @@ const ShopClaude = () => {
 
       <div className="px-5 pt-5">
         {activeTab === 'vip' ? (
-          <VIPTabClaude
-            currentPlan={plan}
-            onBuyPlan={handleBuyPlan}
-            onShowTerms={() => setShowTerms(true)}
-          />
+          <>
+            <VIPTabClaude
+              currentPlan={plan}
+              onBuyPlan={handleBuyPlan}
+              onShowTerms={() => setShowTerms(true)}
+            />
+            {/* Telegram Stars quick-buy: cases, revive, tickets, coins, $FOCUS */}
+            <div className="mt-6">
+              <StarsQuickBuySection styles={styles} />
+            </div>
+          </>
         ) : (
           <SkinsTabClaude
             handleBuySkin={handleBuySkin}

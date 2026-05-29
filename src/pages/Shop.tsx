@@ -1871,7 +1871,7 @@ const STARS_QUICK_BUY_PRODUCTS: Array<{
   { code: 'focus_100',          label: '100 $FOCUS',        description: 'Jetton credits (claim on-chain)', stars: 75,  emoji: '💎' },
 ];
 
-const StarsQuickBuySection = ({ styles }: { styles: any }) => {
+export const StarsQuickBuySection = ({ styles }: { styles: any }) => {
   const { t } = useTranslation();
   const [busy, setBusy] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
