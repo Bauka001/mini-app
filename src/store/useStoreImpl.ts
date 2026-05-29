@@ -288,7 +288,7 @@ export const useStore = create<UserState>()(
     (set, get) => ({
       language: detectInitialLanguage(),
       soundEnabled: true,
-      theme: 'claude',
+      theme: 'dark',
 
       brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS),
 
@@ -1500,7 +1500,7 @@ export const useStore = create<UserState>()(
         return {
           language: detectInitialLanguage(),
           soundEnabled: true,
-          theme: 'claude',
+          theme: 'dark',
           brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS, []),
           user: {
             id: 0,
@@ -1763,7 +1763,7 @@ export const useStore = create<UserState>()(
       // overridden, and only when the persisted state pre-dates v1.
       migrate: (persistedState: unknown, version: number) => {
         if (version < 1 && persistedState && typeof persistedState === 'object') {
-          return { ...(persistedState as object), theme: 'claude' };
+          return { ...(persistedState as object), theme: 'dark' };
         }
         return persistedState as object;
       },

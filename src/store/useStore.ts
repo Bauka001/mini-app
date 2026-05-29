@@ -454,7 +454,7 @@ const getInitialLanguage = (): Language => {
 export const initialState = {
   language: detectInitialLanguage(),
   soundEnabled: true,
-  theme: 'claude' as Theme,
+  theme: 'dark' as Theme,
   brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
   coins: 100,
   gems: 0,
