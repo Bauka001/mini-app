@@ -18,7 +18,6 @@ import {
   Trophy,
   Type,
   Route as RouteIcon,
-  Zap
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { clsx } from 'clsx';

@@ -1,8 +1,38 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { getTelegramUser, hasTelegramStartParam } from '../utils/telegram';
-import { isSupabaseConfigured } from '../utils/supabase';
+import { getTelegramUser, hapticFeedback, hasTelegramStartParam } from '../utils/telegram';
+import { detectInitialLanguage } from '../utils/detectLanguage';
 import { telegramStorage } from './storage';
+import {
+  type EventParticipant,
+  type MysteryBox,
+  type Notification,
+  type Ticket,
+  type TournamentState,
+  type UserState,
+  generateDailyChallenges,
+  generateGameId,
+  initialSocialTasks,
+  initialState,
+  initialUserRaw,
+} from './useStore';
+import { getUserByTelegramId, createUser, updateUser, subscribeToUserChanges, isSupabaseConfigured, DatabaseUser } from '../utils/supabase';
+import {
+  CanonicalUser,
+  getUserMe,
+  grantAdReward,
+  grantChallengeReward,
+  grantLevelReward,
+  grantSocialReward,
+  issueTicketRecord,
+  joinTournamentRecord,
+  openMysteryBoxOnServer,
+  purchaseSkin,
+  submitFeedbackEntry,
+  submitGameResult,
+  syncUserToServer,
+} from '../utils/adminApi';
+import { calculateBrainScoreMetrics } from '../utils/brainScore';
 import {
   DEFAULT_BRAIN_STATS,
   applyBrainStatProgress,
@@ -26,7 +56,6 @@ import {
   getWeekendEvent,
   loadUserFromSupabase,
   persistFeedbackEntry,
-  persistTicket,
   shouldShowFirstWorkoutNotification,
   subscribeToSupabaseChanges,
   syncUserToSupabase,
@@ -40,18 +69,6 @@ import { fetchSocialTasksApi, claimSocialTaskApi } from '../utils/api';
 import { fetchEntitlements as fetchEntitlementsApi, type EntitlementsResponse } from '../utils/entitlementApi';
 import { AvatarStorage } from '../utils/avatarStorage';
 import { getDefaultAvatarUrl, PROFILE_AVATARS } from '../constants/avatars';
-import {
-  type EventParticipant,
-  type MysteryBox,
-  type Notification,
-  type Ticket,
-  type UserState,
-  generateDailyChallenges,
-  generateGameId,
-  initialSocialTasks,
-  initialState,
-  initialUserRaw,
-} from './useStore';
 
 export { buildVipAnalyticsSnapshot, TELEGRAM_AVERAGE_BRAIN_PROFILE } from './analytics';
 
@@ -216,6 +233,37 @@ const buildCaseRewardAdminMessage = (state: UserState, reward: MysteryBox) => {
   return `[LEGENDARY CASE JACKPOT] ${userLabel} (ID: ${state.user.id}) won ${prizeName}. Drop chance: 1%.${ticketPart}`;
 };
 
+const persistTicket = async (
+  ticket: Ticket,
+  source: 'plan_upgrade' | 'ticket_purchase' | 'case_reward',
+  targetPlan?: 'silver' | 'gold' | 'premium'
+): Promise<{
+  ticketId: string;
+  ticketNumber: number;
+  plan: { plan: string; planExpiry: number | null } | null;
+} | null> => {
+  try {
+    const response = await issueTicketRecord({
+      userTelegramId: ticket.userId,
+      userName: ticket.userName,
+      eventName: ticket.eventName,
+      eventDate: ticket.eventDate,
+      price: ticket.price,
+      purchaseDate: ticket.purchaseDate,
+      source,
+      targetPlan,
+    });
+    return {
+      ticketId: response.ticketId,
+      ticketNumber: response.ticketNumber,
+      plan: response.plan ?? null,
+    };
+  } catch (error) {
+    console.error('[Admin API] Ticket sync error:', error);
+    return null;
+  }
+};
+
 const buildCaseRewardTicket = (state: UserState, reward: MysteryBox): Ticket | null => {
   if (reward.type !== 'raffle_ticket' || !reward.ticketNumber || !reward.eventName || !reward.eventDate) {
     return null;
@@ -238,9 +286,9 @@ const buildCaseRewardTicket = (state: UserState, reward: MysteryBox): Ticket | n
 export const useStore = create<UserState>()(
   persist(
     (set, get) => ({
-      language: initialState.language,
+      language: detectInitialLanguage(),
       soundEnabled: true,
-      theme: 'blue',
+      theme: 'claude',
 
       brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS),
 
@@ -353,6 +401,15 @@ export const useStore = create<UserState>()(
 
       dailyQuest: { ...DEFAULT_DAILY_QUEST },
       weeklyQuest: { ...DEFAULT_WEEKLY_QUEST },
+      energy: 100,
+      maxEnergy: 100,
+      lastEnergyRegenTime: Date.now(),
+      streakProtection: 0,
+      mysteryBoxAvailable: true,
+      mysteryBoxPrice: 500,
+      claimDailyReward: (amount) =>
+        set((state) => ({ coins: state.coins + (Number(amount) || 0) })),
+
       claimWeeklyChallengeReward: () => {
         const state = get();
         const challenge = state.weeklyChallenge;
@@ -426,23 +483,51 @@ export const useStore = create<UserState>()(
         const avatar = PROFILE_AVATARS.find(a => a.id === avatarId);
         if (!avatar) return false;
         if (!avatar.isPremium) return true;
-        
+
         const isPremium = state.plan === 'premium' || state.plan === 'pro' || state.plan === 'gold' || state.plan === 'silver';
         const isNotExpired = !state.planExpiry || Date.now() < state.planExpiry;
         return isPremium && isNotExpired;
       },
 
-      addGameResult: (result) => set((state) => {
+      addGameResult: (result) => {
+        // Sanitize input. Anyone can call addGameResult, so clamp the credit a single
+        // submission can grant. Real games award well under this cap.
+        const MAX_COINS_PER_SUBMISSION = 200;
+        const MIN_RESUBMIT_GAP_MS = 1500;
+        const rawCoins = Number(result?.coinsEarned);
+        const sanitizedCoins = Number.isFinite(rawCoins)
+          ? Math.max(0, Math.min(MAX_COINS_PER_SUBMISSION, Math.floor(rawCoins)))
+          : 0;
+        const rawScoreNum = Number(result?.score);
+        const sanitizedScore: string | number = Number.isFinite(rawScoreNum)
+          ? rawScoreNum
+          : typeof result?.score === 'string'
+            ? result.score
+            : 0;
+        const gameId = String(result?.gameId || '').slice(0, 64);
+        if (!gameId) return;
+
+        // Reject double-submits for the same gameId within the throttle window.
+        const preState = get();
+        const lastForGame = [...preState.history].reverse().find((entry) => entry.gameId === gameId);
+        if (lastForGame && Date.now() - (lastForGame.timestamp || 0) < MIN_RESUBMIT_GAP_MS) {
+          return;
+        }
+
+        const userIdForSubmit = preState.user.id;
+        const sanitizedResult = { ...result, gameId, score: sanitizedScore, coinsEarned: sanitizedCoins };
+
+        set((state) => {
         const now = new Date();
         const todayKey = toDateKey(now);
         const computedWeekendEvent = getWeekendEvent(now, state.user.id);
-        const appliedCoinsEarned = Math.round((result.coinsEarned || 0) * (computedWeekendEvent.multiplier || 1));
+        const appliedCoinsEarned = Math.round((sanitizedResult.coinsEarned || 0) * (computedWeekendEvent.multiplier || 1));
 
         const xpGained = appliedCoinsEarned;
         const newXp = state.user.xp + xpGained;
         const newLevel = Math.floor(newXp / 1000) + 1;
 
-        const newStats = applyBrainStatProgress(state.brainStats, result.gameId, 1);
+        const newStats = applyBrainStatProgress(state.brainStats, sanitizedResult.gameId, 1);
 
         const newUnclaimedRewards = [...(state.unclaimedLevelRewards || [])];
         if (newLevel > state.user.level) {
@@ -482,7 +567,7 @@ export const useStore = create<UserState>()(
           return ch;
         });
 
-        const finalDailyQuest = buildDailyQuestAfterGame(state.dailyQuest, result.gameId, todayKey);
+        const finalDailyQuest = buildDailyQuestAfterGame(state.dailyQuest, sanitizedResult.gameId, todayKey);
         const currentWeekKey = getWeekKeyMonday(now);
         const nextWeeklyChallenge = buildWeeklyChallengeAfterGame(
           state.weeklyChallenge,
@@ -498,18 +583,18 @@ export const useStore = create<UserState>()(
         const playedAt = new Date().toISOString();
         const playedAtTimestamp = Date.now();
         const nextHistoryEntry = {
-          ...result,
+          ...sanitizedResult,
           coinsEarned: appliedCoinsEarned,
           date: playedAt.split('T')[0],
           timestamp: playedAtTimestamp,
         };
         // Keep only the last 100 games to prevent localStorage overflow
         const updatedHistory = [...state.history, nextHistoryEntry].slice(-100);
-        const nextTournament = buildTournamentStateAfterGame(state.tournament, result, playedAt);
+        const nextTournament = buildTournamentStateAfterGame(state.tournament, sanitizedResult, playedAt);
 
         const shouldAddWorkoutNotification =
           Boolean(state.user.id) &&
-          shouldShowFirstWorkoutNotification(state.user.id, result.gameId, playedAtTimestamp);
+          shouldShowFirstWorkoutNotification(state.user.id, gameId, playedAtTimestamp);
 
         const onboardingNotification: Notification | null = shouldAddWorkoutNotification
           ? {
@@ -582,7 +667,125 @@ export const useStore = create<UserState>()(
         }
 
         return newState;
-      }),
+        });
+
+        // Server-side validation & authoritative coin/xp/level credit. The local
+        // state above is optimistic; reconcile it with the server's response so
+        // a tampered local state can't outpace the canonical balance.
+        if (isSupabaseConfigured && userIdForSubmit) {
+          void submitGameResult({
+            gameId,
+            score: sanitizedScore,
+            coinsEarned: sanitizedCoins,
+          })
+            .then((response) => {
+              if (response?.reason === 'rate_limited') {
+                // Server treated this as a duplicate; refund the optimistic credit.
+                set((state) => ({
+                  coins: Math.max(0, state.coins - sanitizedCoins),
+                  user: {
+                    ...state.user,
+                    xp: Math.max(0, state.user.xp - sanitizedCoins),
+                  },
+                }));
+                return;
+              }
+              if (typeof response?.coins === 'number') {
+                set((state) => ({
+                  coins: response.coins!,
+                  user: {
+                    ...state.user,
+                    xp: typeof response.xp === 'number' ? response.xp : state.user.xp,
+                    level: typeof response.level === 'number' ? response.level : state.user.level,
+                  },
+                }));
+              }
+            })
+            .catch((err) => {
+              console.error('[Game Submit] sync error:', err);
+            });
+        }
+      },
+
+      upgradePlan: (plan, days) => {
+        const state = get();
+        const currentPlan = state.plan;
+        const currentExpiry = state.planExpiry || Date.now();
+        const newExpiry =
+          plan !== currentPlan
+            ? Date.now() + days * 24 * 60 * 60 * 1000
+            : currentExpiry + days * 24 * 60 * 60 * 1000;
+
+        const localId = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        const eventName = plan === 'premium' ? 'VIP Tournament Access' : 'VIP Access Event';
+        const optimisticTicket: Ticket = {
+          id: localId,
+          ticketNumber: 0, // placeholder until server issues canonical number
+          eventName,
+          eventDate: new Date(newExpiry).toISOString(),
+          price: 0,
+          purchaseDate: new Date().toISOString(),
+          userId: state.user.id,
+          userName: state.user.firstName,
+          isUsed: false,
+        };
+
+        const optimisticParticipant: EventParticipant = {
+          ticketId: localId,
+          ticketNumber: 0,
+          userId: state.user.id,
+          userName: state.user.firstName,
+          userPhoto: state.user.photoUrl,
+          purchaseDate: optimisticTicket.purchaseDate,
+          isVerified: false,
+        };
+
+        const newState = {
+          plan,
+          planExpiry: newExpiry,
+          hp: state.maxHp,
+          tickets: [...state.tickets, optimisticTicket],
+          eventParticipants: [...state.eventParticipants, optimisticParticipant],
+        };
+
+        set(newState);
+
+        if (isSupabaseConfigured) {
+          syncUserToSupabase(newState, state.user.id);
+        }
+
+        // Reconcile with server-issued ticket id + number, and adopt the
+        // server-canonical plan/plan_expiry. The server is now the only writer
+        // for those fields — local optimistic values get overwritten here.
+        void persistTicket(optimisticTicket, 'plan_upgrade', plan).then((issued) => {
+          set((current) => {
+            if (!issued) {
+              // Server failed: drop the optimistic ticket and revert plan to what it was.
+              return {
+                plan: currentPlan,
+                planExpiry: state.planExpiry,
+                tickets: current.tickets.filter((t) => t.id !== localId),
+                eventParticipants: current.eventParticipants.filter((p) => p.ticketId !== localId),
+              };
+            }
+            const patch: any = {
+              tickets: current.tickets.map((t) =>
+                t.id === localId ? { ...t, id: issued.ticketId, ticketNumber: issued.ticketNumber } : t
+              ),
+              eventParticipants: current.eventParticipants.map((p) =>
+                p.ticketId === localId
+                  ? { ...p, ticketId: issued.ticketId, ticketNumber: issued.ticketNumber }
+                  : p
+              ),
+            };
+            if (issued.plan?.plan) {
+              patch.plan = issued.plan.plan;
+              patch.planExpiry = issued.plan.planExpiry ?? null;
+            }
+            return patch;
+          });
+        });
+      },
 
       fetchEntitlements: async () => {
         try {
@@ -615,18 +818,49 @@ export const useStore = create<UserState>()(
 
       buySkin: (skinId, cost) => {
         const { coins, skinInventory } = get();
-        if (coins >= cost && !skinInventory.includes(skinId)) {
-          const newState = {
-            coins: coins - cost,
-            skinInventory: [...skinInventory, skinId]
-          };
-          set(newState);
-          if (isSupabaseConfigured) {
-            syncUserToSupabase(newState, get().user.id);
-          }
-          return true;
+        // Local pre-check is just for UX (don't even attempt if obviously
+        // underfunded). The server is authoritative on price + balance.
+        if (coins < cost || skinInventory.includes(skinId)) {
+          return false;
         }
-        return false;
+
+        const optimisticCoins = coins - cost;
+        const optimisticInventory = [...skinInventory, skinId];
+        set({ coins: optimisticCoins, skinInventory: optimisticInventory });
+
+        // Server-validated purchase: server looks up the canonical price
+        // (client `cost` is ignored), checks balance against the DB row,
+        // and either commits or rejects. We reconcile the local state
+        // with whatever the server says.
+        if (isSupabaseConfigured) {
+          void purchaseSkin(skinId)
+            .then((response) => {
+              set({
+                coins: response.coins,
+                skinInventory: response.skinInventory,
+              });
+            })
+            .catch((err) => {
+              console.error('[Skins] purchase rejected:', err);
+              // Revert the optimistic update so the user sees the real state.
+              set((current) => ({
+                coins: current.coins + cost,
+                skinInventory: current.skinInventory.filter((s) => s !== skinId),
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Purchase rejected',
+                    message: err instanceof Error ? err.message : 'Skin purchase failed',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
+        }
+        return true;
       },
 
       equipSkin: (skinId) => {
@@ -725,7 +959,37 @@ export const useStore = create<UserState>()(
           return outcome;
         }
 
+        const previousTournament = state.tournament;
+        const previousTickets = state.tournamentTickets;
         set(outcome.statePatch);
+
+        // Server-side gate: VIP-tier check + once-per-week dedup happen in the
+        // backend with service-role auth. If the server rejects, revert the
+        // optimistic local join and surface the reason. Ticket-based entries
+        // are validated locally only (no server endpoint for ticket join).
+        if (isSupabaseConfigured && state.user.id && paymentMethod !== 'ticket') {
+          void joinTournamentRecord(paymentMethod as 'vip' | 'ton')
+            .catch((err) => {
+              console.error('[Tournaments] Join rejected by server:', err);
+              const message = err instanceof Error ? err.message : 'Tournament join rejected';
+              set((current) => ({
+                tournament: previousTournament,
+                tournamentTickets: previousTickets,
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Tournament join rejected',
+                    message,
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
+        }
+
         return { success: true, message: outcome.message };
       },
 
@@ -740,22 +1004,88 @@ export const useStore = create<UserState>()(
         }
       },
 
-      claimChallengeReward: (challengeId) => set((state) => {
+      claimChallengeReward: (challengeId) => {
+        const state = get();
         const challenge = state.challenges.find(c => c.id === challengeId);
-        if (!challenge || challenge.isClaimed || challenge.current < challenge.target) return state;
+        if (!challenge || challenge.isClaimed || challenge.current < challenge.target) return;
 
-        return {
-          coins: state.coins + challenge.reward,
-          challenges: state.challenges.map(c => c.id === challengeId ? { ...c, isClaimed: true } : c
-          )
-        };
-      }),
+        const localReward = challenge.reward;
+        // Optimistic UI: flip claimed state, credit coins. Server has final
+        // say — caps the reward at MAX_CHALLENGE_REWARD_COINS (200) and dedups
+        // per-day-per-challengeId. We reconcile on success / revert on
+        // rejection (most common: 409 already_claimed when the user spams
+        // the button or replays a previous day's id).
+        set({
+          coins: state.coins + localReward,
+          challenges: state.challenges.map(c =>
+            c.id === challengeId ? { ...c, isClaimed: true } : c
+          ),
+        });
 
-      watchAd: (reward) => set((state) => ({
-        coins: state.coins + reward
-      })),
+        if (isSupabaseConfigured) {
+          void grantChallengeReward(challengeId, localReward)
+            .then((response) => {
+              if (typeof response.coins === 'number') {
+                set({ coins: response.coins });
+              }
+            })
+            .catch((err) => {
+              console.error('[Rewards] challenge reward rejected:', err);
+              set((current) => ({
+                coins: Math.max(0, current.coins - localReward),
+                challenges: current.challenges.map(c =>
+                  c.id === challengeId ? { ...c, isClaimed: false } : c
+                ),
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Challenge reward declined',
+                    message: err instanceof Error ? err.message : 'Reward unavailable',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
+        }
+      },
 
-      claimDailyReward: (amount) => set((state) => ({ coins: state.coins + amount })),
+      watchAd: (reward) => {
+        // Optimistic local credit so the UI gives instant feedback. The server
+        // is authoritative on the actual amount and the daily cap (5/day,
+        // 10c each) — we reconcile from the response. The `reward` arg is now
+        // ignored on the wire; it stays in the signature for callers' UI use.
+        set((state) => ({ coins: state.coins + reward }));
+
+        if (isSupabaseConfigured) {
+          void grantAdReward()
+            .then((response) => {
+              if (typeof response.coins === 'number') {
+                set({ coins: response.coins });
+              }
+            })
+            .catch((err) => {
+              // Roll back optimistic credit and surface the reason. Common
+              // case: daily cap (HTTP 429) — we revert the visible amount.
+              set((current) => ({
+                coins: Math.max(0, current.coins - reward),
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Reward declined',
+                    message: err instanceof Error ? err.message : 'Ad reward unavailable',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
+        }
+      },
 
       fetchSocialTasks: async () => {
         try {
@@ -776,32 +1106,59 @@ export const useStore = create<UserState>()(
         const task = state.socialTasks.find(t => t.id === taskId);
         if (!task || task.isClaimed) return;
 
-        let rewardToGive = task.reward;
+        const localReward = task.reward;
+        // Optimistic local update so the UI flips to "claimed" instantly. The
+        // server is authoritative on the gem amount (it ignores task.reward
+        // and uses its own catalog) and on whether this task was already
+        // claimed by this user. We reconcile from the response.
+        set({
+          gems: (state.gems || 0) + localReward,
+          socialTasks: state.socialTasks.map(t =>
+            t.id === taskId ? { ...t, isClaimed: true } : t
+          ),
+        });
 
         try {
           if (isSupabaseConfigured) {
-            const { reward } = await claimSocialTaskApi(taskId);
-            rewardToGive = reward;
+            // Try new claim endpoint first (upstream payment-system flow),
+            // then fall back to legacy /rewards/social grant (HEAD flow).
+            try {
+              const { reward } = await claimSocialTaskApi(taskId);
+              set((current) => ({ gems: (current.gems || 0) - localReward + reward }));
+            } catch {
+              const response = await grantSocialReward(taskId);
+              if (typeof response.gems === 'number') {
+                set({ gems: response.gems });
+              }
+            }
+
+            if (state.user.id) {
+              syncUserToSupabase({ ...get() }, state.user.id);
+            }
           }
-          
-          const newState = {
-            gems: (get().gems || 0) + rewardToGive,
-            socialTasks: get().socialTasks.map(t => t.id === taskId ? { ...t, isClaimed: true } : t)
-          };
-          
-          set(newState);
-          
-          if (isSupabaseConfigured && state.user.id) {
-            syncUserToSupabase({ ...get(), ...newState }, state.user.id);
-          }
-        } catch (error) {
-          console.error('Failed to claim social task:', error);
-          // Fallback if API fails (e.g. database not configured properly)
-          const newState = {
-            gems: (get().gems || 0) + rewardToGive,
-            socialTasks: get().socialTasks.map(t => t.id === taskId ? { ...t, isClaimed: true } : t)
-          };
-          set(newState);
+        } catch (err) {
+          console.error('[Rewards] social reward rejected:', err);
+          // Revert: undo the optimistic gem credit and put the task back
+          // to unclaimed so the user can retry. 409 already_claimed will
+          // also revert here, which is correct: the server says they
+          // shouldn't have any pending state for this task.
+          set((current) => ({
+            gems: Math.max(0, (current.gems || 0) - localReward),
+            socialTasks: current.socialTasks.map(t =>
+              t.id === taskId ? { ...t, isClaimed: false } : t
+            ),
+            notifications: [
+              {
+                id: Math.random().toString(36).slice(2, 11),
+                title: 'Social reward declined',
+                message: err instanceof Error ? err.message : 'Reward unavailable',
+                date: new Date().toISOString(),
+                isRead: false,
+                type: 'error',
+              },
+              ...current.notifications,
+            ],
+          }));
         }
       },
 
@@ -830,14 +1187,45 @@ export const useStore = create<UserState>()(
         return false;
       },
       claimLevelReward: (level) => {
-        const newState = {
-          unclaimedLevelRewards: get().unclaimedLevelRewards.filter(l => l !== level),
-          coins: get().coins + 100,
-          gems: (get().gems || 0) + 5
-        };
-        set(newState);
+        const previous = get();
+        // Optimistic update: drop from unclaimed list and add the canonical
+        // 100c + 5g locally. Server validates user.level >= claimedLevel and
+        // dedups via coin_transactions metadata; on rejection we revert.
+        set({
+          unclaimedLevelRewards: previous.unclaimedLevelRewards.filter(l => l !== level),
+          coins: previous.coins + 100,
+          gems: (previous.gems || 0) + 5,
+        });
+
         if (isSupabaseConfigured) {
-          syncUserToSupabase(newState, get().user.id);
+          void grantLevelReward(level)
+            .then((response) => {
+              if (typeof response.coins === 'number' && typeof response.gems === 'number') {
+                set({ coins: response.coins, gems: response.gems });
+              }
+            })
+            .catch((err) => {
+              console.error('[Rewards] level reward rejected:', err);
+              // Revert: put the level back in unclaimed and undo the credit.
+              set((current) => ({
+                unclaimedLevelRewards: current.unclaimedLevelRewards.includes(level)
+                  ? current.unclaimedLevelRewards
+                  : [...current.unclaimedLevelRewards, level],
+                coins: Math.max(0, current.coins - 100),
+                gems: Math.max(0, (current.gems || 0) - 5),
+                notifications: [
+                  {
+                    id: Math.random().toString(36).slice(2, 11),
+                    title: 'Level reward declined',
+                    message: err instanceof Error ? err.message : 'Reward unavailable',
+                    date: new Date().toISOString(),
+                    isRead: false,
+                    type: 'error',
+                  },
+                  ...current.notifications,
+                ],
+              }));
+            });
         }
       },
       decrementHp: () => {
@@ -926,17 +1314,25 @@ export const useStore = create<UserState>()(
         return { brainStats: normalizeBrainStats(newStats, state.history) };
       }),
 
-      addNotification: (notification) => set((state) => ({
-        notifications: [
-          {
-            ...notification,
-            id: Math.random().toString(36).substr(2, 9),
-            date: new Date().toISOString(),
-            isRead: false
-          },
-          ...state.notifications
-        ]
-      })),
+      addNotification: (notification) => {
+        const t = notification.type;
+        if (t === 'success' || t === 'warning' || t === 'error') {
+          hapticFeedback.notification(t);
+        } else {
+          hapticFeedback.impact('light');
+        }
+        set((state) => ({
+          notifications: [
+            {
+              ...notification,
+              id: Math.random().toString(36).substr(2, 9),
+              date: new Date().toISOString(),
+              isRead: false,
+            },
+            ...state.notifications,
+          ],
+        }));
+      },
 
       markAllNotificationsRead: () => set((state) => ({
         notifications: state.notifications.map(n => ({ ...n, isRead: true }))
@@ -950,38 +1346,59 @@ export const useStore = create<UserState>()(
           return { success: false };
         }
 
-        const ticketNumber = Math.floor(Math.random() * 90000000) + 10000000;
-        const newTicket: Ticket = {
-          id: Date.now().toString(),
-          ticketNumber,
+        const localId = `pending_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        const optimisticTicket: Ticket = {
+          id: localId,
+          ticketNumber: 0,
           eventName,
           eventDate,
           price,
           purchaseDate: new Date().toISOString(),
           userId: state.user.id,
           userName: state.user.firstName,
-          isUsed: false
+          isUsed: false,
         };
 
-        const newParticipant: EventParticipant = {
-          ticketId: newTicket.id,
-          ticketNumber,
+        const optimisticParticipant: EventParticipant = {
+          ticketId: localId,
+          ticketNumber: 0,
           userId: state.user.id,
           userName: state.user.firstName,
           userPhoto: state.user.photoUrl,
-          purchaseDate: new Date().toISOString(),
-          isVerified: false
+          purchaseDate: optimisticTicket.purchaseDate,
+          isVerified: false,
         };
 
-        set((state) => ({
-          coins: state.coins - price,
-          tickets: [...state.tickets, newTicket],
-          eventParticipants: [...state.eventParticipants, newParticipant]
+        set((s) => ({
+          coins: s.coins - price,
+          tickets: [...s.tickets, optimisticTicket],
+          eventParticipants: [...s.eventParticipants, optimisticParticipant],
         }));
 
-        void persistTicket(newTicket, 'ticket_purchase');
+        void persistTicket(optimisticTicket, 'ticket_purchase').then((issued) => {
+          set((current) => {
+            if (!issued) {
+              // Refund and remove optimistic entries on server failure.
+              return {
+                coins: current.coins + price,
+                tickets: current.tickets.filter((t) => t.id !== localId),
+                eventParticipants: current.eventParticipants.filter((p) => p.ticketId !== localId),
+              };
+            }
+            return {
+              tickets: current.tickets.map((t) =>
+                t.id === localId ? { ...t, id: issued.ticketId, ticketNumber: issued.ticketNumber } : t
+              ),
+              eventParticipants: current.eventParticipants.map((p) =>
+                p.ticketId === localId
+                  ? { ...p, ticketId: issued.ticketId, ticketNumber: issued.ticketNumber }
+                  : p
+              ),
+            };
+          });
+        });
 
-        return { success: true, ticketNumber };
+        return { success: true };
       },
 
       verifyTicket: (ticketNumber) => {
@@ -1081,9 +1498,9 @@ export const useStore = create<UserState>()(
         }
 
         return {
-          language: initialState.language,
+          language: detectInitialLanguage(),
           soundEnabled: true,
-          theme: 'light',
+          theme: 'claude',
           brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS, []),
           user: {
             id: 0,
@@ -1236,10 +1653,60 @@ export const useStore = create<UserState>()(
         return outcome;
       },
 
-      openMysteryBox: () => {
-        const outcome = get().openCase('basic_case');
-        if (!outcome.success) return null;
-        return outcome.reward;
+      openMysteryBox: async () => {
+        const state = get();
+        if (!state.mysteryBoxAvailable || state.coins < state.mysteryBoxPrice) {
+          return null;
+        }
+
+        // Server is the only roller of the dice. The client never touches
+        // Math.random for this — closes the "re-roll until you like the
+        // result" exploit. Local state is updated from the server response,
+        // not predicted ahead of time.
+        if (!isSupabaseConfigured) {
+          // No backend in dev — keep something working but don't pretend.
+          console.warn('[MysteryBox] Supabase not configured; skipping open');
+          return null;
+        }
+
+        try {
+          const response = await openMysteryBoxOnServer();
+          set({
+            coins: response.coins,
+            gems: response.gems,
+            fecBalance: response.fecBalance,
+            inventory: response.inventory,
+            skinInventory: response.skinInventory,
+            mysteryBoxAvailable: false,
+          });
+
+          // Map server reward back to the existing client-facing MysteryBox
+          // type so the modal renders unchanged.
+          const reward = response.reward;
+          return {
+            id: Date.now().toString(),
+            type: reward.type,
+            amount: reward.amount,
+            ...(reward.type === 'skin' ? { skinId: reward.skinId } : {}),
+            ...(reward.type === 'booster' ? { boosterType: reward.boosterType } : {}),
+          } as any;
+        } catch (err) {
+          console.error('[MysteryBox] open rejected:', err);
+          set((current) => ({
+            notifications: [
+              {
+                id: Math.random().toString(36).slice(2, 11),
+                title: 'Mystery box unavailable',
+                message: err instanceof Error ? err.message : 'Try again later',
+                date: new Date().toISOString(),
+                isRead: false,
+                type: 'error',
+              },
+              ...current.notifications,
+            ],
+          }));
+          return null;
+        }
       },
 
       setMysteryBoxAvailable: (available) => set({ mysteryBoxAvailable: available }),
@@ -1290,6 +1757,16 @@ export const useStore = create<UserState>()(
     }),
     {
       name: `focus-app-v31-prod`,
+      version: 1,
+      // One-shot bump so existing users land on the new Claude theme on first
+      // load post-deploy. Preserve every other field — only `theme` is
+      // overridden, and only when the persisted state pre-dates v1.
+      migrate: (persistedState: unknown, version: number) => {
+        if (version < 1 && persistedState && typeof persistedState === 'object') {
+          return { ...(persistedState as object), theme: 'claude' };
+        }
+        return persistedState as object;
+      },
       storage: createJSONStorage(() => telegramStorage),
       merge: (persistedState, currentState) => {
         const persisted = persistedState as Partial<UserState> | undefined;

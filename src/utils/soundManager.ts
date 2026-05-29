@@ -6,8 +6,11 @@ class SoundManager {
 
   constructor() {
     try {
-      this.context = new (window.AudioContext || (window as any).webkitAudioContext)();
-    } catch (e) {
+      const Ctor =
+        window.AudioContext ||
+        (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (Ctor) this.context = new Ctor();
+    } catch {
       console.error("AudioContext not supported");
     }
   }

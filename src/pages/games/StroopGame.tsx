@@ -70,8 +70,8 @@ const StroopBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string, coins:
   const [isWrong, setIsWrong] = useState(false);
   const [gameOver, setGameOver] = useState(false);
   
-  const [finalScore, setFinalScore] = useState("");
-  const [finalCoins, setFinalCoins] = useState(0);
+  const [_finalScore, _setFinalScore] = useState("");
+  const [_finalCoins, _setFinalCoins] = useState(0);
   const skinClass = SKIN_STYLES[activeSkin] || SKIN_STYLES.default;
 
   const generateRound = () => {

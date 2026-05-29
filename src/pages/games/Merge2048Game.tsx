@@ -157,7 +157,7 @@ const Merge2048Game = () => {
     >
       {({ onEnd, isPaused }) => {
         
-        const handleColumnClick = async (colIndex: number, e: React.MouseEvent) => {
+        const handleColumnClick = async (colIndex: number, _e: React.MouseEvent) => {
           if (isDropping || gameOver || isPaused) return;
           
           let targetRow = -1;
@@ -193,7 +193,7 @@ const Merge2048Game = () => {
         };
       
         const processMerge = (currentGrid: (number | null)[][], r: number, c: number, currentCombo: number, endCallback: any) => {
-          let newGrid = [...currentGrid.map(row => [...row])];
+          const newGrid = [...currentGrid.map(row => [...row])];
           const val = newGrid[r][c];
       
           if (!val) {
@@ -457,8 +457,8 @@ const Merge2048Game = () => {
                 {Array(ROWS).fill(0).map((_, rowIndex) => {
                   const val = grid[rowIndex][colIndex];
                   const isMerged = mergedPositions.has(`${rowIndex}-${colIndex}`);
-                  const glowClass = getGlowEffect(val);
-                  const hasGlow = val >= 128;
+                  const glowClass = val !== null ? getGlowEffect(val) : '';
+                  const hasGlow = val !== null && val >= 128;
                   
                   return (
                     <div key={`${rowIndex}-${colIndex}`} className="w-full aspect-square relative flex items-center justify-center">

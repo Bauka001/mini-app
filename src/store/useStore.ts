@@ -1,7 +1,8 @@
 import { getTelegramUser, MOCK_USER } from '../utils/telegram';
+import { detectInitialLanguage } from '../utils/detectLanguage';
 
 export type Language = 'en' | 'ru' | 'kz';
-export type Theme = 'dark' | 'light' | 'blue';
+export type Theme = 'dark' | 'light' | 'gold' | 'blue' | 'claude';
 
 interface GameResult {
   gameId: string;
@@ -238,6 +239,7 @@ export interface UserState {
   tickets: Ticket[];
   eventParticipants: EventParticipant[];
   planExpiry: number | null;
+  subscriptionDay: number;
   claimedPlanRewardKeys: string[];
 
   promotionEndISO: string | null;
@@ -268,6 +270,7 @@ export interface UserState {
   updateUserProfile: (data: Partial<UserProfile>) => void;
   syncUserFromTelegram: () => void;
   addGameResult: (result: Omit<GameResult, 'date' | 'timestamp'>) => void;
+  upgradePlan: (plan: 'silver' | 'gold' | 'premium', days: number) => void;
   fetchEntitlements: () => Promise<void>;
   buySkin: (skinId: string, cost: number) => boolean;
   equipSkin: (skinId: string) => void;
@@ -336,7 +339,7 @@ export interface UserState {
   buyStreakProtection: () => boolean;
 
   openCase: (caseId: CaseId) => CaseOpenResult;
-  openMysteryBox: () => MysteryBox | null;
+  openMysteryBox: () => Promise<MysteryBox | null>;
   setMysteryBoxAvailable: (available: boolean) => void;
 
   updateWeeklyQuest: () => void;
@@ -449,9 +452,9 @@ const getInitialLanguage = (): Language => {
 };
 
 export const initialState = {
-  language: getInitialLanguage(),
+  language: detectInitialLanguage(),
   soundEnabled: true,
-  theme: 'blue' as Theme,
+  theme: 'claude' as Theme,
   brainStats: { focus: 20, memory: 20, logic: 20, speed: 20, flexibility: 20 },
   coins: 100,
   gems: 0,
@@ -486,7 +489,6 @@ export const initialState = {
   tickets: [],
   eventParticipants: [],
   promotionEndISO: '2026-07-15T08:00:00.000Z',
-  planExpiry: null,
   subscriptionDay: 0,
   claimedPlanRewardKeys: [],
   dailyQuest: {

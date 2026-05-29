@@ -1,35 +1,53 @@
-import { HashRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useMemo, useState, useCallback, Suspense } from 'react';
-import WebApp from '@twa-dev/sdk';
+import { HashRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import WebApp from '@twa-dev/sdk';
+import { useBackButton } from './telegram/buttons';
 import { Layout } from './components/Layout';
-import { AdminLayout } from './components/admin/AdminLayout';
 import { AuthGuard } from './components/AuthGuard';
 import { AnimatedRoutes } from './components/AnimatedRoutes';
+import { ConsentGate } from './components/ConsentGate';
+import { OfflineBanner } from './components/OfflineBanner';
 import OnboardingScreen1 from './components/onboarding/OnboardingScreen1';
 import OnboardingScreen2 from './components/onboarding/OnboardingScreen2';
 import OnboardingScreen3 from './components/onboarding/OnboardingScreen3';
 import { useStore } from './store/useStoreImpl';
-import Home from './pages/Home';
+import i18n from './i18n/i18n';
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
-const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
-const AdminUsers = lazyWithRetry(() => import('./pages/admin/AdminUsers').then(m => ({ default: m.AdminUsers })));
-const AdminChat = lazyWithRetry(() => import('./pages/admin/AdminChat').then(m => ({ default: m.AdminChat })));
-const AdminGames = lazyWithRetry(() => import('./pages/admin/AdminGames').then(m => ({ default: m.AdminGames })));
-const AdminSettings = lazyWithRetry(() => import('./pages/admin/AdminSettings'));
+// Admin bundle is split out — only loads when an admin actually navigates to /admin/*.
+const AdminLayout = lazy(() => import('./components/admin/AdminLayout').then((m) => ({ default: m.AdminLayout })));
+const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
+const AdminUsers = lazyWithRetry(() => import('./pages/admin/AdminUsers').then((m) => ({ default: m.AdminUsers })));
+const AdminGames = lazyWithRetry(() => import('./pages/admin/AdminGames').then((m) => ({ default: m.AdminGames })));
 const AdminTasks = lazyWithRetry(() => import('./pages/admin/AdminTasks'));
+const AdminSettings = lazyWithRetry(() => import('./pages/admin/AdminSettings'));
 const AdminPanel = lazyWithRetry(() => import('./pages/AdminPanel'));
 
-// Lazy loaded pages to reduce initial bundle size
+const AdminFallback = () => (
+  <div className="flex h-screen items-center justify-center text-sm text-gray-400">Loading admin…</div>
+);
+
+const RouteFallback = () => (
+  <div className="flex h-screen items-center justify-center text-sm text-gray-400">Loading…</div>
+);
+
+// Wallet/chart-heavy pages are lazy so @tonconnect/ui-react and recharts
+// don't ship in the initial bundle. Other primary pages stay eager so the
+// home flow has zero extra fetches.
 const ShopPage = lazyWithRetry(() => import('./pages/Shop'));
-const SettingsPage = lazyWithRetry(() => import('./pages/Settings'));
 const ProfilePage = lazyWithRetry(() => import('./pages/Profile'));
-const LeaderboardPage = lazyWithRetry(() => import('./pages/Leaderboard'));
-const DailyWorkoutPage = lazyWithRetry(() => import('./pages/DailyWorkout'));
 const AirdropPage = lazyWithRetry(() => import('./pages/Airdrop'));
-const TournamentsPage = lazyWithRetry(() => import('./pages/Tournaments'));
-const AnalyticsPage = lazyWithRetry(() => import('./pages/Analytics'));
+const TonConnectShell = lazy(() => import('./telegram/TonConnectShell'));
+
+import Home from './pages/Home';
+import SettingsPage from './pages/Settings';
+import LeaderboardPage from './pages/Leaderboard';
+import DailyWorkoutPage from './pages/DailyWorkout';
+import TournamentsPage from './pages/Tournaments';
+import AnalyticsPage from './pages/Analytics';
+import TermsPage from './pages/Terms';
+import PrivacyPage from './pages/Privacy';
 
 // Games
 const SchulteGame = lazyWithRetry(() => import('./pages/games/SchulteGame'));
@@ -68,7 +86,10 @@ type WorkoutOnboardingGame = {
 };
 
 const DAILY_WORKOUT_STORAGE_KEY = 'focus-daily-workout-v1';
-const ONBOARDING_STORAGE_PREFIX = 'focus-onboarding-v1';
+// v2: drops any state written by the broken redirect-loop builds —
+// hasStartedWorkout=true with screen still 1 would leave the user trapped
+// forever otherwise.
+const ONBOARDING_STORAGE_PREFIX = 'focus-onboarding-v2';
 
 const workoutOnboardingGames: WorkoutOnboardingGame[] = [
   { id: 'memory', routeId: 'memory', historyIds: ['memory'] },
@@ -154,8 +175,7 @@ const createInitialOnboardingProgress = (): OnboardingProgress => ({
 const getOnboardingStorageKey = (userId: number) => `${ONBOARDING_STORAGE_PREFIX}-${userId}`;
 
 let lastSyncTime = 0;
-const SYNC_THROTTLE_MS = 60000; // 1 minute throttle
-
+const SYNC_THROTTLE_MS = 60000;
 
 const readOnboardingProgress = (userId: number): OnboardingProgress | null => {
   if (typeof window === 'undefined') return null;
@@ -191,6 +211,8 @@ const writeOnboardingProgress = (userId: number, progress: OnboardingProgress) =
   localStorage.setItem(getOnboardingStorageKey(userId), JSON.stringify(progress));
 };
 
+const ROOT_ROUTES = new Set(['/', '/shop', '/tournaments']);
+
 function AppRoutes() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -198,6 +220,10 @@ function AppRoutes() {
   const history = useStore((state) => state.history as HistoryEntry[]);
   const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
   const [onboardingProgress, setOnboardingProgress] = useState<OnboardingProgress | null>(null);
+
+  const isRoot = ROOT_ROUTES.has(location.pathname);
+  const goBack = useCallback(() => navigate(-1), [navigate]);
+  useBackButton(isRoot ? null : goBack);
 
   const throttledSync = useCallback(() => {
     const now = Date.now();
@@ -235,7 +261,7 @@ function AppRoutes() {
       return;
     }
 
-    const nextProgress =
+    const nextProgress: OnboardingProgress =
       history.length === 0
         ? createInitialOnboardingProgress()
         : {
@@ -266,9 +292,20 @@ function AppRoutes() {
       return;
     }
 
-    if (location.pathname !== '/daily-workout' && !location.pathname.startsWith('/admin')) {
+    // Pin the user to /daily-workout while screen 1 is still asking them to
+    // start. Once they tap PLAY (`hasStartedWorkout` flips true), we hand off
+    // to the game route the handler navigated to — clamping back to
+    // /daily-workout here would otherwise cancel the navigation and look
+    // exactly like a "PLAY does nothing" reload.
+    const isGameRoute = location.pathname.startsWith('/game/');
+    const isAdminRoute = location.pathname.startsWith('/admin');
+    const isDailyWorkout = location.pathname === '/daily-workout';
+    const allowedDuringWorkout = onboardingProgress.hasStartedWorkout && isGameRoute;
+
+    if (!isDailyWorkout && !isAdminRoute && !allowedDuringWorkout) {
       navigate('/daily-workout', { replace: true });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, navigate, onboardingProgress, userId]);
 
   const firstWorkoutResult = useMemo(() => {
@@ -301,6 +338,7 @@ function AppRoutes() {
     }
 
     updateOnboardingProgress({ screen: 2 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firstWorkoutResult, onboardingProgress]);
 
   const handleOnboardingStart = () => {
@@ -355,45 +393,82 @@ function AppRoutes() {
 
   return (
     <>
-      <Suspense fallback={
-        <div className="flex h-screen w-full items-center justify-center bg-black/5">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-500 border-t-transparent" />
-        </div>
-      }>
-        <AnimatedRoutes>
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Home />} />
-              <Route path="leaderboard" element={<LeaderboardPage />} />
-              <Route path="shop" element={<ShopPage />} />
-              <Route path="airdrop" element={<AirdropPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-              <Route path="profile" element={<ProfilePage />} />
-              <Route path="tournaments" element={<TournamentsPage />} />
-            </Route>
+      <AnimatedRoutes>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Home />} />
+            <Route path="leaderboard" element={<LeaderboardPage />} />
+            <Route
+              path="shop"
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <TonConnectShell>
+                    <ShopPage />
+                  </TonConnectShell>
+                </Suspense>
+              }
+            />
+            <Route
+              path="airdrop"
+              element={
+                <Suspense fallback={<RouteFallback />}>
+                  <TonConnectShell>
+                    <AirdropPage />
+                  </TonConnectShell>
+                </Suspense>
+              }
+            />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
 
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/daily-workout" element={<DailyWorkoutPage />} />
+          <Route
+            path="/profile"
+            element={
+              <Suspense fallback={<RouteFallback />}>
+                <ProfilePage />
+              </Suspense>
+            }
+          />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/daily-workout" element={<DailyWorkoutPage />} />
+          <Route path="/tournaments" element={<TournamentsPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
 
-            <Route path="/game/schulte" element={<SchulteGame />} />
-            <Route path="/game/math" element={<MathGame />} />
-            <Route path="/game/stroop" element={<StroopGame />} />
-            <Route path="/game/memory" element={<MemoryGame />} />
-            <Route path="/game/odd-one" element={<OddOneOutGame />} />
-            <Route path="/game/pairs" element={<PairsGame />} />
-            <Route path="/game/2048" element={<Merge2048Game />} />
+          <Route path="/game/schulte" element={<Suspense fallback={<RouteFallback />}><SchulteGame /></Suspense>} />
+          <Route path="/game/math" element={<Suspense fallback={<RouteFallback />}><MathGame /></Suspense>} />
+          <Route path="/game/stroop" element={<Suspense fallback={<RouteFallback />}><StroopGame /></Suspense>} />
+          <Route path="/game/memory" element={<Suspense fallback={<RouteFallback />}><MemoryGame /></Suspense>} />
+          <Route path="/game/odd-one" element={<Suspense fallback={<RouteFallback />}><OddOneOutGame /></Suspense>} />
+          <Route path="/game/pairs" element={<Suspense fallback={<RouteFallback />}><PairsGame /></Suspense>} />
+          <Route path="/game/2048" element={<Suspense fallback={<RouteFallback />}><Merge2048Game /></Suspense>} />
 
-            <Route path="/admin" element={<AuthGuard adminOnly={true}><AdminLayout /></AuthGuard>}>
-              <Route index element={<AdminDashboard />} />
-              <Route path="users" element={<AdminUsers />} />
-              <Route path="games" element={<AdminGames />} />
-              <Route path="tasks" element={<AdminTasks />} />
-              <Route path="settings" element={<AdminSettings />} />
-              <Route path="tickets" element={<AdminPanel />} />
-            </Route>
-          </Routes>
-        </AnimatedRoutes>
-      </Suspense>
+          <Route
+            path="/admin"
+            element={
+              <AuthGuard adminOnly={true}>
+                <Suspense fallback={<AdminFallback />}>
+                  <AdminLayout />
+                </Suspense>
+              </AuthGuard>
+            }
+          >
+            <Route index element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
+            <Route path="users" element={<Suspense fallback={<AdminFallback />}><AdminUsers /></Suspense>} />
+            <Route path="games" element={<Suspense fallback={<AdminFallback />}><AdminGames /></Suspense>} />
+            <Route path="tasks" element={<Suspense fallback={<AdminFallback />}><AdminTasks /></Suspense>} />
+            <Route path="settings" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
+            <Route path="tickets" element={<Suspense fallback={<AdminFallback />}><AdminPanel /></Suspense>} />
+          </Route>
+
+          {/* Catch-all: if HashRouter restores a hash like /#/foo from a
+              previous session that points at a route we no longer ship,
+              the user would see Layout with an empty Outlet — looks
+              identical to a "blank screen" bug. Bouncing them to / keeps
+              the app self-rescuing. */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AnimatedRoutes>
 
       {canRenderOverlay && onboardingProgress?.screen === 1 && (
         <OnboardingScreen1
@@ -421,31 +496,25 @@ function AppRoutes() {
 }
 
 function App() {
+  const { t } = useTranslation();
   const syncUserFromTelegram = useStore((state) => state.syncUserFromTelegram);
   const fetchEntitlements = useStore((state) => state.fetchEntitlements);
   const addNotification = useStore((state) => state.addNotification);
   const userId = useStore((state) => state.user.id);
   const language = useStore((state) => state.language);
-  const { i18n } = useTranslation();
 
-  // Sync i18n language with store
+  // Sync the persisted store language into i18next on mount and on every change
+  // so a user's previously chosen language survives a refresh and overrides the
+  // first-launch Telegram detection.
   useEffect(() => {
     if (language && i18n.language !== language) {
       i18n.changeLanguage(language);
     }
-  }, [language, i18n]);
+  }, [language]);
 
-  // Sync user data immediately and handle account switching
+  // Sync user data immediately and handle account switching.
+  // Telegram lifecycle (ready/expand/theme) is owned by src/telegram/bootstrap.ts.
   useEffect(() => {
-    if (WebApp) {
-      try {
-        WebApp.ready();
-        WebApp.expand();
-      } catch (e) {
-        console.error('WebApp initialization error:', e);
-      }
-    }
-
     // Only wipe app-owned keys that store user state
     const APP_KEY_PREFIXES = ['focus-app-', 'focus-daily-', 'focus-onboarding-', 'welcome_shown_'];
     const clearAppStorage = () => {
@@ -478,19 +547,18 @@ function App() {
     };
 
     const isSwitched = checkAccount();
-    
+
     syncUserFromTelegram();
     fetchEntitlements();
 
     if (isSwitched) {
-      // Show native modal/toast to the user
       if (WebApp.isVersionAtLeast('6.2')) {
-        WebApp.showAlert(i18n.t('account_switched'));
+        WebApp.showAlert(t('account_switched'));
       } else {
-        alert(i18n.t('account_switched'));
+        alert(t('account_switched'));
       }
     }
-  }, [syncUserFromTelegram, userId, i18n]);
+  }, [syncUserFromTelegram, fetchEntitlements, userId, t]);
 
   // Sync HTML data-theme attribute with store
   const theme = useStore((state) => state.theme);
@@ -498,60 +566,45 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Periodic sync check
+  // Re-sync when the tab/app regains focus rather than polling every 2s.
   useEffect(() => {
-    const throttledSync = () => {
-      const now = Date.now();
-      if (now - lastSyncTime > SYNC_THROTTLE_MS) {
-        lastSyncTime = now;
+    const handleVisible = () => {
+      if (document.visibilityState === 'visible') {
         syncUserFromTelegram();
         fetchEntitlements();
       }
     };
-
-    // Sync every 3 minutes
-    const timer = setInterval(() => {
-      throttledSync();
-    }, 3 * 60 * 1000);
-
-    // Sync on app focus
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        throttledSync();
-      }
-    };
-    const handleFocus = () => throttledSync();
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleFocus);
-
+    document.addEventListener('visibilitychange', handleVisible);
+    window.addEventListener('focus', handleVisible);
     return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisible);
+      window.removeEventListener('focus', handleVisible);
     };
-  }, [syncUserFromTelegram]);
+  }, [syncUserFromTelegram, fetchEntitlements]);
 
   useEffect(() => {
     if (userId && typeof userId === 'number') {
       const key = `welcome_shown_${userId}`;
       if (!localStorage.getItem(key)) {
         addNotification({
-          title: i18n.t('welcome'),
-          message: i18n.t('profile_welcome_message'),
+          title: t('welcome_notification_title'),
+          message: t('welcome_notification_message'),
           type: 'success'
         });
         localStorage.setItem(key, '1');
       }
     }
-  }, [userId, addNotification, i18n]);
+  }, [userId, addNotification, t]);
 
   return (
-    <AuthGuard>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </AuthGuard>
+    <ConsentGate>
+      <AuthGuard>
+        <Router>
+          <OfflineBanner />
+          <AppRoutes />
+        </Router>
+      </AuthGuard>
+    </ConsentGate>
   );
 }
 

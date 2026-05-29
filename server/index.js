@@ -1,16 +1,107 @@
-require('dotenv').config({ path: '../.env' });
+// Local dev only: load .env from repo root or server/. On Render (and any
+// prod host) env vars come from the platform, not a sibling file.
+if (process.env.NODE_ENV !== 'production') {
+  const path = require('path');
+  try {
+    require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+    require('dotenv').config({ path: path.join(__dirname, '.env') });
+  } catch {}
+}
+
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const compression = require('compression');
+const rateLimit = require('express-rate-limit');
 const crypto = require('crypto');
 const https = require('https');
 const { createClient } = require('@supabase/supabase-js');
+const {
+  requireString,
+  optionalString,
+  requireInt,
+  optionalIsoDate,
+  optionalHttpUrl,
+  handleValidationError,
+} = require('./lib/validate');
+const { sendMessage, answerPreCheckoutQuery } = require('./lib/telegramApi');
+const {
+  PLAN_CATALOGUE,
+  parseInvoicePayload,
+  applyPaidPlanUpgrade,
+} = require('./lib/payments');
 
 const path = require('path');
 const app = express();
-app.use(cors());
+
+// Render terminates TLS at a proxy — trust one hop so req.ip and the
+// rate-limiter see the real client IP via X-Forwarded-For.
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+const parseOriginList = (value = '') =>
+  value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+const allowedOrigins = parseOriginList(process.env.ALLOWED_ORIGINS || '');
+const corsOptions = allowedOrigins.length
+  ? {
+      origin: (origin, callback) => {
+        // Allow same-origin / server-to-server requests with no Origin header
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        // Deny silently: don't throw — that turns into a 500 with a stack
+        // trace. Returning false makes cors omit the Allow-Origin header,
+        // which causes the browser to block the response cleanly.
+        return callback(null, false);
+      },
+    }
+  : undefined;
+
+// Request-id correlation: prefer an inbound x-request-id, fall back to
+// Vercel's per-invocation x-vercel-id, otherwise generate one. Echo it
+// back as a header so clients can quote it when reporting bugs, and
+// stash it on res.locals so the error handler can tag log lines.
+app.use((req, res, next) => {
+  const incoming = req.headers['x-request-id'] || req.headers['x-vercel-id'];
+  const requestId = typeof incoming === 'string' && incoming ? incoming : crypto.randomUUID();
+  res.locals.requestId = requestId;
+  res.setHeader('X-Request-Id', requestId);
+  next();
+});
+
+// JSON-only API: disable CSP (no HTML served) and let CORS handle origins.
+app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(compression());
+app.use(cors(corsOptions));
 app.use(express.json({ limit: '200kb' }));
 
-// Serve admin-v2 single-file browser panel
+// Per-route rate limits. Keys on req.ip (via trust proxy). standardHeaders
+// surfaces RateLimit-* headers so clients can back off.
+const makeLimiter = (max, windowMs = 60_000) =>
+  rateLimit({
+    windowMs,
+    max,
+    standardHeaders: 'draft-7',
+    legacyHeaders: false,
+    message: { error: 'Too many requests, please retry shortly' },
+  });
+
+const authLimiter = makeLimiter(30);
+const writeLimiter = makeLimiter(10);
+const adminLimiter = makeLimiter(60);
+
+// Server-side bot token. Used only by server/index.js; never reaches the
+// client bundle (Vite ignores process.env in API routes). Prefer the
+// process.env override when it's set on the host (Vercel/Render env tab).
+const BOT_TOKEN_FALLBACK = '8644772459:AAG6-McYxOWXVE4oKDxDr6DK9uFNReyeYsM';
+if (!process.env.BOT_TOKEN) {
+  process.env.BOT_TOKEN = BOT_TOKEN_FALLBACK;
+}
+
+// Serve admin-v2 single-file browser panel (upstream).
 // GET /admin           → admin.html
 // GET /admin.html      → admin.html (direct)
 const ADMIN_PANEL_HTML_PATH = path.resolve(__dirname, '..', 'public', 'admin.html');
@@ -24,6 +115,8 @@ app.get(['/admin', '/admin.html'], (req, res) => {
 
 const PORT = Number(process.env.PORT || 3001);
 const isProduction = process.env.NODE_ENV === 'production';
+const allowDevAuthBypass = !isProduction && process.env.ALLOW_DEV_AUTH_BYPASS === 'true';
+const INIT_DATA_MAX_AGE_SEC = Number(process.env.INIT_DATA_MAX_AGE_SEC || 300);
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
 const supabaseServiceRoleKey =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || '';
@@ -124,6 +217,15 @@ const mapTicketRow = (row) => ({
   verifiedAt: row.verified_at,
   verifiedBy: row.verified_by,
 });
+
+function safeEqualHex(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
+  try {
+    return crypto.timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
+  } catch {
+    return false;
+  }
+}
 
 const normalizePlanCode = (value = '') => {
   const normalized = `${value}`.trim().toLowerCase();
@@ -577,7 +679,22 @@ function validateTelegramInitData(initData, botToken) {
 
   const secretKey = crypto.createHmac('sha256', 'WebAppData').update(botToken).digest();
   const calculatedHash = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
-  const ok = calculatedHash === hash;
+  const ok = safeEqualHex(calculatedHash, hash);
+
+  if (!ok) {
+    return { ok: false, reason: 'hash_mismatch' };
+  }
+
+  // Replay-attack protection: require fresh auth_date within INIT_DATA_MAX_AGE_SEC
+  const authDateRaw = urlParams.get('auth_date');
+  const authDate = Number(authDateRaw);
+  if (!Number.isFinite(authDate) || authDate <= 0) {
+    return { ok: false, reason: 'missing_auth_date' };
+  }
+  const ageSec = Math.floor(Date.now() / 1000) - authDate;
+  if (ageSec > INIT_DATA_MAX_AGE_SEC || ageSec < -60) {
+    return { ok: false, reason: 'auth_date_expired' };
+  }
 
   let userId = null;
   try {
@@ -590,7 +707,7 @@ function validateTelegramInitData(initData, botToken) {
 
   const startParam = (urlParams.get('start_param') || '').trim().toLowerCase();
 
-  return { ok, userId, startParam, reason: ok ? null : 'hash_mismatch' };
+  return { ok: true, userId, startParam, reason: null };
 }
 
 function extractUserFromInitData(initData) {
@@ -607,14 +724,19 @@ function extractUserFromInitData(initData) {
 async function resolveIdentity(initData) {
   const botToken = process.env.BOT_TOKEN || '';
 
-  // Local development fallback for empty initData
-  if (!isProduction && !initData) {
+  // Local development bypass — explicit opt-in via ALLOW_DEV_AUTH_BYPASS=true.
+  // Never engages in production (isProduction guard) and never engages without explicit env opt-in.
+  if (allowDevAuthBypass && !initData) {
     const fallbackUserId = bootstrapAdminIds[0] || 0;
     return { ok: true, mode: 'dev', userId: fallbackUserId, startParam: '' };
   }
 
   if (!botToken) {
     if (isProduction) {
+      return { ok: false, reason: 'bot_token_missing' };
+    }
+
+    if (!allowDevAuthBypass) {
       return { ok: false, reason: 'bot_token_missing' };
     }
 
@@ -948,7 +1070,109 @@ async function getFeedbackById(feedbackId) {
   return feedbacks.find((item) => item.id === feedbackId) || null;
 }
 
-app.post('/auth/verify', async (req, res) => {
+// Telegram bot webhook. Telegram POSTs every update here when the webhook is
+// registered with `setWebhook`. Auth is by `secret_token` — Telegram sends it
+// in the X-Telegram-Bot-Api-Secret-Token header on every call. No initData,
+// no rate limiter (Telegram retries naturally and we don't want to drop
+// updates because of bursts). The handler is intentionally small: only the
+// payment flow lives here. Conversational bot logic belongs in a separate
+// process.
+app.post('/telegram/webhook', async (req, res) => {
+  const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+  const provided = req.headers['x-telegram-bot-api-secret-token'] || '';
+  if (!expectedSecret || provided !== expectedSecret) {
+    return res.status(401).json({ ok: false });
+  }
+
+  const update = req.body || {};
+
+  // Always 200 to Telegram so it doesn't queue retries while we work. Errors
+  // are logged here, not propagated, otherwise a transient failure can lock
+  // the webhook into a retry storm.
+  res.status(200).json({ ok: true });
+
+  try {
+    if (update.pre_checkout_query) {
+      const q = update.pre_checkout_query;
+      const parsed = parseInvoicePayload(q.invoice_payload);
+      if (!parsed) {
+        await answerPreCheckoutQuery(q.id, false, 'Invalid invoice');
+        return;
+      }
+      // Light sanity: paying user must match the user the invoice was issued for.
+      if (q.from?.id && q.from.id !== parsed.userId) {
+        await answerPreCheckoutQuery(q.id, false, 'Invoice user mismatch');
+        return;
+      }
+      await answerPreCheckoutQuery(q.id, true);
+      return;
+    }
+
+    const successful = update.message?.successful_payment;
+    if (successful) {
+      const fromId = update.message.from?.id;
+      const parsed = parseInvoicePayload(successful.invoice_payload);
+      if (!parsed || !fromId) {
+        console.warn('[telegram webhook] dropping successful_payment without valid payload');
+        return;
+      }
+
+      if (!supabase) {
+        console.error('[telegram webhook] supabase not configured — payment received but cannot apply');
+        return;
+      }
+
+      const result = await applyPaidPlanUpgrade({
+        supabase,
+        telegramId: parsed.userId,
+        plan: parsed.plan,
+        durationDays: parsed.durationDays,
+        totalAmount: successful.total_amount,
+        currency: successful.currency,
+        telegramPaymentChargeId: successful.telegram_payment_charge_id,
+        providerPaymentChargeId: successful.provider_payment_charge_id,
+        invoicePayload: successful.invoice_payload,
+      });
+
+      if (result.applied) {
+        const planTitle = PLAN_CATALOGUE[parsed.sku]?.title || 'Premium';
+        await sendMessage(
+          parsed.userId,
+          `Thanks for your purchase! ${planTitle} is now active. Open the Mini App to use your benefits.`
+        ).catch((err) => console.warn('[telegram webhook] sendMessage failed:', err.message));
+      }
+      return;
+    }
+
+    // /start (and any plain text message) — friendly English welcome with a
+    // link to launch the Mini App. Telegram recommends responding to /start.
+    const text = update.message?.text;
+    const chatId = update.message?.chat?.id;
+    if (typeof text === 'string' && chatId) {
+      const isStart = text.trim().split(/\s+/)[0] === '/start';
+      if (isStart) {
+        const miniAppUrl = process.env.MINI_APP_URL || 'https://focus-game-nine.vercel.app';
+        await sendMessage(
+          chatId,
+          [
+            'Welcome to Focus — a daily brain-training Mini App.',
+            '',
+            `Tap below to launch: ${miniAppUrl}`,
+          ].join('\n'),
+          {
+            reply_markup: {
+              inline_keyboard: [[{ text: 'Open Focus', web_app: { url: miniAppUrl } }]],
+            },
+          }
+        ).catch((err) => console.warn('[telegram webhook] /start sendMessage failed:', err.message));
+      }
+    }
+  } catch (err) {
+    console.error('[telegram webhook] handler error:', err);
+  }
+});
+
+app.post('/auth/verify', authLimiter, async (req, res) => {
   try {
     const identity = await resolveIdentity(req.body?.initData || '');
     const membership = await getAdminMembership(identity.userId || 0);
@@ -968,7 +1192,7 @@ app.post('/auth/verify', async (req, res) => {
   }
 });
 
-app.post('/admin/session', async (req, res) => {
+app.post('/admin/session', adminLimiter, async (req, res) => {
   try {
     const access = await resolveRequestAccess(req, res, { adminOnly: true });
 
@@ -989,7 +1213,7 @@ app.post('/admin/session', async (req, res) => {
   }
 });
 
-app.post('/feedback', async (req, res) => {
+app.post('/feedback', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1001,13 +1225,18 @@ app.post('/feedback', async (req, res) => {
       return;
     }
 
-    const text = `${req.body?.text || ''}`.trim();
-    const username = `${req.body?.username || ''}`.trim();
-    const userTelegramId = Number(req.body?.userTelegramId);
-    const imageUrl = `${req.body?.imageUrl || ''}`.trim() || null;
-
-    if (!text) {
-      return res.status(400).json({ error: 'Feedback text is required' });
+    let text;
+    let username;
+    let userTelegramId;
+    let imageUrl;
+    try {
+      text = requireString(req.body?.text, 'text', { min: 1, max: 5000 });
+      username = optionalString(req.body?.username, 'username', { max: 64 }) || '';
+      userTelegramId = requireInt(req.body?.userTelegramId, 'userTelegramId', { min: 1 });
+      imageUrl = optionalHttpUrl(req.body?.imageUrl, 'imageUrl');
+    } catch (error) {
+      if (handleValidationError(error, res)) return;
+      throw error;
     }
 
     if (userTelegramId !== access.identity.userId) {
@@ -1041,7 +1270,1316 @@ app.post('/feedback', async (req, res) => {
   }
 });
 
-app.post('/tickets/issue', async (req, res) => {
+const KNOWN_GAME_IDS = new Set([
+  'schulte',
+  'math',
+  'stroop',
+  'memory',
+  'odd_one_out',
+  'pairs',
+  'tetris',
+  '2048',
+  'agent_spot',
+  'agent_sequence',
+  'code_breaker',
+]);
+
+const GAME_SUBMIT_MAX_SCORE = 1_000_000;
+const GAME_SUBMIT_MAX_COINS = 200;
+const GAME_SUBMIT_MIN_GAP_MS = 1500;
+
+const USER_READ_COLUMNS =
+  'telegram_id, first_name, last_name, username, photo_url, coins, gems, xp, level, plan, plan_expiry, hp, max_hp, fec_balance, brain_stats, skin_inventory, active_skin, inventory, daily_goal_minutes, streak, daily_reward_streak, last_daily_reward_date, promotion_end_iso, daily_quest, is_blocked, blocked_at, block_reason, created_at, updated_at';
+
+const PREMIUM_PLANS = new Set(['silver', 'gold', 'premium']);
+const VIP_TOURNAMENT_PLAN = 'premium';
+
+const isPlanActive = (row) => {
+  if (!row || !PREMIUM_PLANS.has(row.plan)) return false;
+  if (row.plan_expiry === null || row.plan_expiry === undefined) return true;
+  const expiryMs = Number(row.plan_expiry);
+  if (!Number.isFinite(expiryMs) || expiryMs <= 0) return true;
+  return expiryMs > Date.now();
+};
+
+// Mirrors the client's tournament week-keying.
+const getServerTournamentWeek = (now = new Date()) => {
+  const d = new Date(now);
+  const day = d.getUTCDay(); // 0=Sun .. 6=Sat
+  const monday = new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((day + 6) % 7))
+  );
+  return monday.toISOString().slice(0, 10);
+};
+
+app.post('/users/me', authLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const { data, error } = await supabase
+      .from('users')
+      .select(USER_READ_COLUMNS)
+      .eq('telegram_id', userTelegramId)
+      .maybeSingle();
+
+    if (error && !isMissingTableError(error)) {
+      throw error;
+    }
+
+    if (!data) {
+      return res.json({ ok: true, user: null });
+    }
+
+    if (data.is_blocked) {
+      return res.status(403).json({
+        error: 'User is blocked',
+        reason: data.block_reason || null,
+      });
+    }
+
+    return res.json({
+      ok: true,
+      user: {
+        telegramId: data.telegram_id,
+        firstName: data.first_name,
+        lastName: data.last_name,
+        username: data.username,
+        photoUrl: data.photo_url,
+        coins: Number(data.coins) || 0,
+        gems: Number(data.gems) || 0,
+        xp: Number(data.xp) || 0,
+        level: Number(data.level) || 1,
+        plan: data.plan,
+        planExpiry: data.plan_expiry,
+        planActive: isPlanActive(data),
+        hp: data.hp,
+        maxHp: data.max_hp,
+        fecBalance: data.fec_balance,
+        brainStats: data.brain_stats,
+        skinInventory: data.skin_inventory,
+        activeSkin: data.active_skin,
+        inventory: data.inventory,
+        dailyGoalMinutes: data.daily_goal_minutes,
+        streak: data.streak,
+        dailyRewardStreak: data.daily_reward_streak,
+        lastDailyRewardDate: data.last_daily_reward_date,
+        promotionEndISO: data.promotion_end_iso,
+        dailyQuest: data.daily_quest,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'users_me_error',
+    });
+  }
+});
+
+// Always-server-controlled columns. The client cannot write these even if it
+// sends them — they're set elsewhere (/tickets/issue for plan, /admin/* for
+// blocking). Coins/xp/level are also server-controlled by /games/submit but
+// other client paths (skin purchases, daily rewards, ad rewards) legitimately
+// adjust them, so we let those through with a per-sync delta cap below.
+const USER_SYNC_FORBIDDEN_COLUMNS = new Set([
+  'plan',
+  'plan_expiry',
+  'is_blocked',
+  'blocked_at',
+  'blocked_by',
+  'block_reason',
+  'created_at',
+  'telegram_id',
+  'id',
+]);
+
+const USER_SYNC_ALLOWED_COLUMNS = new Set([
+  'first_name',
+  'last_name',
+  'username',
+  'photo_url',
+  'coins',
+  'gems',
+  'xp',
+  'level',
+  'brain_stats',
+  'skin_inventory',
+  'active_skin',
+  'hp',
+  'max_hp',
+  'fec_balance',
+  'inventory',
+  'daily_goal_minutes',
+  'streak',
+  'daily_reward_streak',
+  'last_daily_reward_date',
+  'promotion_end_iso',
+  'daily_quest',
+  'weekly_quest',
+  'energy',
+  'max_energy',
+  'last_energy_regen_time',
+  'streak_protection',
+  'mystery_box_available',
+  'mystery_box_price',
+]);
+
+// Per-sync delta caps for monetary fields. The client legitimately adjusts
+// these for skin purchases, daily rewards, ad views, etc., but a single sync
+// shouldn't grow them by orders of magnitude. We compare against the current
+// DB value and clamp to the existing value if the delta is implausible —
+// keeping legitimate gameplay flowing while neutering the obvious "set
+// coins=999999" attack.
+const SYNC_DELTA_CAPS = {
+  coins: 5_000,
+  gems: 500,
+  xp: 5_000,
+  level: 5,
+};
+
+app.post('/users/sync', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const incoming = req.body?.user || {};
+
+    // Filter to allow-listed columns and explicitly drop forbidden ones.
+    const writableUpdate = {};
+    for (const [key, value] of Object.entries(incoming)) {
+      if (USER_SYNC_FORBIDDEN_COLUMNS.has(key)) continue;
+      if (USER_SYNC_ALLOWED_COLUMNS.has(key)) {
+        writableUpdate[key] = value;
+      }
+    }
+
+    if (Object.keys(writableUpdate).length === 0) {
+      return res.json({ ok: true, written: 0 });
+    }
+
+    // Sanity-check monetary deltas against the current DB row.
+    const monetaryFields = Object.keys(SYNC_DELTA_CAPS).filter((f) => f in writableUpdate);
+    const clampedFields = [];
+    if (monetaryFields.length > 0) {
+      const { data: currentRow, error: currentError } = await supabase
+        .from('users')
+        .select('coins, gems, xp, level')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (currentError && !isMissingTableError(currentError)) {
+        throw currentError;
+      }
+
+      if (currentRow) {
+        for (const field of monetaryFields) {
+          const proposed = Number(writableUpdate[field]);
+          const current = Number(currentRow[field]) || 0;
+          if (!Number.isFinite(proposed)) {
+            delete writableUpdate[field];
+            clampedFields.push(field);
+            continue;
+          }
+          const delta = proposed - current;
+          if (delta > SYNC_DELTA_CAPS[field]) {
+            console.warn(
+              `[Users Sync] Implausible ${field} delta from user ${userTelegramId}:`,
+              { current, proposed, delta }
+            );
+            // Clamp: keep DB value, ignore client's claim.
+            delete writableUpdate[field];
+            clampedFields.push(field);
+          }
+        }
+      }
+    }
+
+    writableUpdate.updated_at = new Date().toISOString();
+
+    // Upsert keyed on telegram_id so the first sync after sign-in creates the
+    // row. The created row only has the allow-listed columns and DB defaults
+    // (plan='free', coins=100) — the user can never bootstrap into premium
+    // via this endpoint.
+    const upsertPayload = { ...writableUpdate, telegram_id: userTelegramId };
+    const { error: upsertError } = await supabase
+      .from('users')
+      .upsert(upsertPayload, { onConflict: 'telegram_id' });
+
+    if (upsertError && !isMissingTableError(upsertError)) {
+      throw upsertError;
+    }
+
+    return res.json({
+      ok: true,
+      written: Object.keys(writableUpdate).length,
+      ignoredKeys: Object.keys(incoming).filter(
+        (k) => !USER_SYNC_ALLOWED_COLUMNS.has(k) || USER_SYNC_FORBIDDEN_COLUMNS.has(k)
+      ),
+      clampedFields,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'users_sync_error',
+    });
+  }
+});
+
+// Per-day cap on ad rewards (server is the only source of truth).
+// Closes the "watchAd(99999999)" exploit — the client used to pass the
+// reward amount, the server now hard-codes it and limits the count.
+const AD_REWARD_COINS = 10;
+const AD_REWARDS_PER_DAY = 5;
+
+// Server-canonical level-up reward formula. Matches what the client used
+// to grant locally, but now the server is the only path that mutates these
+// fields and dedups against coin_transactions metadata.
+const LEVEL_REWARD_COINS = 100;
+const LEVEL_REWARD_GEMS = 5;
+const MAX_CLAIMABLE_LEVEL = 1_000;
+
+// Server-canonical social-task catalog. The client sends only the taskId;
+// the server looks up the gem reward and dedups against coin_transactions.
+// Adding/removing a task here is the only way to change the user-facing
+// reward — no client state can override it.
+const SOCIAL_TASK_CATALOG = {
+  yt_founding: { gems: 10 },
+  tg_founding: { gems: 10 },
+};
+
+// Daily challenges are generated client-side by generateDailyChallenges() so
+// the server has no fixed catalog. We accept the client's challengeId as a
+// dedup key but hard-cap the per-claim reward and only allow one claim per
+// challengeId per UTC day per user.
+const MAX_CHALLENGE_REWARD_COINS = 200;
+
+app.post('/rewards/grant', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const reason = `${req.body?.reason || ''}`;
+
+    if (reason === 'ad') {
+      // Daily-cap check against the audit ledger.
+      const dayStart = new Date();
+      dayStart.setUTCHours(0, 0, 0, 0);
+      const { count, error: countError } = await supabase
+        .from('coin_transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_telegram_id', userTelegramId)
+        .eq('reason', 'ad_reward')
+        .gte('created_at', dayStart.toISOString());
+
+      if (countError && !isMissingTableError(countError)) {
+        throw countError;
+      }
+      if ((count ?? 0) >= AD_REWARDS_PER_DAY) {
+        return res.status(429).json({
+          error: 'Daily ad-reward limit reached',
+          reason: 'daily_cap',
+          limit: AD_REWARDS_PER_DAY,
+        });
+      }
+
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('coins, is_blocked')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
+      if (!userRow) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (userRow.is_blocked) {
+        return res.status(403).json({ error: 'User is blocked' });
+      }
+
+      const newCoins = (Number(userRow.coins) || 0) + AD_REWARD_COINS;
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ coins: newCoins, updated_at: new Date().toISOString() })
+        .eq('telegram_id', userTelegramId);
+      if (updateError) {
+        throw updateError;
+      }
+
+      const { error: txError } = await supabase.from('coin_transactions').insert({
+        user_telegram_id: userTelegramId,
+        currency: 'coins',
+        amount: AD_REWARD_COINS,
+        direction: 'credit',
+        reason: 'ad_reward',
+      });
+      if (txError && !isMissingTableError(txError)) {
+        console.error('[Rewards] ad transaction log failed:', txError);
+      }
+
+      return res.json({
+        ok: true,
+        reason: 'ad',
+        granted: { coins: AD_REWARD_COINS, gems: 0 },
+        coins: newCoins,
+        remainingToday: Math.max(0, AD_REWARDS_PER_DAY - ((count ?? 0) + 1)),
+      });
+    }
+
+    if (reason === 'social') {
+      const taskId = `${req.body?.taskId || ''}`.trim().slice(0, 64);
+      if (!Object.prototype.hasOwnProperty.call(SOCIAL_TASK_CATALOG, taskId)) {
+        return res.status(400).json({ error: 'Unknown social task' });
+      }
+      const gemsAward = SOCIAL_TASK_CATALOG[taskId].gems;
+
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('gems, is_blocked')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
+      if (!userRow) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (userRow.is_blocked) {
+        return res.status(403).json({ error: 'User is blocked' });
+      }
+
+      // Dedup: one claim per task per user, ever.
+      const { data: existing, error: existingError } = await supabase
+        .from('coin_transactions')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('reason', 'social_reward')
+        .contains('metadata', { taskId })
+        .maybeSingle();
+
+      if (existingError && !isMissingTableError(existingError)) {
+        throw existingError;
+      }
+      if (existing) {
+        return res.status(409).json({
+          error: 'Social task already claimed',
+          reason: 'already_claimed',
+          taskId,
+        });
+      }
+
+      const newGems = (Number(userRow.gems) || 0) + gemsAward;
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ gems: newGems, updated_at: new Date().toISOString() })
+        .eq('telegram_id', userTelegramId);
+      if (updateError) {
+        throw updateError;
+      }
+
+      const { error: txError } = await supabase.from('coin_transactions').insert({
+        user_telegram_id: userTelegramId,
+        currency: 'gems',
+        amount: gemsAward,
+        direction: 'credit',
+        reason: 'social_reward',
+        metadata: { taskId },
+      });
+      if (txError && !isMissingTableError(txError)) {
+        console.error('[Rewards] social transaction log failed:', txError);
+      }
+
+      return res.json({
+        ok: true,
+        reason: 'social',
+        taskId,
+        granted: { coins: 0, gems: gemsAward },
+        gems: newGems,
+      });
+    }
+
+    if (reason === 'challenge') {
+      const challengeId = `${req.body?.challengeId || ''}`.trim().slice(0, 64);
+      if (!challengeId) {
+        return res.status(400).json({ error: 'Invalid challengeId' });
+      }
+
+      const requested = Number(req.body?.amount);
+      const safeAmount = Number.isFinite(requested)
+        ? Math.max(0, Math.min(MAX_CHALLENGE_REWARD_COINS, Math.floor(requested)))
+        : 0;
+      if (safeAmount === 0) {
+        return res.status(400).json({ error: 'Invalid challenge amount' });
+      }
+
+      const todayKey = new Date().toISOString().split('T')[0];
+
+      // One claim per challengeId per UTC day per user.
+      const { data: existing, error: existingError } = await supabase
+        .from('coin_transactions')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('reason', 'challenge_reward')
+        .contains('metadata', { challengeId, date: todayKey })
+        .maybeSingle();
+
+      if (existingError && !isMissingTableError(existingError)) {
+        throw existingError;
+      }
+      if (existing) {
+        return res.status(409).json({
+          error: 'Challenge already claimed today',
+          reason: 'already_claimed',
+          challengeId,
+        });
+      }
+
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('coins, is_blocked')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
+      if (!userRow) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (userRow.is_blocked) {
+        return res.status(403).json({ error: 'User is blocked' });
+      }
+
+      const newCoins = (Number(userRow.coins) || 0) + safeAmount;
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ coins: newCoins, updated_at: new Date().toISOString() })
+        .eq('telegram_id', userTelegramId);
+      if (updateError) {
+        throw updateError;
+      }
+
+      const { error: txError } = await supabase.from('coin_transactions').insert({
+        user_telegram_id: userTelegramId,
+        currency: 'coins',
+        amount: safeAmount,
+        direction: 'credit',
+        reason: 'challenge_reward',
+        metadata: { challengeId, date: todayKey, requested },
+      });
+      if (txError && !isMissingTableError(txError)) {
+        console.error('[Rewards] challenge transaction log failed:', txError);
+      }
+
+      return res.json({
+        ok: true,
+        reason: 'challenge',
+        challengeId,
+        granted: { coins: safeAmount, gems: 0 },
+        coins: newCoins,
+        clamped: safeAmount < (Number.isFinite(requested) ? requested : 0),
+      });
+    }
+
+    if (reason === 'level') {
+      const claimedLevel = Number(req.body?.level);
+      if (!Number.isInteger(claimedLevel) || claimedLevel < 1 || claimedLevel > MAX_CLAIMABLE_LEVEL) {
+        return res.status(400).json({ error: 'Invalid level' });
+      }
+
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('coins, gems, level, is_blocked')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
+      if (!userRow) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      if (userRow.is_blocked) {
+        return res.status(403).json({ error: 'User is blocked' });
+      }
+      if ((Number(userRow.level) || 1) < claimedLevel) {
+        return res.status(403).json({
+          error: 'Level not yet reached',
+          reason: 'insufficient_level',
+          actualLevel: Number(userRow.level) || 1,
+          claimedLevel,
+        });
+      }
+
+      // Dedup via coin_transactions metadata. The .contains query matches
+      // any row whose metadata jsonb has both keys we set on insert.
+      const { data: existing, error: existingError } = await supabase
+        .from('coin_transactions')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('reason', 'level_reward')
+        .contains('metadata', { level: claimedLevel })
+        .maybeSingle();
+
+      if (existingError && !isMissingTableError(existingError)) {
+        throw existingError;
+      }
+      if (existing) {
+        return res.status(409).json({
+          error: 'Level reward already claimed',
+          reason: 'already_claimed',
+          level: claimedLevel,
+        });
+      }
+
+      const newCoins = (Number(userRow.coins) || 0) + LEVEL_REWARD_COINS;
+      const newGems = (Number(userRow.gems) || 0) + LEVEL_REWARD_GEMS;
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          coins: newCoins,
+          gems: newGems,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('telegram_id', userTelegramId);
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Two ledger rows so per-currency reporting is straightforward.
+      await supabase.from('coin_transactions').insert([
+        {
+          user_telegram_id: userTelegramId,
+          currency: 'coins',
+          amount: LEVEL_REWARD_COINS,
+          direction: 'credit',
+          reason: 'level_reward',
+          metadata: { level: claimedLevel },
+        },
+        {
+          user_telegram_id: userTelegramId,
+          currency: 'gems',
+          amount: LEVEL_REWARD_GEMS,
+          direction: 'credit',
+          reason: 'level_reward',
+          metadata: { level: claimedLevel },
+        },
+      ]);
+
+      return res.json({
+        ok: true,
+        reason: 'level',
+        level: claimedLevel,
+        granted: { coins: LEVEL_REWARD_COINS, gems: LEVEL_REWARD_GEMS },
+        coins: newCoins,
+        gems: newGems,
+      });
+    }
+
+    return res.status(400).json({ error: 'Unknown reward reason' });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'rewards_grant_error',
+    });
+  }
+});
+
+// Server-canonical skin catalog. The client sends only the skinId; the
+// server looks up the price. Closes the "pass cost: 0" attack and the
+// "buy a skin via tampered local coins" attack — balance is checked
+// against the DB row, not against client state.
+const SKIN_CATALOG = {
+  neon_blue: { coins: 100 },
+  royal_purple: { coins: 250 },
+  matrix: { coins: 500 },
+};
+
+// Mystery-box reward distribution. Mirrors the previous client-side odds
+// but is now rolled server-side so the user can't re-roll until they like
+// the result. Cumulative thresholds are checked top-down.
+const MYSTERY_BOX_MIN_PRICE = 100;
+const MYSTERY_BOX_MAX_PRICE = 5000;
+
+function rollMysteryBox() {
+  const r = Math.random();
+  if (r > 0.9) {
+    return { type: 'skin', skinId: 'neon_blue', amount: 1 };
+  }
+  if (r > 0.75) {
+    return { type: 'crystals', amount: Math.floor(Math.random() * 10) + 5 }; // 5..14 gems
+  }
+  if (r > 0.6) {
+    return { type: 'booster', boosterType: 'hints', amount: 3 };
+  }
+  if (r > 0.4) {
+    return { type: 'fec', amount: Number((Math.random() * 1.5 + 0.5).toFixed(2)) }; // 0.5..2.0
+  }
+  return { type: 'coins', amount: Math.floor(Math.random() * 200) + 100 }; // 100..299
+}
+
+app.post('/mystery-box/open', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+
+    const { data: userRow, error: userError } = await supabase
+      .from('users')
+      .select('coins, gems, fec_balance, inventory, skin_inventory, mystery_box_available, mystery_box_price, is_blocked')
+      .eq('telegram_id', userTelegramId)
+      .maybeSingle();
+
+    if (userError && !isMissingTableError(userError)) {
+      throw userError;
+    }
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (userRow.is_blocked) {
+      return res.status(403).json({ error: 'User is blocked' });
+    }
+    if (!userRow.mystery_box_available) {
+      return res.status(409).json({ error: 'Mystery box not available', reason: 'not_available' });
+    }
+
+    const price = Math.max(
+      MYSTERY_BOX_MIN_PRICE,
+      Math.min(MYSTERY_BOX_MAX_PRICE, Number(userRow.mystery_box_price) || 500)
+    );
+    const currentCoins = Number(userRow.coins) || 0;
+    if (currentCoins < price) {
+      return res.status(402).json({
+        error: 'Insufficient coins',
+        reason: 'insufficient_coins',
+        required: price,
+        balance: currentCoins,
+      });
+    }
+
+    const reward = rollMysteryBox();
+
+    // Build the update payload based on reward type. Coins always decrement
+    // by the price; the reward is applied on top.
+    const updates = {
+      coins: currentCoins - price,
+      mystery_box_available: false,
+      updated_at: new Date().toISOString(),
+    };
+    if (reward.type === 'crystals') {
+      updates.gems = (Number(userRow.gems) || 0) + reward.amount;
+    } else if (reward.type === 'fec') {
+      updates.fec_balance = Number(((Number(userRow.fec_balance) || 0) + reward.amount).toFixed(2));
+    } else if (reward.type === 'coins') {
+      updates.coins = currentCoins - price + reward.amount;
+    } else if (reward.type === 'booster') {
+      const inventory = (userRow.inventory && typeof userRow.inventory === 'object') ? userRow.inventory : {};
+      updates.inventory = {
+        ...inventory,
+        hints: (Number(inventory.hints) || 0) + reward.amount,
+      };
+    } else if (reward.type === 'skin') {
+      const skins = Array.isArray(userRow.skin_inventory) ? userRow.skin_inventory : [];
+      if (!skins.includes(reward.skinId)) {
+        updates.skin_inventory = [...skins, reward.skinId];
+      }
+    }
+
+    // Race-protected commit: only proceed if mystery_box_available is still
+    // true. If a parallel request already consumed the box, we get 0 rows
+    // and report 409 instead of double-applying.
+    const { data: updatedRow, error: updateError } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('telegram_id', userTelegramId)
+      .eq('mystery_box_available', true)
+      .select('coins, gems, fec_balance, inventory, skin_inventory, mystery_box_available')
+      .maybeSingle();
+
+    if (updateError && !isMissingTableError(updateError)) {
+      throw updateError;
+    }
+    if (!updatedRow) {
+      return res.status(409).json({ error: 'Mystery box already opened', reason: 'already_opened' });
+    }
+
+    // Audit. Keep the price separate from the reward so the ledger is
+    // straightforward to reconcile.
+    const txRows = [
+      {
+        user_telegram_id: userTelegramId,
+        currency: 'coins',
+        amount: price,
+        direction: 'debit',
+        reason: 'mystery_box_open',
+        metadata: { rewardType: reward.type },
+      },
+    ];
+    if (reward.type === 'coins') {
+      txRows.push({
+        user_telegram_id: userTelegramId,
+        currency: 'coins',
+        amount: reward.amount,
+        direction: 'credit',
+        reason: 'mystery_box_reward',
+        metadata: { rewardType: reward.type },
+      });
+    } else if (reward.type === 'crystals') {
+      txRows.push({
+        user_telegram_id: userTelegramId,
+        currency: 'gems',
+        amount: reward.amount,
+        direction: 'credit',
+        reason: 'mystery_box_reward',
+        metadata: { rewardType: reward.type },
+      });
+    }
+    const { error: txError } = await supabase.from('coin_transactions').insert(txRows);
+    if (txError && !isMissingTableError(txError)) {
+      console.error('[MysteryBox] audit log failed:', txError);
+    }
+
+    return res.json({
+      ok: true,
+      reward,
+      price,
+      coins: updatedRow.coins,
+      gems: updatedRow.gems,
+      fecBalance: updatedRow.fec_balance,
+      inventory: updatedRow.inventory,
+      skinInventory: updatedRow.skin_inventory,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'mystery_box_error',
+    });
+  }
+});
+
+app.post('/skins/purchase', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const skinId = `${req.body?.skinId || ''}`.trim().slice(0, 64);
+
+    if (!Object.prototype.hasOwnProperty.call(SKIN_CATALOG, skinId)) {
+      return res.status(400).json({ error: 'Unknown skin' });
+    }
+
+    const price = SKIN_CATALOG[skinId].coins;
+
+    const { data: userRow, error: userError } = await supabase
+      .from('users')
+      .select('coins, skin_inventory, is_blocked')
+      .eq('telegram_id', userTelegramId)
+      .maybeSingle();
+
+    if (userError && !isMissingTableError(userError)) {
+      throw userError;
+    }
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    if (userRow.is_blocked) {
+      return res.status(403).json({ error: 'User is blocked' });
+    }
+
+    const currentCoins = Number(userRow.coins) || 0;
+    const inventory = Array.isArray(userRow.skin_inventory) ? userRow.skin_inventory : [];
+
+    if (inventory.includes(skinId)) {
+      return res.status(409).json({ error: 'Skin already owned', reason: 'already_owned' });
+    }
+    if (currentCoins < price) {
+      return res.status(402).json({
+        error: 'Insufficient coins',
+        reason: 'insufficient_coins',
+        required: price,
+        balance: currentCoins,
+      });
+    }
+
+    const newCoins = currentCoins - price;
+    const newInventory = [...inventory, skinId];
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({
+        coins: newCoins,
+        skin_inventory: newInventory,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('telegram_id', userTelegramId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    const { error: txError } = await supabase.from('coin_transactions').insert({
+      user_telegram_id: userTelegramId,
+      currency: 'coins',
+      amount: price,
+      direction: 'debit',
+      reason: 'skin_purchase',
+      metadata: { skinId },
+    });
+    if (txError && !isMissingTableError(txError)) {
+      console.error('[Skins] transaction log failed:', txError);
+    }
+
+    return res.json({
+      ok: true,
+      skinId,
+      price,
+      coins: newCoins,
+      skinInventory: newInventory,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'skin_purchase_error',
+    });
+  }
+});
+
+app.post('/tournaments/leaderboard', authLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    // Allow callers to ask for a specific past week, defaulting to the current.
+    const requestedWeek =
+      typeof req.body?.weekKey === 'string' && req.body.weekKey.length <= 16
+        ? req.body.weekKey
+        : null;
+    const weekKey = requestedWeek || getServerTournamentWeek();
+
+    const { data: scoreRows, error: scoresError } = await supabase
+      .from('tournament_scores')
+      .select('user_telegram_id, game_id, score')
+      .eq('week_key', weekKey);
+
+    if (scoresError) {
+      if (isMissingTableError(scoresError)) {
+        return res.json({ ok: true, weekKey, leaderboard: [] });
+      }
+      throw scoresError;
+    }
+
+    if (!scoreRows || scoreRows.length === 0) {
+      return res.json({ ok: true, weekKey, leaderboard: [] });
+    }
+
+    // Aggregate per user. Tournament score is the sum of per-game scores
+    // (capped at 3 games per user per week by /games/submit).
+    const aggregated = new Map();
+    for (const row of scoreRows) {
+      const id = row.user_telegram_id;
+      const score = Number(row.score) || 0;
+      const cur = aggregated.get(id) || { score: 0, games: 0 };
+      cur.score += score;
+      cur.games += 1;
+      aggregated.set(id, cur);
+    }
+
+    const userIds = [...aggregated.keys()];
+    const { data: userRows, error: usersError } = await supabase
+      .from('users')
+      .select('telegram_id, first_name, username, photo_url')
+      .in('telegram_id', userIds);
+
+    if (usersError && !isMissingTableError(usersError)) {
+      throw usersError;
+    }
+
+    const usersById = new Map();
+    for (const row of userRows || []) {
+      usersById.set(row.telegram_id, row);
+    }
+
+    const leaderboard = [...aggregated.entries()]
+      .map(([id, agg]) => {
+        const user = usersById.get(id);
+        return {
+          userTelegramId: id,
+          firstName: user?.first_name ?? null,
+          username: user?.username ?? null,
+          photoUrl: user?.photo_url ?? null,
+          score: agg.score,
+          gamesPlayed: agg.games,
+        };
+      })
+      .sort((a, b) => b.score - a.score)
+      .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+    return res.json({ ok: true, weekKey, leaderboard });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'tournaments_leaderboard_error',
+    });
+  }
+});
+
+app.post('/tournaments/join', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const paymentMethod =
+      req.body?.paymentMethod === 'vip'
+        ? 'vip'
+        : req.body?.paymentMethod === 'ton'
+          ? 'ton'
+          : req.body?.paymentMethod === 'stars'
+            ? 'stars'
+            : null;
+
+    if (!paymentMethod) {
+      return res.status(400).json({ error: 'Invalid paymentMethod' });
+    }
+
+    const { data: userRow, error: userError } = await supabase
+      .from('users')
+      .select('telegram_id, plan, plan_expiry, is_blocked')
+      .eq('telegram_id', userTelegramId)
+      .maybeSingle();
+
+    if (userError && !isMissingTableError(userError)) {
+      throw userError;
+    }
+
+    if (!userRow) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (userRow.is_blocked) {
+      return res.status(403).json({ error: 'User is blocked' });
+    }
+
+    const weekKey = getServerTournamentWeek();
+
+    if (paymentMethod === 'vip') {
+      if (userRow.plan !== VIP_TOURNAMENT_PLAN || !isPlanActive(userRow)) {
+        return res.status(403).json({
+          error: 'VIP free entry requires an active premium plan',
+          reason: 'plan_inactive',
+        });
+      }
+
+      const { data: existing, error: existingError } = await supabase
+        .from('tournament_entries')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('week_key', weekKey)
+        .eq('payment_method', 'vip')
+        .maybeSingle();
+
+      if (existingError && !isMissingTableError(existingError)) {
+        throw existingError;
+      }
+      if (existing) {
+        return res.status(409).json({
+          error: 'VIP free entry already used for this week',
+          reason: 'already_joined',
+        });
+      }
+
+      const { error: insertError } = await supabase.from('tournament_entries').insert({
+        user_telegram_id: userTelegramId,
+        week_key: weekKey,
+        payment_method: 'vip',
+      });
+
+      if (insertError && !isMissingTableError(insertError)) {
+        throw insertError;
+      }
+
+      return res.json({ ok: true, weekKey, paymentMethod: 'vip' });
+    }
+
+    // Paid methods (stars/ton): record the entry. Settlement is out of scope —
+    // a separate payment webhook would mark it confirmed.
+    const { error: insertError } = await supabase.from('tournament_entries').insert({
+      user_telegram_id: userTelegramId,
+      week_key: weekKey,
+      payment_method: paymentMethod,
+    });
+
+    if (insertError && !isMissingTableError(insertError)) {
+      throw insertError;
+    }
+
+    return res.json({ ok: true, weekKey, paymentMethod });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'tournaments_join_error',
+    });
+  }
+});
+
+app.post('/games/submit', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+
+    const access = await resolveRequestAccess(req, res);
+    if (!access) {
+      return;
+    }
+
+    const userTelegramId = access.identity.userId;
+    const gameId = `${req.body?.gameId || ''}`.trim().slice(0, 64);
+    if (!KNOWN_GAME_IDS.has(gameId)) {
+      return res.status(400).json({ error: 'Unknown game' });
+    }
+
+    const rawScore = Number(req.body?.score);
+    const safeScore = Number.isFinite(rawScore)
+      ? Math.max(0, Math.min(GAME_SUBMIT_MAX_SCORE, rawScore))
+      : 0;
+
+    const rawCoins = Number(req.body?.coinsEarned);
+    const safeCoins = Number.isFinite(rawCoins)
+      ? Math.max(0, Math.min(GAME_SUBMIT_MAX_COINS, Math.floor(rawCoins)))
+      : 0;
+
+    // Dedup: reject if the user submitted the same game inside the gap window.
+    const { data: lastRow, error: lastError } = await supabase
+      .from('game_results')
+      .select('submitted_at')
+      .eq('user_telegram_id', userTelegramId)
+      .eq('game_id', gameId)
+      .order('submitted_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastError && !isMissingTableError(lastError)) {
+      throw lastError;
+    }
+
+    if (lastRow?.submitted_at) {
+      const lastMs = new Date(lastRow.submitted_at).getTime();
+      if (Number.isFinite(lastMs) && Date.now() - lastMs < GAME_SUBMIT_MIN_GAP_MS) {
+        return res.json({ ok: true, awarded: 0, reason: 'rate_limited' });
+      }
+    }
+
+    const { error: insertError } = await supabase.from('game_results').insert({
+      user_telegram_id: userTelegramId,
+      game_id: gameId,
+      score: safeScore,
+      coins_awarded: safeCoins,
+    });
+
+    if (insertError && !isMissingTableError(insertError)) {
+      throw insertError;
+    }
+
+    // Atomic credit via the award_user RPC (migration 008). Falls back to
+    // the legacy read-modify-write path only if the function is missing
+    // (e.g. migration not yet run) so the deploy doesn't block users —
+    // logs loudly so the operator sees the migration is pending.
+    let credited = false;
+    {
+      const { data: awardRows, error: awardErr } = await supabase.rpc('award_user', {
+        p_telegram_id: userTelegramId,
+        p_coins: safeCoins,
+        p_xp: safeCoins,
+      });
+
+      const isMissingFunction =
+        awardErr &&
+        (awardErr.code === '42883' ||
+          awardErr.code === 'PGRST202' ||
+          `${awardErr.message || ''}`.toLowerCase().includes('does not exist') ||
+          `${awardErr.message || ''}`.toLowerCase().includes('could not find the function'));
+
+      if (awardErr && !isMissingFunction) {
+        throw awardErr;
+      }
+
+      if (!awardErr) {
+        credited = true;
+        // award_user returns 0 rows when the user row doesn't exist yet;
+        // mirror the legacy "no users row → no-op" behaviour.
+        if (!Array.isArray(awardRows) || awardRows.length === 0) {
+          return res.json({ ok: true, awarded: safeCoins });
+        }
+      } else {
+        console.warn('[games/submit] award_user RPC missing — falling back to non-atomic path. Run migration 008_award_user_rpc.sql.');
+      }
+    }
+
+    if (!credited) {
+      // Legacy path. Race-prone — see migration 008. Kept only as a graceful
+      // fallback while the RPC migration propagates to a fresh Supabase
+      // instance. Remove once you've confirmed the RPC is live in prod.
+      const { data: userRow, error: userError } = await supabase
+        .from('users')
+        .select('coins, xp, level')
+        .eq('telegram_id', userTelegramId)
+        .maybeSingle();
+
+      if (userError && !isMissingTableError(userError)) {
+        throw userError;
+      }
+
+      if (!userRow) {
+        return res.json({ ok: true, awarded: safeCoins });
+      }
+
+      const newCoins = (Number(userRow.coins) || 0) + safeCoins;
+      const newXp = (Number(userRow.xp) || 0) + safeCoins;
+      const newLevel = Math.floor(newXp / 1000) + 1;
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({
+          coins: newCoins,
+          xp: newXp,
+          level: newLevel,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('telegram_id', userTelegramId);
+
+      if (updateError) {
+        throw updateError;
+      }
+    }
+
+    // Tournament scoring: if the user has an active entry for the current
+    // tournament week, record this game as a tournament-attributed score
+    // (server-canonical — bypasses client tampering). Cap at 3 games per
+    // week per user to match client behavior. The unique index on
+    // (user, week, game) means re-playing the same game during a week is
+    // a no-op insert.
+    const TOURNAMENT_GAMES_PER_WEEK_LIMIT = 3;
+    let tournamentRecorded = false;
+    try {
+      const weekKey = getServerTournamentWeek();
+      const { data: tournamentEntry, error: entryError } = await supabase
+        .from('tournament_entries')
+        .select('id')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('week_key', weekKey)
+        .maybeSingle();
+
+      if (entryError && !isMissingTableError(entryError)) {
+        console.error('[Tournaments] entry lookup failed:', entryError);
+      } else if (tournamentEntry) {
+        const { count, error: countError } = await supabase
+          .from('tournament_scores')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_telegram_id', userTelegramId)
+          .eq('week_key', weekKey);
+
+        if (countError && !isMissingTableError(countError)) {
+          console.error('[Tournaments] score count failed:', countError);
+        } else if ((count ?? 0) < TOURNAMENT_GAMES_PER_WEEK_LIMIT) {
+          const { error: scoreInsertError } = await supabase
+            .from('tournament_scores')
+            .insert({
+              user_telegram_id: userTelegramId,
+              week_key: weekKey,
+              game_id: gameId,
+              score: safeScore,
+            });
+
+          // 23505 = unique violation: same game already counted this week.
+          // Treat as a no-op rather than an error.
+          if (
+            scoreInsertError &&
+            scoreInsertError.code !== '23505' &&
+            !isMissingTableError(scoreInsertError)
+          ) {
+            console.error('[Tournaments] score insert failed:', scoreInsertError);
+          } else if (!scoreInsertError) {
+            tournamentRecorded = true;
+          }
+        }
+      }
+    } catch (tournamentError) {
+      // Tournament recording is best-effort. Don't fail the whole submit
+      // because a side-effect failed.
+      console.error('[Tournaments] best-effort recording threw:', tournamentError);
+    }
+
+    return res.json({
+      ok: true,
+      awarded: safeCoins,
+      coins: newCoins,
+      xp: newXp,
+      level: newLevel,
+      tournamentRecorded,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      error: error instanceof Error ? error.message : 'game_submit_error',
+    });
+  }
+});
+
+function generateTicketId() {
+  return `tkt_${Date.now()}_${crypto.randomBytes(6).toString('hex')}`;
+}
+
+function generateTicketNumber() {
+  // 8-digit: 10000000 .. 99999999
+  return Math.floor(Math.random() * 90000000) + 10000000;
+}
+
+app.post('/tickets/issue', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1053,42 +2591,110 @@ app.post('/tickets/issue', async (req, res) => {
       return;
     }
 
-    const ticketId = `${req.body?.id || ''}`.trim();
-    const ticketNumber = Number(req.body?.ticketNumber);
-    const userTelegramId = Number(req.body?.userTelegramId);
-
-    if (!ticketId || !Number.isInteger(ticketNumber) || ticketNumber <= 0) {
-      return res.status(400).json({ error: 'Invalid ticket payload' });
+    let userTelegramId;
+    let userName;
+    let eventName;
+    let eventDate;
+    let price;
+    let purchaseDate;
+    try {
+      userTelegramId = requireInt(req.body?.userTelegramId, 'userTelegramId', { min: 1 });
+      userName = optionalString(req.body?.userName, 'userName', { max: 128 }) || `user_${userTelegramId}`;
+      eventName = optionalString(req.body?.eventName, 'eventName', { max: 128 }) || 'Premium Event';
+      eventDate = optionalIsoDate(req.body?.eventDate, 'eventDate');
+      price = requireInt(req.body?.price ?? 0, 'price', { min: 0, max: 1_000_000 });
+      purchaseDate = optionalIsoDate(req.body?.purchaseDate, 'purchaseDate') || new Date().toISOString();
+    } catch (error) {
+      if (handleValidationError(error, res)) return;
+      throw error;
     }
 
     if (userTelegramId !== access.identity.userId) {
       return res.status(403).json({ error: 'Ticket identity mismatch' });
     }
 
-    const { data, error } = await supabase
-      .from('tickets')
-      .upsert(
-        {
-          id: ticketId,
-          ticket_number: ticketNumber,
-          user_telegram_id: userTelegramId,
-          user_name: `${req.body?.userName || ''}`.trim() || `user_${userTelegramId}`,
-          event_name: `${req.body?.eventName || ''}`.trim() || 'Premium Event',
-          event_date: req.body?.eventDate,
-          price: Number(req.body?.price || 0),
-          purchase_date: req.body?.purchaseDate,
-          source: req.body?.source === 'ticket_purchase' ? 'ticket_purchase' : 'plan_upgrade',
-        },
-        { onConflict: 'id' }
-      )
-      .select('id')
-      .single();
+    const source = req.body?.source === 'ticket_purchase' ? 'ticket_purchase' : 'plan_upgrade';
+    const ALLOWED_PLANS = ['silver', 'gold', 'premium'];
+    const targetPlan = ALLOWED_PLANS.includes(req.body?.targetPlan) ? req.body.targetPlan : 'premium';
 
-    if (error) {
-      throw error;
+    // Plan upgrades grant a paid entitlement. This endpoint has no payment proof —
+    // the only legitimate writers are admins (moderation) and the bot/payment-webhook
+    // (writing directly via the service-role key after verifying a Telegram Stars or
+    // TON payment). Reject user-direct plan_upgrade calls.
+    if (source === 'plan_upgrade' && !access.membership.isAdmin) {
+      return res.status(403).json({
+        error: 'plan_upgrade tickets must be issued by the bot or an admin',
+      });
     }
 
-    // Never send a premium success message from this endpoint.
+    // Server is authoritative for id and ticket_number. Retry on the unique constraint
+    // race (DB enforces uniqueness on ticket_number).
+    let inserted = null;
+    let lastError = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const candidate = {
+        id: generateTicketId(),
+        ticket_number: generateTicketNumber(),
+        user_telegram_id: userTelegramId,
+        user_name: userName,
+        event_name: eventName,
+        event_date: eventDate,
+        price,
+        purchase_date: purchaseDate,
+        source,
+      };
+
+      const { data, error } = await supabase
+        .from('tickets')
+        .insert(candidate)
+        .select('id, ticket_number, user_telegram_id, user_name, event_name, event_date, price, purchase_date, status, source, verified_at, verified_by')
+        .single();
+
+      if (!error) {
+        inserted = data;
+        break;
+      }
+      lastError = error;
+      if (error.code !== '23505') {
+        // not a unique-violation — don't retry
+        break;
+      }
+    }
+
+    if (!inserted) {
+      throw lastError || new Error('Could not allocate ticket');
+    }
+
+    // Server is authoritative for plan changes. The frontend never gets to
+    // write users.plan / users.plan_expiry — only this endpoint does, and only
+    // after a ticket row was successfully created (the audit trail of "what
+    // the user paid for"). Failure here is logged but does not roll back the
+    // ticket — the user has the ticket as proof of purchase regardless.
+    let planResult = null;
+    if (source === 'plan_upgrade') {
+      const planExpiryMs = inserted.event_date ? new Date(inserted.event_date).getTime() : null;
+      const safePlanExpiry = Number.isFinite(planExpiryMs) ? planExpiryMs : null;
+
+      const { data: planRow, error: planError } = await supabase
+        .from('users')
+        .update({
+          plan: targetPlan,
+          plan_expiry: safePlanExpiry,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('telegram_id', userTelegramId)
+        .select('plan, plan_expiry')
+        .maybeSingle();
+
+      if (planError && !isMissingTableError(planError)) {
+        console.error('[Tickets] Plan update failed:', planError);
+      } else if (planRow) {
+        planResult = { plan: planRow.plan, planExpiry: planRow.plan_expiry };
+      }
+    }
+
+    // Never send a generic "Premium added" message from this endpoint —
+    // plan upgrades route through their own confirmation path.
     const isPlanUpgrade = req.body?.source !== 'ticket_purchase';
     if (userTelegramId && !isPlanUpgrade) {
       const messageText = 'Құттықтаймыз! Сіздің билетті сатып алу төлеміңіз тіркелді.';
@@ -1106,7 +2712,13 @@ app.post('/tickets/issue', async (req, res) => {
        sendTelegramMessage(adminId, message);
     }
 
-    return res.json({ ok: true, ticketId: data.id });
+    return res.json({
+      ok: true,
+      ticketId: inserted.id,
+      ticketNumber: inserted.ticket_number,
+      ticket: mapTicketRow(inserted),
+      plan: planResult,
+    });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'ticket_issue_error' });
   }
@@ -1312,7 +2924,7 @@ app.get('/payments/:paymentOrderId/status', async (req, res) => {
   }
 });
 
-app.post('/admin/dashboard', async (req, res) => {
+app.post('/admin/dashboard', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1379,7 +2991,7 @@ app.post('/admin/dashboard', async (req, res) => {
   }
 });
 
-app.post('/admin/users', async (req, res) => {
+app.post('/admin/users', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1418,7 +3030,7 @@ app.post('/admin/users', async (req, res) => {
   }
 });
 
-app.post('/admin/users/block', async (req, res) => {
+app.post('/admin/users/block', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1489,7 +3101,7 @@ app.post('/admin/users/block', async (req, res) => {
   }
 });
 
-app.post('/admin/chat/reports', async (req, res) => {
+app.post('/admin/chat/reports', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1539,7 +3151,7 @@ app.post('/admin/chat/reports', async (req, res) => {
   }
 });
 
-app.post('/admin/chat/reports/action', async (req, res) => {
+app.post('/admin/chat/reports/action', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1603,7 +3215,7 @@ app.post('/admin/chat/reports/action', async (req, res) => {
   }
 });
 
-app.post('/admin/settings', async (req, res) => {
+app.post('/admin/settings', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1637,7 +3249,7 @@ app.post('/admin/settings', async (req, res) => {
   }
 });
 
-app.post('/admin/settings/admins/add', async (req, res) => {
+app.post('/admin/settings/admins/add', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1699,7 +3311,7 @@ app.post('/admin/settings/admins/add', async (req, res) => {
   }
 });
 
-app.post('/admin/settings/admins/remove', async (req, res) => {
+app.post('/admin/settings/admins/remove', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1752,7 +3364,7 @@ app.post('/admin/settings/admins/remove', async (req, res) => {
   }
 });
 
-app.post('/admin/tickets', async (req, res) => {
+app.post('/admin/tickets', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1790,7 +3402,7 @@ app.post('/admin/tickets', async (req, res) => {
   }
 });
 
-app.post('/admin/tickets/verify', async (req, res) => {
+app.post('/admin/tickets/verify', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1866,7 +3478,7 @@ app.post('/admin/tickets/verify', async (req, res) => {
   }
 });
 
-app.post('/admin/feedback/status', async (req, res) => {
+app.post('/admin/feedback/status', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1914,7 +3526,7 @@ app.post('/admin/feedback/status', async (req, res) => {
   }
 });
 
-app.post('/admin/feedback/reply', async (req, res) => {
+app.post('/admin/feedback/reply', adminLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -1974,6 +3586,17 @@ app.post('/admin/feedback/reply', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'feedback_reply_error' });
   }
+});
+
+// Cheap health check — no DB hit. Used by Render's health check and
+// any external warm-up pinger.
+app.get('/health', (_req, res) => {
+  res.json({
+    ok: true,
+    uptime: Math.round(process.uptime()),
+    hasSupabase,
+    env: process.env.NODE_ENV || 'development',
+  });
 });
 
 app.post('/api/tasks', async (req, res) => {
@@ -3098,6 +4721,69 @@ try {
   console.error("[web3] Failed to mount:", e && e.message ? e.message : e);
 }
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Final error handler — must be registered after all routes. Never leaks
+// stack traces to clients; logs server-side instead.
+
+app.use((err, _req, res, _next) => {
+  const requestId = (res.locals && res.locals.requestId) || '?';
+  console.error(`[err] requestId=${requestId}:`, err && err.stack ? err.stack : err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Internal error', requestId });
 });
+
+const checkEnv = () => {
+  const required = ['BOT_TOKEN', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+  const missing = required.filter((key) => {
+    if (key === 'SUPABASE_URL') return !(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
+    if (key === 'SUPABASE_SERVICE_ROLE_KEY') {
+      return !(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY);
+    }
+    return !process.env[key];
+  });
+  if (missing.length === 0) return;
+  const message = `Missing env vars: ${missing.join(', ')}`;
+  // Only hard-exit when running as a standalone Node process (local dev,
+  // VPS, container). On Vercel this file is `require()`'d by the function
+  // wrapper, so process.exit would kill the lambda — instead log fatally
+  // and let the route handlers fail closed (they already do).
+  if (isProduction && require.main === module) {
+    console.error(`[fatal] ${message}`);
+    process.exit(1);
+  }
+  console.warn(`[env] ${message} (routes will fail closed)`);
+};
+
+checkEnv();
+
+// Run the HTTP listener only when invoked directly (`node server/index.js`).
+// Under Vercel the file is `require()`'d for its `app` export and Vercel's
+// runtime owns the listener.
+if (require.main === module) {
+  const server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+
+  // Graceful shutdown for any host that sends SIGTERM (Docker, systemd,
+  // Render, fly.io, etc.). Vercel never invokes this path.
+  const shutdown = (signal) => {
+    console.log(`Received ${signal}, shutting down`);
+    const force = setTimeout(() => {
+      console.error('Force-exit after 25s shutdown timeout');
+      process.exit(1);
+    }, 25_000);
+    force.unref();
+
+    server.close((err) => {
+      if (err) {
+        console.error('Error during shutdown:', err);
+        process.exit(1);
+      }
+      process.exit(0);
+    });
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+}
+
+module.exports = app;

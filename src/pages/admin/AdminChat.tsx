@@ -251,7 +251,7 @@ export const AdminChat = () => {
             {groupOptions.map(([groupId, groupName]) => (
               <button
                 key={groupId}
-                onClick={() => setGroupFilter(groupId)}
+                onClick={() => setGroupFilter(groupId ?? '')}
                 className={clsx(
                   'px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2',
                   groupFilter === groupId ? 'bg-blue-500 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'

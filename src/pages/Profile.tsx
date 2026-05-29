@@ -1,8 +1,8 @@
 import { useState, useRef, useMemo, lazy, Suspense, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, Camera, Edit2, Trophy, Gift, 
-  Coins, Diamond, Zap, History, Star, 
+import {
+  ArrowLeft, Camera, Edit2, Gift,
+  Coins, Diamond, Zap, History, Star,
   Award, TrendingUp, Calendar, LayoutGrid,
   Flame, Shield, Crown, Zap as ZapIcon, Calculator, Target, Lock,
   BarChart3, Sparkles
@@ -15,7 +15,9 @@ import WebApp from '@twa-dev/sdk';
 import { Achievements } from '../components/Achievements';
 import { Web3Section } from '../components/Web3Section';
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import { usePlanGate } from '../hooks/usePlanGate';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
+import ProfileClaude from './ProfileClaude';
 import { getProfileAvatarImage, PROFILE_AVATARS, ProfileAvatar } from '../constants/avatars';
 
 // Lazy load BrainProfile to split recharts dependency
@@ -39,7 +41,14 @@ const ACHIEVEMENTS = [
 
 const MAX_PROFILE_IMAGE_SIZE = 5 * 1024 * 1024;
 
+// Theme switcher — keeps the dark / light / blue / gold markup unchanged
+// in LegacyProfilePage and routes the Claude theme to the editorial layout.
 const ProfilePage = () => {
+  const styles = useThemeStyles();
+  return styles.isClaude ? <ProfileClaude /> : <LegacyProfilePage />;
+};
+
+const LegacyProfilePage = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { 
@@ -149,7 +158,12 @@ const ProfilePage = () => {
 
   const availableAvatars = useMemo(() => PROFILE_AVATARS, []);
 
-  const isVipAnalyticsUnlocked = (plan === 'pro' || plan === 'premium') && !isPlanExpired;
+  // Server-canonical VIP check. The local `plan` from the store is still
+  // used for badges / tier display (cosmetic), but unlocking actual VIP
+  // content is gated on what /users/me says, with local fallback.
+  const { isPremiumActive } = usePlanGate();
+  const isVipAnalyticsUnlocked =
+    isPremiumActive === true || ((plan === 'pro' || plan === 'premium') && !isPlanExpired);
 
   const handleUnlockVipAnalytics = () => {
     WebApp.HapticFeedback.impactOccurred('medium');

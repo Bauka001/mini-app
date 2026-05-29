@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { Activity, Brain, TrendingUp } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useTranslation } from 'react-i18next';
 import { useThemeStyles } from '../../hooks/useThemeStyles';
 
 type OnboardingScreen2Props = {
@@ -14,6 +15,7 @@ export default function OnboardingScreen2({
   onContinue,
   onSkip,
 }: OnboardingScreen2Props) {
+  const { t } = useTranslation();
   const styles = useThemeStyles();
   const { panelClass, textPrimary, textSecondary } = styles;
   const progress = Math.max(0, Math.min(100, (value / 300) * 100));
@@ -28,10 +30,10 @@ export default function OnboardingScreen2({
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className={clsx("text-xs uppercase tracking-[0.24em] font-semibold", textSecondary)}>
-              First Result
+              {t('onb2_kicker')}
             </div>
             <h2 className={clsx("text-3xl font-black mt-3", textPrimary)}>
-              Brain Score жоғарылатыңыз
+              {t('onb2_title')}
             </h2>
           </div>
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-fuchsia-500 text-white flex items-center justify-center shadow-lg">
@@ -40,15 +42,14 @@ export default function OnboardingScreen2({
         </div>
 
         <p className={clsx("text-sm leading-relaxed mt-4", textSecondary)}>
-          Алғашқы қадам сәтті өтті. Енді Brain Score-ды `0-300` аралығында өсіріп,
-          күндік прогресті күшейтіңіз.
+          {t('onb2_body')}
         </p>
 
         <div className={clsx("rounded-3xl p-5 mt-5", styles.cardClass)}>
           <div className="flex items-end justify-between gap-3">
             <div>
               <div className={clsx("text-xs uppercase tracking-[0.22em] font-semibold", textSecondary)}>
-                Brain Meter
+                {t('onb2_meter_label')}
               </div>
               <div className={clsx("text-4xl font-black mt-2", textPrimary)}>
                 {Math.round(value)}
@@ -62,7 +63,7 @@ export default function OnboardingScreen2({
 
           <div className="mt-5">
             <div className="flex items-center justify-between mb-2">
-              <span className={clsx("text-sm font-medium", textSecondary)}>Прогресс</span>
+              <span className={clsx("text-sm font-medium", textSecondary)}>{t('onb2_progress_label')}</span>
               <span className={clsx("text-sm font-bold", textPrimary)}>{Math.round(progress)}%</span>
             </div>
             <div className="h-3 rounded-full overflow-hidden bg-white/10">
@@ -78,13 +79,13 @@ export default function OnboardingScreen2({
         <div className="grid grid-cols-2 gap-3 mt-5">
           <div className={clsx("rounded-2xl p-4", styles.cardClass)}>
             <Activity size={18} className={styles.textAccent} />
-            <div className={clsx("text-sm font-bold mt-3", textPrimary)}>Your memory speed is high!</div>
-            <div className={clsx("text-xs mt-1", textSecondary)}>Алғашқы нәтиже бойынша қысқа insight</div>
+            <div className={clsx("text-sm font-bold mt-3", textPrimary)}>{t('onb2_insight_title')}</div>
+            <div className={clsx("text-xs mt-1", textSecondary)}>{t('onb2_insight_caption')}</div>
           </div>
           <div className={clsx("rounded-2xl p-4", styles.cardClass)}>
             <Brain size={18} className={styles.textAccent} />
-            <div className={clsx("text-sm font-bold mt-3", textPrimary)}>Тағы 2 ойын</div>
-            <div className={clsx("text-xs mt-1", textSecondary)}>Daily Workout толық жабылады</div>
+            <div className={clsx("text-sm font-bold mt-3", textPrimary)}>{t('onb2_card2_title')}</div>
+            <div className={clsx("text-xs mt-1", textSecondary)}>{t('onb2_card2_caption')}</div>
           </div>
         </div>
 
@@ -92,14 +93,14 @@ export default function OnboardingScreen2({
           onClick={onContinue}
           className={clsx("w-full mt-6 px-4 py-4 rounded-2xl text-base font-black", styles.btnPrimary)}
         >
-          Жалғастыру
+          {t('onb2_continue')}
         </button>
 
         <button
           onClick={onSkip}
           className={clsx("w-full mt-3 px-4 py-3 rounded-2xl text-sm font-semibold", styles.btnSecondary)}
         >
-          Жабу
+          {t('onb2_close')}
         </button>
       </motion.div>
     </div>

@@ -63,6 +63,7 @@ export const MathBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: strin
   const { best, submit } = useLocalBest(GAME_ID, difficulty);
   const haptic = useHaptic();
 
+
   const [question, setQuestion] = useState<{ text: string, answer: number, options: number[] } | null>(null);
   const [questionsAnswered, setQuestionsAnswered] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);

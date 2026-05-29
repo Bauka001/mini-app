@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" width="640" height="360">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FAF9F5"/>
+      <stop offset="100%" stop-color="#F0EEE6"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#FAF9F5"/>
+    </linearGradient>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#1F1E1D" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <!-- Page -->
+  <rect width="640" height="360" fill="url(#bg)"/>
+
+  <!-- Left rule (Claude editorial chapter mark) -->
+  <rect x="40" y="48" width="2" height="80" fill="#D97757"/>
+
+  <!-- Kicker -->
+  <text x="56" y="64"
+        font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="11"
+        font-weight="600"
+        letter-spacing="3.6"
+        fill="#D97757">BRAIN TRAINING · MINI APP</text>
+
+  <!-- Wordmark -->
+  <text x="56" y="124"
+        font-family="'Tiempos Headline', 'Iowan Old Style', Georgia, ui-serif, serif"
+        font-size="80"
+        font-weight="500"
+        font-style="italic"
+        fill="#1F1E1D">Focus</text>
+
+  <!-- Tagline -->
+  <text x="56" y="178"
+        font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="15"
+        font-weight="400"
+        fill="#3A3733">Daily mini-games for attention,</text>
+  <text x="56" y="198"
+        font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="15"
+        font-weight="400"
+        fill="#3A3733">memory, logic and reaction speed.</text>
+
+  <!-- Footer chip: brain score sample, anchored bottom-left -->
+  <g transform="translate(56, 268)">
+    <rect x="0" y="0" width="172" height="48" rx="14" ry="14"
+          fill="#FFFFFF" stroke="#E5E2D8" stroke-width="1"/>
+    <circle cx="22" cy="24" r="5" fill="#D97757"/>
+    <text x="38" y="20"
+          font-family="ui-sans-serif, system-ui, sans-serif"
+          font-size="10"
+          font-weight="600"
+          letter-spacing="1.6"
+          fill="#6E6B66">BRAIN SCORE</text>
+    <text x="38" y="40"
+          font-family="'Tiempos Headline', 'Iowan Old Style', Georgia, ui-serif, serif"
+          font-size="20"
+          font-weight="600"
+          fill="#1F1E1D">248 / 300</text>
+  </g>
+
+  <!-- Right card: Schulte-style 5x5 grid as the visual anchor -->
+  <g transform="translate(360, 56)" filter="url(#softShadow)">
+    <rect x="0" y="0" width="240" height="248" rx="20" ry="20"
+          fill="url(#paper)" stroke="#E5E2D8" stroke-width="1"/>
+
+    <!-- card label -->
+    <text x="20" y="34"
+          font-family="ui-sans-serif, system-ui, sans-serif"
+          font-size="10"
+          font-weight="600"
+          letter-spacing="2"
+          fill="#6E6B66">SCHULTE · 1 → 25</text>
+
+    <!-- 5x5 grid: cell size 38, gap 4, total 5*38+4*4 = 206 -->
+    <g transform="translate(17, 50)">
+      <!-- row 0 -->
+      <g>
+        <rect x="0"   y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="42"  y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="84"  y="0" width="38" height="38" rx="8" fill="#D97757"/>
+        <rect x="126" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="168" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <text x="19" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">17</text>
+        <text x="61" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">3</text>
+        <text x="103" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#FFFFFF">12</text>
+        <text x="145" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">8</text>
+        <text x="187" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">21</text>
+      </g>
+      <!-- row 1 -->
+      <g transform="translate(0, 42)">
+        <rect x="0"   y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="42"  y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="84"  y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="126" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="168" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <text x="19" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">5</text>
+        <text x="61" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">22</text>
+        <text x="103" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">9</text>
+        <text x="145" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">14</text>
+        <text x="187" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">1</text>
+      </g>
+      <!-- row 2 -->
+      <g transform="translate(0, 84)">
+        <rect x="0"   y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="42"  y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="84"  y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="126" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="168" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <text x="19" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">19</text>
+        <text x="61" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">11</text>
+        <text x="103" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">25</text>
+        <text x="145" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">7</text>
+        <text x="187" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">16</text>
+      </g>
+      <!-- row 3 -->
+      <g transform="translate(0, 126)">
+        <rect x="0"   y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="42"  y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="84"  y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="126" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="168" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <text x="19" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">2</text>
+        <text x="61" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">10</text>
+        <text x="103" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">18</text>
+        <text x="145" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">23</text>
+        <text x="187" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">15</text>
+      </g>
+      <!-- row 4 -->
+      <g transform="translate(0, 168)">
+        <rect x="0"   y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="42"  y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="84"  y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="126" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <rect x="168" y="0" width="38" height="38" rx="8" fill="#F0EEE6" stroke="#E5E2D8"/>
+        <text x="19" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">13</text>
+        <text x="61" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">6</text>
+        <text x="103" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">24</text>
+        <text x="145" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">4</text>
+        <text x="187" y="25" text-anchor="middle" font-family="ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="700" fill="#1F1E1D">20</text>
+      </g>
+    </g>
+  </g>
+</svg>

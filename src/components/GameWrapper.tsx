@@ -14,7 +14,7 @@ type GameState = 'instruction' | 'playing' | 'paused' | 'finished';
 interface GameWrapperProps {
   title: string;
   instructions: string;
-  children: (props: { onEnd: (score: any, coins: number) => void; isPaused: boolean }) => React.ReactNode;
+  children: (props: { onEnd: (score: string | number, coins: number) => void; isPaused: boolean; theme: string }) => React.ReactNode;
   onExit?: () => void;
 }
 
@@ -41,7 +41,7 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
   const [showQuestPopup, setShowQuestPopup] = useState(false);
   const navigate = useNavigate();
   const { t } = useTranslation();
-  const { coins, soundEnabled, dailyQuest, claimDailyQuestReward } = useStore();
+  const { coins, soundEnabled, dailyQuest, claimDailyQuestReward, theme } = useStore();
 
   useEffect(() => {
     soundManager.setEnabled(soundEnabled);
@@ -266,7 +266,7 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
 
       {/* Game Content */}
       <div className="flex-1 overflow-y-auto relative z-10">
-        {children({ onEnd: handleEnd, isPaused: gameState === 'paused' })}
+        {children({ onEnd: handleEnd, isPaused: gameState === 'paused', theme })}
       </div>
 
       {/* Pause Modal */}

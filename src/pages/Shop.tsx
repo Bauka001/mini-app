@@ -10,6 +10,7 @@ import WebApp from '@twa-dev/sdk';
 import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
 import { TermsModal } from '../components/TermsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
+import ShopClaude from './ShopClaude';
 import { createTonPaymentIntent, getPaymentStatus, TonPlanCode } from '../utils/paymentApi';
 import { payWithStars } from '../utils/starsApi';
 import { hasTelegramStartParam, isTelegramWebApp } from '../utils/telegram';
@@ -1559,9 +1560,9 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms, promotionEndISO }: {
               <div className="mb-3 space-y-2">
                 <div className="relative w-full aspect-video rounded-lg border-2 border-amber-400 p-0.5 bg-amber-500/10 shadow-[0_0_15px_rgba(251,191,36,0.5)] overflow-hidden group">
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 rounded pointer-events-none" />
-                  <img 
-                    src="/mustang.jpg" 
-                    alt="Ford Mustang" 
+                  <img
+                    src="/mustang.jpg"
+                    alt="Ford Mustang"
                     className="w-full h-full object-cover rounded transform group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute bottom-1.5 left-2 z-20 flex items-center gap-1">
@@ -1623,15 +1624,15 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms, promotionEndISO }: {
 
       <button
         onClick={onShowTerms}
-        className="w-full py-3 rounded-xl bg-blue-600/10 border border-blue-500/30 text-blue-400 font-bold text-sm hover:bg-blue-600/20 transition-all flex items-center justify-center gap-2"
+        className="w-full py-3 rounded-xl bg-blue-600/10 border border-blue-500/40 text-blue-700 dark:text-blue-300 font-bold text-sm hover:bg-blue-600/20 transition-all flex items-center justify-center gap-2"
       >
         <FileText size={16} />
-        {t('terms_link')}
+        {t('premium_terms_link', t('terms_link'))}
       </button>
 
       <button
         onClick={() => navigate('/analytics')}
-        className="w-full py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 font-bold text-sm hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2"
+        className="w-full py-3 rounded-xl bg-amber-500/15 border border-amber-500/40 text-amber-800 dark:text-amber-200 font-bold text-sm hover:bg-amber-500/25 transition-all flex items-center justify-center gap-2"
       >
         <BarChart3 size={16} />
         {currentPlan === 'pro' || currentPlan === 'premium' ? t('open_vip_analytics') : t('preview_vip_analytics')}
@@ -1640,7 +1641,14 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms, promotionEndISO }: {
   );
 };
 
+// Theme switcher — Claude renders the editorial layout in ShopClaude.tsx;
+// the dark / light / blue / gold themes keep the original markup untouched.
 const ShopPage = () => {
+  const styles = useThemeStyles();
+  return styles.isClaude ? <ShopClaude /> : <LegacyShopPage />;
+};
+
+const LegacyShopPage = () => {
   const { t } = useTranslation();
   const {
     coins,
@@ -1676,7 +1684,7 @@ const ShopPage = () => {
       premium: { planCode: 'premium' as const, title: 'PREMIUM YEARLY', price: PREMIUM_PRICE, basePriceKzt: PREMIUM_PRICE_KZT },
     } as const;
     const picked = map[plan];
-    setPaymentModal({ planCode: picked.planCode, title: picked.title, price: picked.price });
+    setPaymentModal({ planCode: picked.planCode, title: picked.title, price: picked.price, basePriceKzt: picked.basePriceKzt });
   };
 
   const handleBuySkin = (id: string, cost: number) => {
@@ -1822,7 +1830,13 @@ const ShopPage = () => {
 
       <PaymentModal
         isOpen={!!paymentModal}
-        onClose={() => setPaymentModal(null)}
+        onClose={() => {
+          // Do NOT grant premium here. The modal closes for any reason
+          // (user dismissal, payment cancel, browser back). The actual upgrade
+          // must be applied by the bot/payment-webhook after Stars/TON payment
+          // verification — never optimistically based on the modal closing.
+          setPaymentModal(null);
+        }}
         planCode={paymentModal?.planCode || 'basic'}
         planTitle={paymentModal?.title || ''}
         price={paymentModal?.price || ''}

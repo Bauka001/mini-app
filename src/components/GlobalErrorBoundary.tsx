@@ -44,11 +44,13 @@ export class GlobalErrorBoundary extends Component<Props, State> {
             Reload App
           </button>
           
-          <div className="mt-8 p-4 bg-white/5 rounded-lg border border-white/10 max-w-sm text-left overflow-auto max-h-40">
-            <p className="text-xs font-mono text-red-400 break-words">
-              {this.state.error?.toString()}
-            </p>
-          </div>
+          {import.meta.env.DEV && (
+            <div className="mt-8 p-4 bg-white/5 rounded-lg border border-white/10 max-w-sm text-left overflow-auto max-h-40">
+              <p className="text-xs font-mono text-red-400 break-words">
+                {this.state.error?.toString()}
+              </p>
+            </div>
+          )}
         </div>
       );
     }

@@ -1,5 +1,7 @@
 {
-  "url": "https://mini-app-two-lyart.vercel.app",
+  "url": "https://focus-game-nine.vercel.app",
   "name": "Focus Mini App",
-  "iconUrl": "https://ton.org/download/ton_symbol.png"
+  "iconUrl": "https://ton.org/download/ton_symbol.png",
+  "termsOfUseUrl": "https://focus-game-nine.vercel.app/#/terms",
+  "privacyPolicyUrl": "https://focus-game-nine.vercel.app/#/privacy"
 }

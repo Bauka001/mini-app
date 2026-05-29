@@ -412,7 +412,7 @@ function registerWeb3(app, deps) {
   app.post('/api/web3/admin/award-trophy', async (req, res) => {
     try {
       if (!ensureSupabase(res)) return;
-      const access = await resolveRequestAccess(req, res, { requireAdmin: true });
+      const access = await resolveRequestAccess(req, res, { adminOnly: true });
       if (!access) return;
 
       const userTelegramId = Number(req.body?.userTelegramId);
@@ -440,7 +440,7 @@ function registerWeb3(app, deps) {
   app.post('/api/web3/admin/credit-focus', async (req, res) => {
     try {
       if (!ensureSupabase(res)) return;
-      const access = await resolveRequestAccess(req, res, { requireAdmin: true });
+      const access = await resolveRequestAccess(req, res, { adminOnly: true });
       if (!access) return;
       const userTelegramId = Number(req.body?.userTelegramId);
       const delta = Math.floor(Number(req.body?.delta || 0));

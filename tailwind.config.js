@@ -13,9 +13,6 @@ export default {
         text: 'var(--color-text)',
         muted: 'var(--color-muted)',
         accent: 'var(--color-accent)',
-        // mapping bg-black and text-white to theme variables to avoid breaking existing code
-        black: 'var(--color-background)',
-        white: 'var(--color-text)',
       },
       fontFamily: {
         sans: ['Inter', 'sans-serif'],

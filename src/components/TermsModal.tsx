@@ -1,155 +1,152 @@
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Globe, FileText, CheckCircle, Trophy } from 'lucide-react';
-import { clsx } from 'clsx';
+import { FileText, CheckCircle, Sparkles } from 'lucide-react';
 import { useState } from 'react';
+import { ClaudeModal, ClaudeButton, ClaudePill } from './ui/ClaudeModal';
+import { claudeTokens } from './ui/claudeTokens';
 
-export const TermsModal = ({ 
-  isOpen, 
-  onClose 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
+export const TermsModal = ({
+  isOpen,
+  onClose,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
 }) => {
-  const [activeTab, setActiveTab] = useState<'kz' | 'ru' | 'en'>('kz');
-
-  if (!isOpen) return null;
+  const [activeTab, setActiveTab] = useState<'kz' | 'ru' | 'en'>('en');
 
   const content = {
     kz: {
-      title: "Қатысу шарттары",
-      grandPrizeLabel: "Бас жүлде",
+      title: 'Premium шарттары',
+      bundleLabel: 'Premium артықшылықтары',
+      bundleTitle: 'VIP analytics + кеңейтілген тренинг',
+      cta: 'Түсінікті',
       rules: [
-        "Ұтыс ойынына тек 'Premium' жоспарын сатып алған қолданушылар қатыса алады.",
-        "Әрбір Premium қолданушыға бірегей билет нөмірі беріледі.",
-        "Ұтыс нәтижесі mini app ішіндегі турнир және VIP analytics бөліктерінде жарияланады.",
-        "Жеңімпаз кездейсоқ сандар генераторы арқылы анықталады.",
-        "Бас жүлде: Ford Mustang GT.",
-        "Қосымша жүлделер: iPhone 17 Pro, PlayStation 5, AirPods Pro.",
-        "Қатысушы кәмелетке толған (18+) болуы тиіс.",
-        "Ұйымдастырушылар ережелерді өзгертуге құқылы."
-      ]
+        "'Premium' жоспары VIP analytics, кеңейтілген күнделікті жаттығулар және эксклюзив скиндерді қамтиды.",
+        'Әрбір Premium қолданушыға бірегей мүшелік нөмірі беріледі — бұл сатып алу растаушысы, ақшалай немесе заттай ұтыс билеті емес.',
+        'Premium тек ойын ішіндегі контент пен функцияларды ашады. Нақты ақшалық, заттай немесе криптовалюталық жүлделер берілмейді.',
+        'Премиум-төлемдер Telegram Stars немесе TON әмияны арқылы өңделеді. Ішкі ойын активтері сатылмайды және нақты валютаға айырбасталмайды.',
+        'Қолжетімділік жалғасуы үшін минималды жас — 13. Кейбір ауқымды ойын қорытындылары 18+ деп таңбалануы мүмкін.',
+        'Біз шарттарды кез келген уақытта жаңарта аламыз; өзгертулер mini app ішінде жарияланады.',
+      ],
     },
     ru: {
-      title: "Условия участия",
-      grandPrizeLabel: "Главный приз",
+      title: 'Условия Premium',
+      bundleLabel: 'Premium-бенефиты',
+      bundleTitle: 'VIP analytics + расширенные тренировки',
+      cta: 'Понятно',
       rules: [
-        "В розыгрыше могут участвовать только пользователи, купившие план 'Premium'.",
-        "Каждому Premium пользователю присваивается уникальный номер билета.",
-        "Результаты розыгрыша будут официально объявлены в мини-приложении через турнирный и VIP analytics разделы.",
-        "Победитель будет определен с помощью генератора случайных чисел.",
-        "Главный приз: Ford Mustang GT.",
-        "Дополнительные призы: iPhone 17 Pro, PlayStation 5, AirPods Pro.",
-        "Участник должен быть совершеннолетним (18+).",
-        "Организаторы оставляют за собой право изменять правила."
-      ]
+        "План 'Premium' включает VIP analytics, расширенные ежедневные тренировки и эксклюзивные скины.",
+        'Каждому Premium-пользователю присваивается уникальный номер мембершипа — это подтверждение покупки, а не лотерейный билет.',
+        'Premium открывает только внутриигровой контент и функции. Денежные, материальные или криптовалютные призы не выдаются.',
+        'Платежи Premium обрабатываются Telegram Stars или TON-кошельком. Игровые активы не продаются и не обмениваются на реальные валюты.',
+        'Минимальный возраст использования — 13 лет. Некоторые соревновательные итоги внутри приложения могут иметь возрастную метку 18+.',
+        'Мы можем обновлять условия в любое время; изменения публикуются внутри mini app.',
+      ],
     },
     en: {
-      title: "Terms & Conditions",
-      grandPrizeLabel: "Grand Prize",
+      title: 'Premium Terms',
+      bundleLabel: 'Premium benefits',
+      bundleTitle: 'VIP analytics + extended training',
+      cta: 'Understood',
       rules: [
-        "Only users who purchased the 'Premium' plan can participate in the raffle.",
-        "Each Premium user is assigned a unique ticket number.",
-        "The raffle results will be officially announced inside the mini app through the tournament and VIP analytics sections.",
-        "The winner will be determined using a random number generator.",
-        "Grand Prize: Ford Mustang GT.",
-        "Additional Prizes: iPhone 17 Pro, PlayStation 5, AirPods Pro.",
-        "Participants must be of legal age (18+).",
-        "Organizers reserve the right to modify the rules."
-      ]
-    }
-  };
+        "The 'Premium' plan includes VIP analytics, extended daily workouts, and exclusive in-game skins.",
+        'Each Premium user is assigned a unique membership number. This is a purchase receipt — not a lottery ticket.',
+        'Premium unlocks in-app content and features only. No monetary, physical, or cryptocurrency prizes are awarded.',
+        'Premium payments are processed through Telegram Stars or your TON wallet. In-game assets are not sold for and cannot be exchanged into real-world currency.',
+        'Minimum age to use the app is 13. Some in-app competitive standings may carry an 18+ label.',
+        'We may update these terms at any time; changes are published inside the mini app.',
+      ],
+    },
+  } as const;
+
+  const c = content[activeTab];
 
   return (
-    <AnimatePresence>
-      <motion.div 
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="modal-shell fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+    <ClaudeModal
+      isOpen={isOpen}
+      onClose={onClose}
+      icon={<FileText size={20} />}
+      title={c.title}
+      size="md"
+      footer={
+        <>
+          <div
+            className="rounded-xl px-4 py-3 flex items-center justify-center gap-2 text-sm font-semibold"
+            style={{
+              backgroundColor: claudeTokens.surface,
+              border: `1px solid ${claudeTokens.borderStrong}`,
+              color: claudeTokens.textPrimary,
+            }}
+          >
+            <Sparkles size={16} style={{ color: claudeTokens.accent }} />
+            {c.bundleTitle}
+          </div>
+          <ClaudeButton onClick={onClose}>{c.cta}</ClaudeButton>
+        </>
+      }
+    >
+      {/* Language tabs — segmented control on the warm sunken surface */}
+      <div
+        className="flex gap-1 p-1 rounded-lg mb-4"
+        style={{ backgroundColor: claudeTokens.surfaceSunken }}
       >
-        <motion.div 
-          initial={{ scale: 0.9, y: 20 }}
-          animate={{ scale: 1, y: 0 }}
-          exit={{ scale: 0.9, y: 20 }}
-          className="modal-card bg-[#1a1a1a] w-full max-w-lg rounded-3xl overflow-hidden border border-white/10 shadow-2xl relative flex flex-col"
+        {(['en', 'ru', 'kz'] as const).map((lang) => (
+          <ClaudePill
+            key={lang}
+            active={activeTab === lang}
+            onClick={() => setActiveTab(lang)}
+          >
+            {lang === 'kz' ? 'KZ' : lang === 'ru' ? 'RU' : 'EN'}
+          </ClaudePill>
+        ))}
+      </div>
+
+      {/* Rules — each on a soft card */}
+      <ul className="space-y-2">
+        {c.rules.map((rule, i) => (
+          <li
+            key={i}
+            className="flex gap-3 items-start rounded-xl px-4 py-3"
+            style={{
+              backgroundColor: claudeTokens.surfaceMuted,
+              border: `1px solid ${claudeTokens.border}`,
+            }}
+          >
+            <CheckCircle
+              size={18}
+              className="mt-0.5 shrink-0"
+              style={{ color: claudeTokens.success }}
+            />
+            <p className="text-sm leading-relaxed" style={{ color: claudeTokens.textBody }}>
+              {rule}
+            </p>
+          </li>
+        ))}
+      </ul>
+
+      {/* Premium bundle callout — replaces the old physical-prize banner */}
+      <div
+        className="mt-6 rounded-2xl px-5 py-5 text-center"
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: `1px solid ${claudeTokens.borderStrong}`,
+        }}
+      >
+        <p
+          className="text-[10px] font-semibold uppercase tracking-[0.3em] mb-1"
+          style={{ color: claudeTokens.accent }}
         >
-           {/* Header */}
-           <div className="p-4 sm:p-6 border-b border-white/10 flex justify-between items-center bg-white/5">
-             <div className="flex items-center gap-3">
-               <div className="p-2 bg-blue-500/20 rounded-xl">
-                 <FileText className="text-blue-500" size={24} />
-               </div>
-               <h2 className="text-xl font-bold text-white">
-                 {content[activeTab].title}
-               </h2>
-             </div>
-             <button 
-               onClick={onClose}
-               className="p-2 min-h-[44px] min-w-[44px] bg-white/5 rounded-full text-gray-400 hover:bg-white/10 transition-colors"
-             >
-               <X size={20} />
-             </button>
-           </div>
-
-           {/* Language Tabs */}
-           <div className="flex p-2 gap-2 bg-black/20 border-b border-white/5">
-             {(['kz', 'ru', 'en'] as const).map((lang) => (
-               <button
-                 key={lang}
-                 onClick={() => setActiveTab(lang)}
-                 className={clsx(
-                  "flex-1 min-h-[44px] py-2 rounded-lg text-sm font-bold transition-all uppercase flex items-center justify-center gap-2",
-                   activeTab === lang 
-                     ? "bg-blue-600 text-white shadow-lg shadow-blue-500/20" 
-                     : "bg-white/5 text-gray-400 hover:bg-white/10"
-                 )}
-               >
-                 {lang === 'kz' ? '🇰🇿 KZ' : lang === 'ru' ? '🇷🇺 RU' : '🇺🇸 EN'}
-               </button>
-             ))}
-           </div>
-
-           {/* Content */}
-           <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar">
-             <div className="space-y-4">
-               {content[activeTab].rules.map((rule, index) => (
-                 <div key={index} className="flex gap-3 items-start p-3 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors">
-                   <CheckCircle className="text-green-500 min-w-[20px] mt-0.5" size={20} />
-                   <p className="text-gray-300 text-sm leading-relaxed">{rule}</p>
-                 </div>
-               ))}
-             </div>
-             
-            <div className="relative mt-8 overflow-hidden rounded-2xl border border-amber-300/20 bg-gradient-to-r from-amber-400/10 via-red-500/10 to-transparent p-5 text-center shadow-[0_18px_40px_rgba(245,158,11,0.12)]">
-              <div className="absolute -left-6 top-1/2 h-20 w-20 -translate-y-1/2 rounded-full bg-yellow-300/20 blur-3xl" />
-              <div className="absolute right-4 top-4 h-10 w-10 rounded-full bg-red-500/20 blur-2xl" />
-              <div className="relative">
-                <p className="text-yellow-400 text-[11px] font-bold uppercase tracking-[0.35em] mb-2">{content[activeTab].grandPrizeLabel}</p>
-                <p className="text-3xl font-black uppercase tracking-[-0.08em] text-transparent bg-clip-text bg-gradient-to-r from-white via-amber-100 to-yellow-300 drop-shadow-[0_0_18px_rgba(253,224,71,0.75)]">
-                  Ford Mustang
-                </p>
-                <p className="mt-1 text-sm font-black uppercase tracking-[0.55em] text-red-400 drop-shadow-[0_0_12px_rgba(248,113,113,0.85)]">
-                  GT
-                </p>
-              </div>
-             </div>
-           </div>
-
-           {/* Footer */}
-           <div className="p-4 border-t border-white/10 bg-white/5 flex flex-col gap-3">
-             <div className="w-full min-h-[44px] py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold rounded-xl flex items-center justify-center gap-2">
-               <Trophy size={20} />
-               <span>VIP Analytics + Weekend Tournament</span>
-             </div>
-             <button 
-               onClick={onClose}
-               className="w-full min-h-[44px] py-3 bg-white/10 text-white font-bold rounded-xl hover:bg-white/20 transition-colors"
-             >
-               {activeTab === 'kz' ? 'Түсінікті' : activeTab === 'ru' ? 'Понятно' : 'Understood'}
-             </button>
-           </div>
-        </motion.div>
-      </motion.div>
-    </AnimatePresence>
+          {c.bundleLabel}
+        </p>
+        <p
+          className="text-xl font-bold"
+          style={{
+            color: claudeTokens.textPrimary,
+            fontFamily:
+              '"Tiempos Headline", "Iowan Old Style", "Georgia", ui-serif, serif',
+          }}
+        >
+          {c.bundleTitle}
+        </p>
+      </div>
+    </ClaudeModal>
   );
 };

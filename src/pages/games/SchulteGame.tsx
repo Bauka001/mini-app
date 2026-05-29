@@ -3,7 +3,7 @@ import { GameWrapper } from '../../components/GameWrapper';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { useStore } from '../../store/useStoreImpl';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Lock, Crown } from 'lucide-react';
 
@@ -90,6 +90,9 @@ export const SchulteBoard = ({ onEnd, isPaused, theme }: { onEnd: (score: string
     }, 100);
 
     return () => clearInterval(timer);
+    // Mount-only ticker; onEnd / isPaused identities change every render and
+    // would reset the countdown if added.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCellClick = (num: number) => {

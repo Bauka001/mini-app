@@ -3,6 +3,7 @@ import { BarChart3, Crown, Sparkles, Wallet } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useEffect, useState } from 'react';
 import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
+import { useTranslation } from 'react-i18next';
 import { useThemeStyles } from '../../hooks/useThemeStyles';
 import { bindWallet } from '../../utils/web3Api';
 import { earnFocus } from '../../utils/web3Api';
@@ -16,6 +17,7 @@ export default function OnboardingScreen3({
   onOpenShop,
   onSkip,
 }: OnboardingScreen3Props) {
+  const { t } = useTranslation();
   const styles = useThemeStyles();
   const { panelClass, textPrimary, textSecondary } = styles;
   const [tonUi] = useTonConnectUI();
@@ -72,10 +74,10 @@ export default function OnboardingScreen3({
         <div className="flex items-center justify-between gap-4">
           <div>
             <div className={clsx("text-xs uppercase tracking-[0.24em] font-semibold", textSecondary)}>
-              Next Upgrade
+              {t('onb3_kicker')}
             </div>
             <h2 className={clsx("text-3xl font-black mt-3", textPrimary)}>
-              VIP-мен аналитика алыңыз
+              {t('onb3_title')}
             </h2>
           </div>
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-300 to-yellow-500 text-stone-950 flex items-center justify-center shadow-lg">
@@ -84,17 +86,16 @@ export default function OnboardingScreen3({
         </div>
 
         <p className={clsx("text-sm leading-relaxed mt-4", textSecondary)}>
-          VIP арқылы кеңейтілген метрикалар, тереңірек аналитика және өнімдірек жаттығу
-          бақылауын ашуға болады. Толық ұсыныстар Shop ішінде тұр.
+          {t('onb3_body')}
         </p>
 
         <div className="space-y-3 mt-5">
           <div className={clsx("rounded-2xl p-4 flex items-start gap-3", styles.cardClass)}>
             <BarChart3 size={20} className={clsx("mt-0.5 shrink-0", styles.textAccent)} />
             <div>
-              <div className={clsx("text-sm font-bold", textPrimary)}>Терең аналитика</div>
+              <div className={clsx("text-sm font-bold", textPrimary)}>{t('onb3_card1_title')}</div>
               <div className={clsx("text-xs mt-1", textSecondary)}>
-                Brain Score өзгерісін уақыт бойынша көруге ыңғайлы.
+                {t('onb3_card1_caption')}
               </div>
             </div>
           </div>
@@ -102,9 +103,9 @@ export default function OnboardingScreen3({
           <div className={clsx("rounded-2xl p-4 flex items-start gap-3", styles.cardClass)}>
             <Sparkles size={20} className={clsx("mt-0.5 shrink-0", styles.textAccent)} />
             <div>
-              <div className={clsx("text-sm font-bold", textPrimary)}>Артықшылықтар пакеті</div>
+              <div className={clsx("text-sm font-bold", textPrimary)}>{t('onb3_card2_title')}</div>
               <div className={clsx("text-xs mt-1", textSecondary)}>
-                Premium flow Shop бетінен бірден ашылады.
+                {t('onb3_card2_caption')}
               </div>
             </div>
           </div>
@@ -147,14 +148,14 @@ export default function OnboardingScreen3({
           onClick={onOpenShop}
           className={clsx("w-full mt-6 px-4 py-4 rounded-2xl text-base font-black", styles.btnPrimary)}
         >
-          Shop-қа өту
+          {t('onb3_open_shop')}
         </button>
 
         <button
           onClick={onSkip}
           className={clsx("w-full mt-3 px-4 py-3 rounded-2xl text-sm font-semibold", styles.btnSecondary)}
         >
-          Дайын
+          {t('onb3_done')}
         </button>
       </motion.div>
     </div>

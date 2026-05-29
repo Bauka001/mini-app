@@ -1,6 +1,8 @@
 import { Trophy, Crown, Medal } from 'lucide-react';
 import { useStore } from '../store/useStoreImpl';
 import { useMemo } from 'react';
+import { useThemeStyles } from '../hooks/useThemeStyles';
+import { claudeTokens } from '../components/ui/claudeTokens';
 import { getDefaultAvatarUrl } from '../constants/avatars';
 
 // Mock Leaderboard Data
@@ -14,12 +16,243 @@ const MOCK_LEADERBOARD = [
 
 const LeaderboardPage = () => {
   const { user } = useStore();
-  const userInTop5 = MOCK_LEADERBOARD.some(u => u.id === user.id);
+  const { isClaude } = useThemeStyles();
+  const userInTop5 = MOCK_LEADERBOARD.some((u) => u.id === user.id);
   const displayList = useMemo(
     () => [...MOCK_LEADERBOARD].sort((a, b) => b.xp - a.xp),
     []
   );
 
+  if (isClaude) {
+    return (
+      <div
+        className="min-h-screen pb-24"
+        style={{ backgroundColor: claudeTokens.surface, color: claudeTokens.textPrimary }}
+      >
+        <header
+          className="sticky top-0 z-10 px-5 py-5 backdrop-blur-md"
+          style={{
+            backgroundColor: 'rgba(250, 249, 245, 0.92)',
+            borderBottom: `1px solid ${claudeTokens.border}`,
+          }}
+        >
+          <span
+            className="text-[10px] font-medium uppercase tracking-[0.22em]"
+            style={{ color: claudeTokens.textMuted }}
+          >
+            This week
+          </span>
+          <h1
+            className="mt-1 leading-none tracking-tight flex items-center gap-3"
+            style={{
+              color: claudeTokens.textPrimary,
+              fontFamily: claudeTokens.serifStack,
+              fontSize: '30px',
+              fontWeight: 500,
+            }}
+          >
+            <Trophy size={22} strokeWidth={1.75} style={{ color: claudeTokens.accent }} />
+            Leaderboard
+          </h1>
+        </header>
+
+        <div className="px-5 pt-6">
+          {/* Editorial podium — three columns of equal cream cards, ranks set
+              in chapter numerals, single terracotta crown above #1, no neon. */}
+          <div className="grid grid-cols-3 gap-2 mb-6">
+            {[1, 0, 2].map((displayIdx, slotIdx) => {
+              const player = displayList[displayIdx];
+              const rank = displayIdx + 1;
+              const isFirst = displayIdx === 0;
+              return (
+                <div
+                  key={player.id}
+                  className="relative rounded-xl p-4 flex flex-col items-center"
+                  style={{
+                    backgroundColor: claudeTokens.surface,
+                    border: `1px solid ${isFirst ? claudeTokens.accent : claudeTokens.border}`,
+                    transform: slotIdx === 1 ? 'translateY(-12px)' : undefined,
+                  }}
+                >
+                  {isFirst && (
+                    <Crown
+                      size={18}
+                      strokeWidth={1.75}
+                      className="absolute -top-3"
+                      style={{ color: claudeTokens.accent, fill: claudeTokens.accent }}
+                    />
+                  )}
+                  <span
+                    className="text-[10px] tracking-[0.22em] uppercase"
+                    style={{
+                      color: isFirst ? claudeTokens.accent : claudeTokens.textMuted,
+                      fontFamily: claudeTokens.serifStack,
+                    }}
+                  >
+                    № {rank}
+                  </span>
+                  <div
+                    className="w-14 h-14 rounded-full overflow-hidden mt-2"
+                    style={{
+                      backgroundColor: claudeTokens.surfaceMuted,
+                      border: `1px solid ${claudeTokens.borderStrong}`,
+                    }}
+                  >
+                    <img src={player.avatar} alt={player.name} className="w-full h-full" />
+                  </div>
+                  <span
+                    className="mt-2 text-[14px] truncate w-full text-center italic"
+                    style={{
+                      color: claudeTokens.textPrimary,
+                      fontFamily: claudeTokens.serifStack,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {player.name}
+                  </span>
+                  <span
+                    className="text-[11px] tabular-nums"
+                    style={{
+                      color: claudeTokens.textMuted,
+                      fontFamily: claudeTokens.serifStack,
+                      fontFeatureSettings: '"lnum","tnum"',
+                    }}
+                  >
+                    {player.xp.toLocaleString()} XP
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Hairline list for the rest */}
+          <div
+            className="rounded-2xl overflow-hidden"
+            style={{ backgroundColor: claudeTokens.surface, border: `1px solid ${claudeTokens.border}` }}
+          >
+            {displayList.slice(3).map((player, index) => (
+              <div
+                key={player.id}
+                className="flex items-center justify-between p-4"
+                style={{
+                  borderBottom:
+                    index < displayList.slice(3).length - 1
+                      ? `1px solid ${claudeTokens.border}`
+                      : 'none',
+                }}
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <span
+                    className="w-8 text-[14px] tabular-nums"
+                    style={{
+                      color: claudeTokens.textMuted,
+                      fontFamily: claudeTokens.serifStack,
+                      fontWeight: 500,
+                    }}
+                  >
+                    {index + 4}
+                  </span>
+                  <div
+                    className="w-9 h-9 rounded-full overflow-hidden shrink-0"
+                    style={{
+                      backgroundColor: claudeTokens.surfaceMuted,
+                      border: `1px solid ${claudeTokens.border}`,
+                    }}
+                  >
+                    <img src={player.avatar} alt={player.name} className="w-full h-full" />
+                  </div>
+                  <div className="min-w-0">
+                    <div
+                      className="text-[14px] truncate"
+                      style={{ color: claudeTokens.textPrimary, fontWeight: 500 }}
+                    >
+                      {player.name}
+                    </div>
+                    <div className="text-[11px]" style={{ color: claudeTokens.textMuted }}>
+                      Level {player.level}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="text-[14px] tabular-nums"
+                  style={{
+                    color: claudeTokens.accent,
+                    fontFamily: claudeTokens.serifStack,
+                    fontWeight: 500,
+                    fontFeatureSettings: '"lnum","tnum"',
+                  }}
+                >
+                  {player.xp.toLocaleString()} XP
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {!userInTop5 && (
+            <div className="sticky bottom-24 mt-5">
+              <div
+                className="rounded-2xl p-4 flex items-center justify-between backdrop-blur-md"
+                style={{
+                  backgroundColor: 'rgba(240, 238, 230, 0.92)',
+                  border: `1px solid ${claudeTokens.accent}`,
+                }}
+              >
+                <div className="flex items-center gap-4 min-w-0">
+                  <span
+                    className="w-8 text-center text-[14px]"
+                    style={{
+                      color: claudeTokens.accent,
+                      fontFamily: claudeTokens.serifStack,
+                      fontWeight: 500,
+                    }}
+                  >
+                    —
+                  </span>
+                  <div
+                    className="w-9 h-9 rounded-full overflow-hidden shrink-0"
+                    style={{ border: `1px solid ${claudeTokens.accent}` }}
+                  >
+                    <img
+                      src={
+                        user.photoUrl ||
+                        'https://api.dicebear.com/7.x/avataaars/svg?seed=Felix'
+                      }
+                      alt="Me"
+                      className="w-full h-full"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <div
+                      className="text-[14px] truncate"
+                      style={{ color: claudeTokens.textPrimary, fontWeight: 500 }}
+                    >
+                      {user.firstName} <span className="italic" style={{ color: claudeTokens.textMuted }}>(you)</span>
+                    </div>
+                    <div className="text-[11px]" style={{ color: claudeTokens.textMuted }}>
+                      Level {user.level}
+                    </div>
+                  </div>
+                </div>
+                <div
+                  className="text-[14px] tabular-nums"
+                  style={{
+                    color: claudeTokens.accent,
+                    fontFamily: claudeTokens.serifStack,
+                    fontWeight: 500,
+                    fontFeatureSettings: '"lnum","tnum"',
+                  }}
+                >
+                  {user.xp.toLocaleString()} XP
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Legacy themes — original markup
   const getRankIcon = (index: number) => {
     switch (index) {
       case 0: return <Crown size={24} className="text-yellow-500 fill-yellow-500" />;

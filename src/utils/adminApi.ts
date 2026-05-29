@@ -159,23 +159,115 @@ export interface FeedbackSubmissionPayload {
   imageUrl?: string;
 }
 
+export interface CanonicalUser {
+  telegramId: number;
+  firstName: string;
+  lastName: string | null;
+  username: string | null;
+  photoUrl: string | null;
+  coins: number;
+  gems: number;
+  xp: number;
+  level: number;
+  plan: 'free' | 'silver' | 'gold' | 'premium';
+  planExpiry: number | null;
+  planActive: boolean;
+  hp: number;
+  maxHp: number;
+  fecBalance: number;
+  brainStats: { focus: number; memory: number; logic: number; speed: number; flexibility: number };
+  skinInventory: string[];
+  activeSkin: string;
+  inventory: { freezes: number; hints: number; shields: number };
+  dailyGoalMinutes: number;
+  streak: number;
+  dailyRewardStreak: number;
+  lastDailyRewardDate: string | null;
+  promotionEndISO: string | null;
+  dailyQuest: {
+    id: string;
+    games_played: string[];
+    is_completed: boolean;
+    is_claimed: boolean;
+    last_reset_date: string | null;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UsersMeResponse {
+  ok: true;
+  user: CanonicalUser | null;
+}
+
+export interface TournamentJoinResponse {
+  ok: true;
+  weekKey: string;
+  paymentMethod: 'vip' | 'stars' | 'ton';
+}
+
+export interface UsersSyncResponse {
+  ok: true;
+  written: number;
+  ignoredKeys?: string[];
+}
+
+export interface TournamentLeaderboardEntry {
+  userTelegramId: number;
+  firstName: string | null;
+  username: string | null;
+  photoUrl: string | null;
+  score: number;
+  gamesPlayed: number;
+  rank: number;
+}
+
+export interface TournamentLeaderboardResponse {
+  ok: true;
+  weekKey: string;
+  leaderboard: TournamentLeaderboardEntry[];
+}
+
+export interface GameSubmitPayload {
+  gameId: string;
+  score: number | string;
+  coinsEarned: number;
+}
+
+export interface GameSubmitResponse {
+  ok: boolean;
+  awarded: number;
+  coins?: number;
+  xp?: number;
+  level?: number;
+  reason?: 'rate_limited';
+}
+
 export interface TicketIssuePayload {
-  id: string;
-  ticketNumber: number;
   userTelegramId: number;
   userName: string;
   eventName: string;
   eventDate: string;
   price: number;
   purchaseDate: string;
+  // Union of HEAD ('plan_upgrade'/'ticket_purchase') and upstream ('case_reward').
   source: 'plan_upgrade' | 'ticket_purchase' | 'case_reward';
+  targetPlan?: 'silver' | 'gold' | 'premium';
+}
+
+export interface TicketIssueResponse {
+  ok: true;
+  ticketId: string;
+  ticketNumber: number;
+  ticket: AdminTicketRecord;
+  plan: { plan: string; planExpiry: number | null } | null;
 }
 
 const getTelegramInitData = () => {
   return window.Telegram?.WebApp?.initData || WebApp?.initData || '';
 };
 
-async function postJson<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+async function postJson<T>(path: string, body: Record<string, any> = {}): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     method: 'POST',
     headers: {
@@ -261,8 +353,87 @@ export const replyAdminFeedback = (feedbackId: number, reply: string) =>
 export const submitFeedbackEntry = (payload: FeedbackSubmissionPayload) =>
   postJson<{ ok: true; feedbackId: number }>('/feedback', payload);
 
+export const submitGameResult = (payload: GameSubmitPayload) =>
+  postJson<GameSubmitResponse>('/games/submit', payload);
+
+export const getUserMe = () => postJson<UsersMeResponse>('/users/me');
+
+export const joinTournamentRecord = (paymentMethod: 'vip' | 'stars' | 'ton') =>
+  postJson<TournamentJoinResponse>('/tournaments/join', { paymentMethod });
+
+export const syncUserToServer = (user: Record<string, any>) =>
+  postJson<UsersSyncResponse>('/users/sync', { user });
+
+export interface SkinPurchaseResponse {
+  ok: true;
+  skinId: string;
+  price: number;
+  coins: number;
+  skinInventory: string[];
+}
+
+export const purchaseSkin = (skinId: string) =>
+  postJson<SkinPurchaseResponse>('/skins/purchase', { skinId });
+
+export interface RewardGrantResponse {
+  ok: true;
+  reason: 'ad' | 'level' | 'social' | 'challenge';
+  level?: number;
+  taskId?: string;
+  challengeId?: string;
+  granted: { coins: number; gems: number };
+  coins?: number;
+  gems?: number;
+  remainingToday?: number;
+  clamped?: boolean;
+}
+
+export const grantAdReward = () =>
+  postJson<RewardGrantResponse>('/rewards/grant', { reason: 'ad' });
+
+export const grantLevelReward = (level: number) =>
+  postJson<RewardGrantResponse>('/rewards/grant', { reason: 'level', level });
+
+export const grantSocialReward = (taskId: string) =>
+  postJson<RewardGrantResponse>('/rewards/grant', { reason: 'social', taskId });
+
+export const grantChallengeReward = (challengeId: string, amount: number) =>
+  postJson<RewardGrantResponse>('/rewards/grant', {
+    reason: 'challenge',
+    challengeId,
+    amount,
+  });
+
+export type MysteryBoxReward =
+  | { type: 'skin'; skinId: string; amount: number }
+  | { type: 'crystals'; amount: number }
+  | { type: 'booster'; boosterType: 'hints'; amount: number }
+  | { type: 'fec'; amount: number }
+  | { type: 'coins'; amount: number };
+
+export interface MysteryBoxOpenResponse {
+  ok: true;
+  reward: MysteryBoxReward;
+  price: number;
+  coins: number;
+  gems: number;
+  fecBalance: number;
+  inventory: { freezes: number; hints: number; shields: number };
+  skinInventory: string[];
+}
+
+export const openMysteryBoxOnServer = () =>
+  postJson<MysteryBoxOpenResponse>('/mystery-box/open', {});
+
+// Re-export for store action consumers; the store action returns this same
+// shape (mapped to the existing MysteryBox UI type) on success.
+
+
+export const getTournamentLeaderboard = (weekKey?: string) =>
+  postJson<TournamentLeaderboardResponse>('/tournaments/leaderboard', weekKey ? { weekKey } : {});
+
 export const issueTicketRecord = (payload: TicketIssuePayload) =>
-  postJson<{ ok: true; ticketId: string }>('/tickets/issue', payload);
+  postJson<TicketIssueResponse>('/tickets/issue', payload);
 
 export interface AdminSocialTask {
   id: string;
