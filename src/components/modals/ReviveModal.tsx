@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, PlayCircle, RefreshCw } from 'lucide-react';
+import { Heart, PlayCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { useStore } from '../../store/useStoreImpl';
 import { useTranslation } from 'react-i18next';
+import { payWithStars } from '../../utils/starsApi';
+import WebApp from '@twa-dev/sdk';
 
 interface ReviveModalProps {
   isOpen: boolean;
@@ -22,6 +24,29 @@ export const ReviveModal: React.FC<ReviveModalProps> = ({
   const { hp, maxHp, decrementHp, restoreHp } = useStore();
   const { t } = useTranslation();
   const [isWatchingAd, setIsWatchingAd] = useState(false);
+  const [isStarsPaying, setIsStarsPaying] = useState(false);
+  const [starsError, setStarsError] = useState<string | null>(null);
+
+  const handleReviveWithStars = async () => {
+    setStarsError(null);
+    setIsStarsPaying(true);
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+      const result = await payWithStars('revive');
+      if (result.status === 'paid') {
+        restoreHp(maxHp);
+        WebApp.HapticFeedback.notificationOccurred('success');
+        onRevive();
+      } else {
+        setStarsError(t('stars_payment_not_confirmed', 'Payment was not confirmed.'));
+      }
+    } catch (e) {
+      setStarsError(e instanceof Error ? e.message : 'Stars payment failed');
+      WebApp.HapticFeedback.notificationOccurred('error');
+    } finally {
+      setIsStarsPaying(false);
+    }
+  };
 
   const handleReviveWithHp = () => {
     if (decrementHp()) {
@@ -100,6 +125,21 @@ export const ReviveModal: React.FC<ReviveModalProps> = ({
                 <PlayCircle className="w-5 h-5" />
                 {t('watch_ad_hp')}
               </button>
+
+              <button
+                onClick={handleReviveWithStars}
+                disabled={isStarsPaying}
+                className="w-full py-4 bg-gradient-to-r from-amber-400 to-yellow-500 rounded-xl font-bold text-black text-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-lg shadow-amber-500/30 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Sparkles className="w-5 h-5" />
+                {isStarsPaying ? t('processing', 'Processing…') : t('revive_with_stars', 'Revive — 15 ⭐')}
+              </button>
+
+              {starsError && (
+                <div className="mt-2 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+                  {starsError}
+                </div>
+              )}
 
               <div className="h-px bg-white/10 my-4" />
 

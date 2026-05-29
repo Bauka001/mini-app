@@ -13,6 +13,7 @@ import { clsx } from 'clsx';
 import { motion, AnimatePresence } from 'framer-motion';
 import WebApp from '@twa-dev/sdk';
 import { Achievements } from '../components/Achievements';
+import { Web3Section } from '../components/Web3Section';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { VipAnalyticsLockedCard, VipAnalyticsPanel } from '../components/analytics/VipAnalyticsContent';
 import { getProfileAvatarImage, PROFILE_AVATARS, ProfileAvatar } from '../constants/avatars';
@@ -526,6 +527,11 @@ const ProfilePage = () => {
             {/* Achievements Section */}
             <div className="w-full mt-6">
               <Achievements />
+            </div>
+
+            {/* Web3 Section — Wallet, $FOCUS jetton, NFT trophies */}
+            <div className="w-full mt-6">
+              <Web3Section />
             </div>
 
             {/* Level Progress Card */}

@@ -3070,6 +3070,34 @@ try {
   console.error("[admin-v2] Failed to mount:", e && e.message ? e.message : e);
 }
 
+// Mount Telegram Stars payment module (/payments/stars/*)
+try {
+  const registerStars = require("./stars");
+  registerStars(app, {
+    supabase,
+    resolveRequestAccess,
+    ensureSupabase,
+    applyPaidEntitlement,
+    sendTelegramMessage,
+    isMissingTableError,
+  });
+} catch (e) {
+  console.error("[stars] Failed to mount:", e && e.message ? e.message : e);
+}
+
+// Mount Web3 module: wallet links, $FOCUS jetton ledger, NFT trophies (/api/web3/*)
+try {
+  const registerWeb3 = require("./web3");
+  registerWeb3(app, {
+    supabase,
+    resolveRequestAccess,
+    ensureSupabase,
+    isMissingTableError,
+  });
+} catch (e) {
+  console.error("[web3] Failed to mount:", e && e.message ? e.message : e);
+}
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

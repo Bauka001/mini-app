@@ -25,6 +25,7 @@ import { clsx } from 'clsx';
 import { useStore } from '../store/useStoreImpl';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { hapticFeedback } from '../utils/telegram';
+import { earnFocus } from '../utils/web3Api';
 
 type WorkoutGame = {
   id: string;
@@ -251,6 +252,17 @@ export default function DailyWorkoutPage() {
   const totalBrainScore = workoutResults.reduce((sum, item) => sum + item.brainScore, 0);
   const progressPercent = selectedGames.length > 0 ? (completedCount / selectedGames.length) * 100 : 0;
   const isCompleted = selectedGames.length > 0 && completedCount === selectedGames.length;
+
+  // Credit $FOCUS jetton for daily workout completion (server-side enforces 24h cooldown)
+  useEffect(() => {
+    if (!isCompleted || !session) return;
+    const claimKey = `focus-earned-${session.date}`;
+    if (sessionStorage.getItem(claimKey)) return;
+    sessionStorage.setItem(claimKey, '1');
+    earnFocus('daily_workout_complete', session.date, { gamesCompleted: completedCount }).catch(() => {
+      // server returns 429 if cooldown active; that's fine — we set sessionStorage as best-effort dedupe
+    });
+  }, [isCompleted, session, completedCount]);
 
   const sessionDateLabel = useMemo(() => {
     if (!session) return '';

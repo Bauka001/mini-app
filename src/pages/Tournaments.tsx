@@ -7,12 +7,14 @@ import WebApp from '@twa-dev/sdk';
 import { useStore } from '../store/useStoreImpl';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { getDefaultAvatarUrl } from '../constants/avatars';
+import { payWithStars } from '../utils/starsApi';
 
 const MAX_TOURNAMENT_GAMES = 3;
 
 const PRIZE_TIERS = [
-  { label: 'Top 1', reward: '1000 Airdrop + 5 TON' },
-  { label: 'Top 2-3', reward: '500 Airdrop + 2 TON' },
+  { label: 'Top 1', reward: '🥇 Gold NFT + 100 $FOCUS + 5 TON' },
+  { label: 'Top 2', reward: '🥈 Silver NFT + 50 $FOCUS + 2 TON' },
+  { label: 'Top 3', reward: '🥉 Bronze NFT + 25 $FOCUS + 1 TON' },
   { label: 'Top 4-10', reward: '200 Airdrop + 0.5 TON' },
   { label: 'Top 11-50', reward: '100 Airdrop' },
 ];
@@ -104,6 +106,8 @@ export default function Tournaments() {
 
   const currentUserRank = leaderboard.find((player) => player.isCurrentUser);
 
+  const [starsBusy, setStarsBusy] = useState(false);
+
   const handleJoin = (paymentMethod: 'ton' | 'vip' | 'ticket') => {
     const result = joinTournament(paymentMethod);
     setFeedback(result.message);
@@ -112,6 +116,25 @@ export default function Tournaments() {
       WebApp.HapticFeedback?.notificationOccurred?.('success');
     } else {
       WebApp.HapticFeedback?.notificationOccurred?.('error');
+    }
+  };
+
+  const handleBuyTicketWithStars = async () => {
+    setStarsBusy(true);
+    setFeedback(null);
+    try {
+      WebApp.HapticFeedback?.notificationOccurred?.('success');
+      const result = await payWithStars('tournament_ticket');
+      if (result.status === 'paid') {
+        setFeedback(t('ticket_purchased', 'Ticket purchased! You can now join the tournament.'));
+        WebApp.HapticFeedback?.notificationOccurred?.('success');
+      } else {
+        setFeedback(t('stars_payment_not_confirmed', 'Payment was not confirmed.'));
+      }
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : 'stars_payment_failed');
+    } finally {
+      setStarsBusy(false);
     }
   };
 
@@ -193,6 +216,27 @@ export default function Tournaments() {
               </div>
               <div className={clsx('mt-2 text-2xl font-black', styles.textPrimary)}>TON</div>
               <div className={clsx('mt-1 text-xs', styles.textSecondary)}>{t('ton_payment_desc')}</div>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleBuyTicketWithStars}
+              disabled={!schedule.isOpen || joinedCurrentWeek || starsBusy}
+              className={clsx(
+                'w-full rounded-2xl border px-4 py-4 min-h-[44px] text-left transition-all disabled:cursor-not-allowed disabled:opacity-50',
+                'border-amber-400/30 bg-amber-500/10 hover:bg-amber-500/15'
+              )}
+            >
+              <div className="flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-amber-300">
+                <Sparkles size={16} />
+                Telegram Stars
+              </div>
+              <div className={clsx('mt-2 text-2xl font-black', styles.textPrimary)}>
+                {starsBusy ? '…' : '50 ⭐'}
+              </div>
+              <div className={clsx('mt-1 text-xs', styles.textSecondary)}>
+                {t('stars_ticket_desc', 'Buy a tournament ticket with Stars — no wallet needed.')}
+              </div>
             </button>
 
             {tournamentTickets > 0 ? (

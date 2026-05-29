@@ -1,7 +1,11 @@
 import { motion } from 'framer-motion';
-import { BarChart3, Crown, Sparkles } from 'lucide-react';
+import { BarChart3, Crown, Sparkles, Wallet } from 'lucide-react';
 import { clsx } from 'clsx';
+import { useEffect, useState } from 'react';
+import { useTonConnectUI, useTonAddress } from '@tonconnect/ui-react';
 import { useThemeStyles } from '../../hooks/useThemeStyles';
+import { bindWallet } from '../../utils/web3Api';
+import { earnFocus } from '../../utils/web3Api';
 
 type OnboardingScreen3Props = {
   onOpenShop: () => void;
@@ -14,6 +18,49 @@ export default function OnboardingScreen3({
 }: OnboardingScreen3Props) {
   const styles = useThemeStyles();
   const { panelClass, textPrimary, textSecondary } = styles;
+  const [tonUi] = useTonConnectUI();
+  const tonAddress = useTonAddress();
+  const [walletStatus, setWalletStatus] = useState<'idle' | 'binding' | 'bound' | 'error'>('idle');
+  const [reward, setReward] = useState<number>(0);
+  const [walletError, setWalletError] = useState<string | null>(null);
+
+  // Auto-bind once user connects wallet
+  useEffect(() => {
+    if (!tonAddress || walletStatus !== 'idle') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        setWalletStatus('binding');
+        setWalletError(null);
+        const account = tonUi.account;
+        const result = await bindWallet({
+          address: tonAddress,
+          chain: account?.chain === '-3' ? 'testnet' : 'mainnet',
+          publicKey: account?.publicKey,
+          walletInfo: tonUi.wallet
+            ? {
+                appName: tonUi.wallet.device?.appName,
+                platform: tonUi.wallet.device?.platform,
+              }
+            : null,
+        });
+        if (cancelled) return;
+        setReward(result.onboardingReward || 0);
+        setWalletStatus('bound');
+        // Also fire $FOCUS earn (idempotent on the server side via the same `reason`)
+        if (result.onboardingReward > 0) {
+          earnFocus('onboarding_wallet_bind').catch(() => {});
+        }
+      } catch (e) {
+        if (cancelled) return;
+        setWalletStatus('error');
+        setWalletError(e instanceof Error ? e.message : 'wallet_bind_failed');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tonAddress, tonUi, walletStatus]);
 
   return (
     <div className="fixed inset-0 z-[80] bg-black/70 backdrop-blur-md px-4 py-6 flex items-end">
@@ -59,6 +106,39 @@ export default function OnboardingScreen3({
               <div className={clsx("text-xs mt-1", textSecondary)}>
                 Premium flow Shop бетінен бірден ашылады.
               </div>
+            </div>
+          </div>
+
+          {/* TON wallet connect CTA — $FOCUS earn */}
+          <div className={clsx(
+            "rounded-2xl p-4 flex items-start gap-3 border",
+            walletStatus === 'bound'
+              ? "bg-emerald-500/10 border-emerald-400/40"
+              : "bg-sky-500/10 border-sky-400/40"
+          )}>
+            <Wallet size={20} className="mt-0.5 shrink-0 text-sky-400" />
+            <div className="flex-1">
+              <div className={clsx("text-sm font-bold", textPrimary)}>
+                Connect TON Wallet — earn 25 $FOCUS
+              </div>
+              <div className={clsx("text-xs mt-1", textSecondary)}>
+                {walletStatus === 'bound'
+                  ? `✅ Wallet bound. +${reward} $FOCUS credited.`
+                  : walletStatus === 'binding'
+                  ? '⏳ Binding wallet…'
+                  : walletStatus === 'error'
+                  ? `❌ ${walletError}`
+                  : 'Earn jetton credits, unlock NFT trophies, claim on-chain rewards.'}
+              </div>
+              {walletStatus !== 'bound' && (
+                <button
+                  onClick={() => tonUi.openModal()}
+                  className="mt-3 inline-flex items-center gap-2 rounded-xl bg-sky-500 px-3 py-2 text-xs font-bold text-white shadow-md hover:bg-sky-600 transition-colors"
+                >
+                  <Wallet size={14} />
+                  {tonAddress ? 'Re-bind' : 'Connect Wallet'}
+                </button>
+              )}
             </div>
           </div>
         </div>

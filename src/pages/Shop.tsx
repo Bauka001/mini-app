@@ -11,6 +11,7 @@ import { TonConnectButton, useTonConnectUI } from '@tonconnect/ui-react';
 import { TermsModal } from '../components/TermsModal';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { createTonPaymentIntent, getPaymentStatus, TonPlanCode } from '../utils/paymentApi';
+import { payWithStars } from '../utils/starsApi';
 import { hasTelegramStartParam, isTelegramWebApp } from '../utils/telegram';
 import { CASE_LIST } from '../store/cases';
 import { CaseList } from '../components/shop/CaseList';
@@ -292,6 +293,37 @@ const PaymentModal = ({
     }
   };
 
+  const handlePayWithStars = async () => {
+    WebApp.HapticFeedback.notificationOccurred('success');
+    setErrorMessage('');
+    setStatusMessage('');
+    try {
+      setIsSubmitting(true);
+      const productCode = `vip_${planCode}`;
+      setStatusMessage(t('stars_opening_invoice', 'Opening Telegram Stars invoice…'));
+      const result = await payWithStars(productCode, {
+        onStatusChange: (s) => {
+          if (s === 'paid') setStatusMessage(t('stars_payment_confirmed', 'Payment confirmed!'));
+          if (s === 'pending_grant') setStatusMessage(t('stars_pending_grant', 'Processing — granting access…'));
+        },
+      });
+      if (result.status === 'paid') {
+        fetchEntitlements();
+        WebApp.HapticFeedback.notificationOccurred('success');
+        setStatusMessage(t('stars_vip_active', 'VIP is now active!'));
+        setTimeout(() => onClose(), 1200);
+      } else {
+        setErrorMessage(t('stars_payment_not_confirmed', 'Payment was not confirmed.'));
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Stars payment failed';
+      setErrorMessage(msg);
+      WebApp.HapticFeedback.notificationOccurred('error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handlePayNow = async () => {
     WebApp.HapticFeedback.notificationOccurred('success');
     setErrorMessage('');
@@ -422,11 +454,30 @@ const PaymentModal = ({
             )}
           </div>
 
+          {/* Telegram Stars — fast path, no wallet needed */}
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4">
+            <div className="mb-1 flex items-center gap-2">
+              <Sparkles size={18} className="text-amber-600" />
+              <div className="text-sm font-semibold text-black">{t('pay_with_stars', 'Pay with Telegram Stars')}</div>
+            </div>
+            <div className="text-xs text-gray-700">
+              {planCode === 'basic' ? '140 ⭐' : planCode === 'pro' ? '175 ⭐' : '205 ⭐'} ·{' '}
+              {t('stars_fastpath', 'Instant unlock, no wallet required.')}
+            </div>
+            <button
+              onClick={handlePayWithStars}
+              disabled={isSubmitting || Boolean(pendingPaymentId)}
+              className="mt-3 w-full min-h-[44px] rounded-2xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-amber-600 disabled:cursor-not-allowed disabled:bg-amber-300"
+            >
+              {isSubmitting ? t('processing', 'Processing…') : `${t('pay_with_stars', 'Pay with Stars')} ⭐`}
+            </button>
+          </div>
+
           <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-            <div className="mb-3 text-sm font-semibold text-black">TON (TonConnect)</div>
+            <div className="mb-3 text-sm font-semibold text-black">{t('pay_with_ton', 'TON (TonConnect)')}</div>
             <TonConnectButton />
             <div className="mt-3 text-xs text-gray-600">
-              Server creates the exact TON amount and memo. Plan unlocks only after backend verification.
+              {t('ton_payment_hint', 'Server creates the exact TON amount and memo. Plan unlocks only after backend verification.')}
             </div>
           </div>
 
@@ -1749,6 +1800,7 @@ const ShopPage = () => {
             isOpening={Boolean(openedCaseReward)}
             caseErrorMessage={caseErrorMessage}
           />
+          <StarsQuickBuySection styles={styles} />
           <CaseList
             cases={CASE_LIST}
             coins={coins}
@@ -1787,6 +1839,97 @@ const ShopPage = () => {
 };
 
 export default ShopPage;
+
+const STARS_QUICK_BUY_PRODUCTS: Array<{
+  code: string;
+  label: string;
+  description: string;
+  stars: number;
+  emoji: string;
+}> = [
+  { code: 'case_basic',         label: 'Basic Case',        description: 'Mystery skin / booster',        stars: 25,  emoji: '📦' },
+  { code: 'case_rare',          label: 'Rare Case',         description: 'Better odds',                   stars: 50,  emoji: '🎁' },
+  { code: 'case_legendary',     label: 'Legendary Case',    description: 'Premium skins',                 stars: 100, emoji: '✨' },
+  { code: 'revive',             label: 'Revive',            description: 'Continue after fail',           stars: 15,  emoji: '❤️' },
+  { code: 'tournament_ticket',  label: 'Tournament Ticket', description: 'One entry',                     stars: 50,  emoji: '🎟' },
+  { code: 'wheel_spin',         label: 'Extra Wheel Spin',  description: 'One more spin',                 stars: 20,  emoji: '🎡' },
+  { code: 'coins_1500',         label: '1500 Coins',        description: 'Best value coin pack',          stars: 100, emoji: '🪙' },
+  { code: 'focus_100',          label: '100 $FOCUS',        description: 'Jetton credits (claim on-chain)', stars: 75,  emoji: '💎' },
+];
+
+const StarsQuickBuySection = ({ styles }: { styles: any }) => {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const fetchEntitlements = useStore((state) => state.fetchEntitlements);
+
+  const handleBuy = async (code: string, label: string) => {
+    setBusy(code);
+    setFeedback(null);
+    try {
+      WebApp.HapticFeedback.notificationOccurred('success');
+      const result = await payWithStars(code, {
+        onStatusChange: () => {},
+      });
+      if (result.status === 'paid') {
+        setFeedback({ kind: 'success', text: t('stars_purchased', `${label} unlocked!`) });
+        // Trigger a generic refresh — entitlements, balances pulled on next read
+        fetchEntitlements();
+        WebApp.HapticFeedback.notificationOccurred('success');
+      } else {
+        setFeedback({ kind: 'error', text: t('stars_payment_not_confirmed', 'Payment was not confirmed.') });
+      }
+    } catch (e) {
+      setFeedback({ kind: 'error', text: e instanceof Error ? e.message : 'Stars payment failed' });
+      WebApp.HapticFeedback.notificationOccurred('error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className={clsx('mb-6 rounded-2xl border p-4', styles.panelClass)}>
+      <div className="mb-3 flex items-center gap-2">
+        <Sparkles size={18} className="text-amber-500" />
+        <h3 className={clsx('text-base font-bold', styles.textPrimary)}>
+          {t('stars_quick_buy', 'Telegram Stars — Quick Buy')} ⭐
+        </h3>
+      </div>
+      <p className={clsx('mb-3 text-xs', styles.textSecondary)}>
+        {t('stars_quick_buy_hint', 'Instant in-app purchases. No wallet needed.')}
+      </p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {STARS_QUICK_BUY_PRODUCTS.map((p) => (
+          <button
+            key={p.code}
+            onClick={() => handleBuy(p.code, p.label)}
+            disabled={busy !== null}
+            className="flex flex-col items-start gap-1 rounded-xl border border-amber-300 bg-amber-50 p-3 text-left transition-all hover:bg-amber-100 active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <div className="text-xl">{p.emoji}</div>
+            <div className="text-xs font-bold text-black">{p.label}</div>
+            <div className="text-[10px] text-gray-600">{p.description}</div>
+            <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-bold text-white">
+              {busy === p.code ? '…' : `${p.stars} ⭐`}
+            </div>
+          </button>
+        ))}
+      </div>
+      {feedback && (
+        <div
+          className={clsx(
+            'mt-3 rounded-xl border px-3 py-2 text-sm',
+            feedback.kind === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : 'border-red-200 bg-red-50 text-red-700'
+          )}
+        >
+          {feedback.text}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const ShopInventorySection = ({
   styles,

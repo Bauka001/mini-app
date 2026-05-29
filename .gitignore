@@ -48,3 +48,4 @@ server/admin-v2-data.json
 # Cloned repositories (temporary)
 focus_game/
 mini-app/
+server/node_modules/
