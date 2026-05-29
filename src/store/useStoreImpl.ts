@@ -288,7 +288,7 @@ export const useStore = create<UserState>()(
     (set, get) => ({
       language: detectInitialLanguage(),
       soundEnabled: true,
-      theme: 'dark',
+      theme: 'blue',
 
       brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS),
 
@@ -1500,7 +1500,7 @@ export const useStore = create<UserState>()(
         return {
           language: detectInitialLanguage(),
           soundEnabled: true,
-          theme: 'dark',
+          theme: 'blue',
           brainStats: normalizeBrainStats(DEFAULT_BRAIN_STATS, []),
           user: {
             id: 0,
@@ -1757,13 +1757,20 @@ export const useStore = create<UserState>()(
     }),
     {
       name: `focus-app-v31-prod`,
-      version: 1,
-      // One-shot bump so existing users land on the new Claude theme on first
-      // load post-deploy. Preserve every other field — only `theme` is
-      // overridden, and only when the persisted state pre-dates v1.
+      version: 2,
+      // v2: retire the editorial 'claude' theme. Everyone lands on the blue
+      // (navy) theme — the dark, car-banner home the product uses. Existing
+      // users persisted with theme:'claude' are migrated to 'blue'; every
+      // other field is preserved.
       migrate: (persistedState: unknown, version: number) => {
-        if (version < 1 && persistedState && typeof persistedState === 'object') {
-          return { ...(persistedState as object), theme: 'dark' };
+        if (persistedState && typeof persistedState === 'object') {
+          const s = persistedState as { theme?: string };
+          if (version < 2 && s.theme === 'claude') {
+            return { ...(persistedState as object), theme: 'blue' };
+          }
+          if (version < 1) {
+            return { ...(persistedState as object), theme: 'blue' };
+          }
         }
         return persistedState as object;
       },

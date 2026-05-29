@@ -422,20 +422,6 @@ export const SettingsContent = () => {
 
         <SettingItem icon={theme === 'dark' ? Moon : Sun} title={t('theme')}>
           <div className="flex flex-wrap gap-2 justify-end">
-            {/* Claude pill always uses terracotta — no matter the active theme */}
-            <button
-              onClick={() => handleThemeChange('claude')}
-              className={clsx(
-                'px-3 py-1 rounded-lg text-xs font-bold uppercase transition-colors',
-                !isClaude &&
-                  (theme === 'claude'
-                    ? 'bg-[#D97757] text-white shadow-[0_0_10px_rgba(217,119,87,0.4)]'
-                    : 'bg-gray-800/50 text-[#D97757]/70')
-              )}
-              style={pillStyle(theme === 'claude', '#D97757')}
-            >
-              Claude
-            </button>
             <button
               onClick={() => handleThemeChange('dark')}
               className={clsx(
