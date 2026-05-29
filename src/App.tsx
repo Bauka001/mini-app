@@ -425,7 +425,9 @@ function AppRoutes() {
             path="/profile"
             element={
               <Suspense fallback={<RouteFallback />}>
-                <ProfilePage />
+                <TonConnectShell>
+                  <ProfilePage />
+                </TonConnectShell>
               </Suspense>
             }
           />
@@ -486,10 +488,14 @@ function AppRoutes() {
       )}
 
       {canRenderOverlay && onboardingProgress?.screen === 3 && (
-        <OnboardingScreen3
-          onOpenShop={handleOpenShop}
-          onSkip={handleDismissOnboarding}
-        />
+        <Suspense fallback={null}>
+          <TonConnectShell>
+            <OnboardingScreen3
+              onOpenShop={handleOpenShop}
+              onSkip={handleDismissOnboarding}
+            />
+          </TonConnectShell>
+        </Suspense>
       )}
     </>
   );
