@@ -549,16 +549,73 @@ async function applyPaidEntitlement(paymentOrder, verificationPayload = {}) {
     throw userUpdateError;
   }
 
+  // Allocate a raffle ticket number for this purchase so the user can be
+  // counted in the periodic draw. Best-effort — if tickets table is missing
+  // the user still gets the entitlement.
+  let raffleTicketNumber = null;
+  try {
+    const candidate = {
+      id: generateTicketId(),
+      ticket_number: generateTicketNumber(),
+      user_telegram_id: userTelegramId,
+      user_name: `user_${userTelegramId}`,
+      event_name: `${planOffer.tierCode.toUpperCase()} жоспар`,
+      event_date: entitlementEndIso,
+      price: 0, // actual paid amount is in payment_orders, this row is just the raffle marker
+      purchase_date: nowIso,
+      source: 'plan_upgrade',
+    };
+    const { data: ticketRow } = await supabase.from('tickets').insert(candidate).select('ticket_number').single();
+    raffleTicketNumber = ticketRow?.ticket_number || candidate.ticket_number;
+  } catch (e) {
+    // tickets table missing or write failed — non-fatal
+    console.warn('[entitlement] raffle ticket allocation failed:', e?.message || e);
+  }
+
+  // Pretty money label — provider + currency live on payment_orders
+  const providerName = paymentOrder.provider === 'telegram_stars' ? 'Telegram Stars'
+                     : paymentOrder.provider === 'ton'            ? 'TON Connect'
+                     :                                              (paymentOrder.provider || 'manual');
+  const amountLabel = paymentOrder.provider === 'telegram_stars'
+    ? `${paymentOrder.amount_nano} ⭐`
+    : paymentOrder.provider === 'ton'
+      ? `${(Number(paymentOrder.amount_nano) / 1e9).toFixed(2)} TON`
+      : `${paymentOrder.amount_nano} ${paymentOrder.currency || ''}`.trim();
+  const planUpper = planOffer.tierCode.toUpperCase();
+  const expDate = new Date(entitlementEndMs).toLocaleDateString('ru-RU', { timeZone: 'Asia/Almaty' });
+
+  // === User confirmation ===
   sendTelegramMessage(
     userTelegramId,
-    `TON payment расталды. Сіздің ${planOffer.tierCode.toUpperCase()} жоспарыңыз ${new Date(entitlementEndMs).toLocaleDateString('en-GB')} дейін белсенді.`
+    `🎉 <b>Құттықтаймыз!</b>\n\n`
+    + `Сіздің <b>${planUpper}</b> жоспарыңыз белсенді — ${expDate} дейін.\n\n`
+    + (raffleTicketNumber
+        ? `🎟 <b>Ұтыс билеті №${raffleTicketNumber}</b>\n`
+          + `Бұл нөмір келесі ұтыс ойынына автоматты қатысады.\n\n`
+        : '')
+    + `💝 Бағасы: ${amountLabel}\n`
+    + `💳 Төлем түрі: ${providerName}\n\n`
+    + `Жоспарыңызбен барлық премиум фунцияны пайдаланыңыз 🚀`
   );
+
+  // === Admin notification ===
+  for (const adminId of bootstrapAdminIds) {
+    const adminMsg = `⭐ <b>Жаңа төлем</b>\n\n`
+      + `🆔 <code>${userTelegramId}</code>\n\n`
+      + `📦 <b>Түрі:</b> Жоспар жаңарту → ${planUpper}\n`
+      + (raffleTicketNumber ? `🎟 <b>Билет №:</b> ${raffleTicketNumber} <i>(ұтыс ойынына автоматты қатысады)</i>\n` : '')
+      + `💰 <b>Сома:</b> ${amountLabel}\n`
+      + `💳 <b>Төлем:</b> ${providerName}\n`
+      + `🕒 ${new Date().toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' })}`;
+    sendTelegramMessage(adminId, adminMsg);
+  }
 
   return {
     status: 'paid',
     paidAt: nowIso,
     tierCode: planOffer.tierCode,
     endsAt: entitlementEndIso,
+    raffleTicketNumber,
   };
 }
 
@@ -2730,23 +2787,58 @@ app.post('/tickets/issue', writeLimiter, async (req, res) => {
       }
     }
 
-    // Never send a generic "Premium added" message from this endpoint —
-    // plan upgrades route through their own confirmation path.
+    // Every successful purchase — plan upgrade OR ticket — is also a raffle
+    // entry. The ticket_number we just allocated IS the raffle ticket number.
     const isPlanUpgrade = req.body?.source !== 'ticket_purchase';
-    if (userTelegramId && !isPlanUpgrade) {
-      const messageText = 'Құттықтаймыз! Сіздің билетті сатып алу төлеміңіз тіркелді.';
-      sendTelegramMessage(userTelegramId, messageText);
+    const ticketNum = inserted.ticket_number || inserted.id;
+    const purchaseUserName = `${req.body?.userName || ''}`.trim() || `user_${userTelegramId}`;
+    const purchaseEventName = `${req.body?.eventName || ''}`.trim() || (isPlanUpgrade ? `${targetPlan.toUpperCase()} жоспар` : 'Премиум билет');
+    const rawPrice = Number(req.body?.price || 0);
+    const currency = `${req.body?.currency || ''}`.trim() || 'KZT'; // 'XTR' for Stars, 'TON' for TON, 'KZT' default
+    const provider = `${req.body?.provider || ''}`.trim() || 'manual'; // 'telegram_stars' | 'ton' | 'manual'
+
+    // Pretty-print money: Stars → "98 ⭐", TON → "12.5 TON", else "30 000 ₸"
+    const priceLabel = rawPrice <= 0
+      ? '🎁 Тегін (промокод)'
+      : currency === 'XTR'  ? `${rawPrice} ⭐`
+      : currency === 'TON'  ? `${rawPrice} TON`
+      :                       `${rawPrice.toLocaleString('ru-RU')} ₸`;
+    const providerLabel = provider === 'telegram_stars' ? 'Telegram Stars'
+                        : provider === 'ton'            ? 'TON Connect'
+                        :                                 'Қолмен';
+    const typeEmoji = isPlanUpgrade ? '⭐' : '🎟';
+    const typeLabel = isPlanUpgrade ? `Жоспар жаңарту → ${targetPlan.toUpperCase()}` : 'Билет сатып алу';
+
+    // === Notify the user ===
+    if (userTelegramId) {
+      const userMsg = isPlanUpgrade
+        ? `🎉 <b>Құттықтаймыз!</b>\n\n`
+          + `Сіздің <b>${targetPlan.toUpperCase()}</b> жоспарыңыз белсенді.\n\n`
+          + `🎟 <b>Ұтыс билеті №${ticketNum}</b>\n`
+          + `Бұл нөмір келесі ұтыс ойынына автоматты қатысады.\n\n`
+          + `💝 Бағасы: ${priceLabel}\n`
+          + `💳 Төлем түрі: ${providerLabel}\n\n`
+          + `Жоспарыңызбен барлық премиум фунцияны пайдаланыңыз 🚀`
+        : `🎟 <b>Билеттіңіз тіркелді!</b>\n\n`
+          + `<b>${purchaseEventName}</b>\n\n`
+          + `🎫 Билет нөмірі: <b>№${ticketNum}</b>\n`
+          + `💝 Бағасы: ${priceLabel}\n`
+          + `💳 Төлем: ${providerLabel}\n\n`
+          + `Билетіңізді Магазин → «Менің билеттерім» бөлімінен қарай аласыз.`;
+      sendTelegramMessage(userTelegramId, userMsg);
     }
-    
-    // Notify admin about the purchase
+
+    // === Notify all admins ===
     for (const adminId of bootstrapAdminIds) {
-       const userName = `${req.body?.userName || ''}`.trim() || `user_${userTelegramId}`;
-       const eventName = `${req.body?.eventName || ''}`.trim() || 'Premium Event';
-       const price = Number(req.body?.price || 0);
-       const sourceText = isPlanUpgrade ? 'Тарифті жаңарту (Premium)' : 'Билет сатып алу';
-       
-       const message = `💰 <b>Жаңа төлем түсті!</b>\n\n<b>Пайдаланушы:</b> ${userName}\n<b>ID:</b> ${userTelegramId}\n<b>Түрі:</b> ${sourceText}\n<b>Атауы:</b> ${eventName}\n<b>Бағасы:</b> ${price} сома`;
-       sendTelegramMessage(adminId, message);
+      const adminMsg = `${typeEmoji} <b>Жаңа төлем</b>\n\n`
+        + `👤 <b>${purchaseUserName}</b>\n`
+        + `🆔 <code>${userTelegramId}</code>\n\n`
+        + `📦 <b>Түрі:</b> ${typeLabel}\n`
+        + `🎟 <b>Билет №:</b> ${ticketNum} <i>(ұтыс ойынына автоматты қатысады)</i>\n`
+        + `💰 <b>Сома:</b> ${priceLabel}\n`
+        + `💳 <b>Төлем:</b> ${providerLabel}\n`
+        + `🕒 ${new Date().toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' })}`;
+      sendTelegramMessage(adminId, adminMsg);
     }
 
     return res.json({
