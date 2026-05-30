@@ -818,6 +818,8 @@ function sendTelegramMessage(chatId, text) {
   const data = JSON.stringify({
     chat_id: chatId,
     text: text,
+    parse_mode: 'HTML',
+    disable_web_page_preview: true,
   });
 
   const options = {
