@@ -721,12 +721,38 @@ async function handleStarsWebhookUpdate(update, deps) {
     const parsed = parseStarsPayload(q.invoice_payload);
     if (!parsed) return false; // not our payload
     const product = STARS_PRODUCT_CATALOG[parsed.productCode];
-    const ok = Boolean(product) && product.amountStars === q.total_amount && q.currency === 'XTR';
+
+    // Validation: currency + product + amount.
+    // Amount check pulls the actual stored amount from payment_orders so promo
+    // discounts (FIRSTBUY, ENERGY, STARTUP, flash sale) line up. Catalog list
+    // price is only the fallback when the order can't be loaded.
+    let ok = Boolean(product) && q.currency === 'XTR';
+    let rejectReason = null;
+    if (!product) rejectReason = 'Invalid Stars product';
+    else if (q.currency !== 'XTR') rejectReason = 'Invalid currency';
+    else if (supabase) {
+      try {
+        const { data: order } = await supabase
+          .from('payment_orders')
+          .select('id, status, expires_at, amount_nano')
+          .eq('id', parsed.paymentOrderId)
+          .maybeSingle();
+        if (!order) { ok = false; rejectReason = 'Payment order not found'; }
+        else if (order.status === 'paid') { ok = false; rejectReason = 'Already processed'; }
+        else if (order.expires_at && Date.parse(order.expires_at) < Date.now()) { ok = false; rejectReason = 'Payment expired'; }
+        else if (Number(order.amount_nano) !== Number(q.total_amount)) { ok = false; rejectReason = 'Invalid amount'; }
+      } catch (e) {
+        ok = false; rejectReason = 'Order lookup failed: ' + e.message;
+      }
+    } else if (product.amountStars !== q.total_amount) {
+      ok = false; rejectReason = 'Invalid amount';
+    }
+
     if (typeof answerPreCheckoutQuery === 'function') {
-      await answerPreCheckoutQuery(q.id, ok, ok ? undefined : 'Invalid Stars product').catch(() => {});
+      await answerPreCheckoutQuery(q.id, ok, ok ? undefined : rejectReason).catch(() => {});
     } else if (BOT_TOKEN) {
       await callTelegramApi(BOT_TOKEN, 'answerPreCheckoutQuery', {
-        pre_checkout_query_id: q.id, ok, ...(ok ? {} : { error_message: 'Invalid Stars product' }),
+        pre_checkout_query_id: q.id, ok, ...(ok ? {} : { error_message: rejectReason || 'Invalid Stars product' }),
       }).catch(() => {});
     }
     return true;
