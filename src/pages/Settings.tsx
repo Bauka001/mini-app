@@ -485,7 +485,15 @@ export const SettingsContent = () => {
             title={t('admin_panel', 'Admin Panel')}
             onClick={() => {
               WebApp.HapticFeedback.impactOccurred('medium');
-              navigate('/admin/dashboard');
+              // Open the standalone /admin browser panel in the external browser.
+              // Richer UI than the in-Mini-App React shell (includes Tester tab,
+              // Stars dashboard, NFT queue, $FOCUS ledger, broadcast, etc.).
+              const adminUrl = `${window.location.origin}/admin`;
+              try {
+                WebApp.openLink(adminUrl, { try_instant_view: false });
+              } catch {
+                window.open(adminUrl, '_blank', 'noopener,noreferrer');
+              }
             }}
           >
             <span className={clsx('text-[11px] uppercase tracking-[0.22em] font-medium', !isClaude && 'text-amber-400')}>
