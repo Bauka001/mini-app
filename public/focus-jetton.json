@@ -1,0 +1,11 @@
+{
+  "name": "Focus Token",
+  "symbol": "FOCUS",
+  "decimals": 9,
+  "description": "Focus Mini-App utility token. Earned through gameplay (daily workouts, tournaments, referrals), redeemable in-app for VIP plans, mystery cases, and limited-edition NFT trophies. Testnet rollout; mainnet launch planned for Q3 2026.",
+  "image": "https://focus-game-omega.vercel.app/focus-token.png",
+  "external_url": "https://focus-game-omega.vercel.app",
+  "social": {
+    "telegram": "https://t.me/Focus_game_bot"
+  }
+}

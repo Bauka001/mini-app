@@ -185,10 +185,37 @@ function registerWeb3(app, deps) {
         .in('status', ['pending', 'processing']);
       const lockedInPendingClaims = (claimed || []).reduce((s, r) => s + Number(r.amount || 0), 0);
 
+      // On-chain balance + explorer link (when jetton configured)
+      let onChain = null;
+      try {
+        const jetton = require('./jetton');
+        if (jetton.isConfigured()) {
+          // Resolve user's TON wallet from user_wallet_links
+          const { data: walletRow } = await supabase
+            .from('user_wallet_links')
+            .select('wallet_address')
+            .eq('user_telegram_id', access.identity.userId)
+            .order('created_at', { ascending: false })
+            .limit(1).maybeSingle();
+          if (walletRow?.wallet_address) {
+            const r = await jetton.getOnChainBalance(walletRow.wallet_address);
+            if (r.ok) {
+              onChain = {
+                network: jetton.NETWORK,
+                balance: r.balance,
+                jettonWallet: r.walletAddress || null,
+                explorer: r.explorer || null,
+              };
+            }
+          }
+        }
+      } catch { /* jetton module not installed — skip silently */ }
+
       return res.json({
         balance,
         available: Math.max(0, balance - lockedInPendingClaims),
         lockedInPendingClaims,
+        onChain, // null when jetton not configured or user has no wallet bound
       });
     } catch (error) {
       return res.status(500).json({ error: error instanceof Error ? error.message : 'focus_balance_error' });

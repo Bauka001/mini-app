@@ -222,6 +222,29 @@ export function Web3Section() {
             {claimingFocus ? '…' : t('claim_on_chain', 'Claim on-chain')}
           </button>
         </div>
+        {/* On-chain balance row — appears once jetton is deployed + user bound a wallet */}
+        {focus?.onChain && (
+          <div className="mt-3 flex items-center justify-between rounded-xl border border-purple-400/20 bg-purple-500/5 px-3 py-2">
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-wider text-purple-300/70">
+                {t('on_chain_balance', 'On-chain')} · {focus.onChain.network}
+              </span>
+              <span className={clsx('text-sm font-bold', textPrimary)}>
+                {focus.onChain.balance.toFixed(2)} $FOCUS
+              </span>
+            </div>
+            {focus.onChain.explorer && (
+              <a
+                href={focus.onChain.explorer}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-lg bg-purple-500/20 px-2 py-1 text-[10px] font-bold text-purple-200 hover:bg-purple-500/30"
+              >
+                <ExternalLink size={10} /> Tonviewer
+              </a>
+            )}
+          </div>
+        )}
         <p className={clsx('mt-3 text-[11px]', textSecondary)}>
           {t('focus_hint', 'Earn $FOCUS by completing daily workouts, winning tournaments, and binding your wallet. Claim on-chain once the jetton master is deployed.')}
         </p>

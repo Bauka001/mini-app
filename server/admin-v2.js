@@ -1205,18 +1205,55 @@ function registerAdminV2(app, deps) {
       const s = await requireAdminV2(req, res); if (!s) return;
       if (!ensureSupabase(res)) return;
       const id = `${req.body?.id || ''}`.trim();
-      const txHash = `${req.body?.txHash || ''}`.trim();
-      const action = `${req.body?.action || 'success'}`; // success | failed
-      if (!id || (action === 'success' && !txHash)) {
-        return res.status(400).json({ error: 'id (+ txHash for success) required' });
+      let txHash = `${req.body?.txHash || ''}`.trim();
+      const action = `${req.body?.action || 'success'}`; // success | failed | auto
+      if (!id) return res.status(400).json({ error: 'id required' });
+      if (action === 'success' && !txHash) {
+        return res.status(400).json({ error: 'txHash required for manual success (use action=auto for on-chain)' });
       }
+
+      // Load the pending claim row
+      const { data: claim, error: claimErr } = await supabase
+        .from('focus_claim_requests')
+        .select('id, user_telegram_id, wallet_address, amount, status')
+        .eq('id', id).single();
+      if (claimErr) throw claimErr;
+      if (!claim) return res.status(404).json({ error: 'claim_not_found' });
+      if (claim.status === 'success') return res.status(409).json({ error: 'already_approved' });
+
+      // === Auto mode — sign on-chain jetton transfer from treasury ===
+      let onChainNote = null;
+      if (action === 'auto') {
+        let jetton;
+        try { jetton = require('./jetton'); }
+        catch (e) { return res.status(500).json({ error: 'jetton_module_missing: ' + e.message }); }
+        if (!jetton.isConfigured()) {
+          return res.status(503).json({
+            error: 'jetton_not_configured',
+            hint: 'Set TREASURY_MNEMONIC and FOCUS_JETTON_MASTER_ADDRESS in env; see scripts/web3/',
+          });
+        }
+        const result = await jetton.sendFocus(claim.wallet_address, Number(claim.amount), {
+          comment: `Focus claim #${id}`,
+        });
+        if (!result.ok) {
+          return res.status(502).json({ error: 'on_chain_send_failed', reason: result.reason });
+        }
+        txHash = `auto:${result.queryId}`;
+        onChainNote = { network: result.network, treasury: result.treasuryExplorer };
+      }
+
       const { error } = await supabase
         .from('focus_claim_requests')
-        .update({ status: action, tx_hash: txHash || null, updated_at: new Date().toISOString() })
+        .update({
+          status: action === 'failed' ? 'failed' : 'success',
+          tx_hash: txHash || null,
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', id);
       if (error) throw error;
-      await writeAuditLog(s.admin_telegram_id, 'admin', `focus_claim_${action}`, 'focus_claim_requests', id, { txHash });
-      return res.json({ ok: true });
+      await writeAuditLog(s.admin_telegram_id, 'admin', `focus_claim_${action}`, 'focus_claim_requests', id, { txHash, onChainNote });
+      return res.json({ ok: true, txHash, onChain: onChainNote });
     } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
   });
 

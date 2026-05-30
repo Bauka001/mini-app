@@ -61,6 +61,16 @@ export interface FocusBalance {
   balance: number;
   available: number;
   lockedInPendingClaims: number;
+  /**
+   * On-chain mirror — populated only when the jetton master is deployed AND
+   * the user has bound a wallet. `null` otherwise.
+   */
+  onChain?: {
+    network: 'testnet' | 'mainnet';
+    balance: number;
+    jettonWallet: string | null;
+    explorer: string | null;
+  } | null;
 }
 
 export interface FocusLedgerEntry {
