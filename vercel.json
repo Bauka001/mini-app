@@ -48,8 +48,7 @@
   ],
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/admin", "destination": "/api/admin" },
-    { "source": "/admin/(.*)", "destination": "/api/admin/$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/((?!api/|admin\\.html).*)", "destination": "/index.html" }
   ]
 }
