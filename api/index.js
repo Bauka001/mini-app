@@ -24,12 +24,23 @@
 
 const app = require('../server/index.js');
 
+// Express routes that ALREADY include the /api prefix — must NOT be stripped.
+// Add new prefixes here as new sub-routers are mounted under /api/.
+const PRESERVED_API_PREFIXES = ['/api/admin-v2', '/api/web3'];
+
+function shouldPreservePrefix(url) {
+  for (const p of PRESERVED_API_PREFIXES) {
+    if (url === p || url.startsWith(p + '/') || url.startsWith(p + '?')) return true;
+  }
+  return false;
+}
+
 module.exports = (req, res) => {
   if (typeof req.url === 'string') {
     if (req.url === '/api') {
       req.url = '/';
-    } else if (req.url.startsWith('/api/admin-v2/') || req.url === '/api/admin-v2') {
-      // Leave admin-v2 paths intact — Express routes include the /api prefix.
+    } else if (shouldPreservePrefix(req.url)) {
+      // Express has these registered WITH the /api prefix.
     } else if (req.url.startsWith('/api/')) {
       req.url = req.url.slice(4) || '/';
     }
