@@ -133,12 +133,12 @@ const Privacy = () => {
           <li>
             Telegram:{' '}
             <a
-              href="https://t.me/focusgameapp_bot"
+              href="https://t.me/Focus_game_bot"
               target="_blank"
               rel="noreferrer"
               className="underline"
             >
-              @focusgameapp_bot
+              @Focus_game_bot
             </a>{' '}
             (start a chat and write to support)
           </li>

@@ -91,7 +91,7 @@ export const AuthGuard = ({
           <h2 className="text-2xl font-bold mb-4">{t('auth_open_in_telegram_title')}</h2>
           <p className="text-gray-400 mb-8">{t('auth_open_in_telegram_body')}</p>
           <button
-            onClick={() => WebApp.openTelegramLink('https://t.me/focusgameapp_bot?startapp')}
+            onClick={() => WebApp.openTelegramLink('https://t.me/Focus_game_bot?startapp')}
             className="px-6 py-3 bg-[#2AABEE] text-white font-bold rounded-xl hover:scale-105 transition-transform"
           >
             {t('auth_open_in_telegram_cta')}

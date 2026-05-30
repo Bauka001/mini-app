@@ -12,7 +12,7 @@ const isBrowserGuest = (): boolean => {
 };
 
 const openInTelegram = () => {
-  const url = 'https://t.me/focusgameapp_bot?startapp';
+  const url = 'https://t.me/Focus_game_bot?startapp';
   try {
     WebApp.openTelegramLink(url);
   } catch {
