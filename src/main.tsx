@@ -12,6 +12,73 @@ import telegramAnalytics from '@telegram-apps/analytics';
 bootstrapTelegram();
 registerPwa();
 
+// === Chunk-load self-healer ==================================================
+// After a deploy, the index.html the user has cached in Telegram WebView still
+// references the previous build's chunk hashes (e.g. /assets/Shop-DsHpx8cu.js).
+// When they navigate to a route whose chunk was renamed, the dynamic import()
+// 404s and the <Suspense fallback> hangs on the blue theme background forever.
+//
+// Catch the chunk-load failure globally (works for both unhandled promise
+// rejections from React.lazy() and ad-hoc dynamic imports). On detection, bust
+// caches the same way the watchdog does and hard-reload with a cache-buster
+// so Vercel serves the fresh index.html with the right chunk references.
+//
+// Bounded by sessionStorage so a permanently broken bundle can't reload-storm.
+{
+  const RELOAD_KEY = 'focus-chunk-reload-attempts';
+  const MAX_RELOADS = 2;
+
+  const looksLikeChunkLoadError = (err: unknown): boolean => {
+    if (!err) return false;
+    const msg = String((err as { message?: string })?.message || err);
+    return (
+      msg.includes('Failed to fetch dynamically imported module') ||
+      msg.includes('Importing a module script failed') ||
+      msg.includes('error loading dynamically imported') ||
+      msg.includes('ChunkLoadError') ||
+      /Loading chunk \d+ failed/.test(msg)
+    );
+  };
+
+  const recover = async () => {
+    let attempts = 0;
+    try { attempts = parseInt(sessionStorage.getItem(RELOAD_KEY) || '0', 10) || 0; } catch { /* noop */ }
+    if (attempts >= MAX_RELOADS) {
+      console.error('[chunk-healer] giving up after', attempts, 'reloads — bundle may be broken');
+      return;
+    }
+    try { sessionStorage.setItem(RELOAD_KEY, String(attempts + 1)); } catch { /* noop */ }
+    console.warn('[chunk-healer] chunk load failed — purging caches + reloading');
+    try {
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      if (typeof caches !== 'undefined') {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+    } catch { /* noop */ }
+    const url = new URL(window.location.href);
+    url.searchParams.set('_cb', String(Date.now()));
+    window.location.replace(url.toString());
+  };
+
+  window.addEventListener('error', (e) => {
+    if (looksLikeChunkLoadError(e.error || e.message)) void recover();
+  });
+  window.addEventListener('unhandledrejection', (e) => {
+    if (looksLikeChunkLoadError(e.reason)) void recover();
+  });
+
+  // Clear the reload counter once a fresh navigation succeeded (no chunk
+  // error fires in the first 8s) — so a future chunk-mismatch deploy still
+  // gets its full quota.
+  setTimeout(() => {
+    try { sessionStorage.removeItem(RELOAD_KEY); } catch { /* noop */ }
+  }, 8000);
+}
+
 // Telegram Mini Apps Analytics SDK — required by the Apps Center moderation
 // pipeline. Skipped outside Telegram (analytics service rejects non-WebApp
 // hosts) and when no token is provided so local dev keeps working.
