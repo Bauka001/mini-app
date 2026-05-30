@@ -1311,6 +1311,238 @@ function registerAdminV2(app, deps) {
     } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
   });
 
+  // ====================================================================
+  // ========== TESTER — test the system WITHOUT going through Mini App ===
+  // ====================================================================
+  // These let an admin: (1) view any user's complete state, (2) act as
+  // them (credit FOCUS, bind a wallet, trigger a claim), (3) directly
+  // send testnet $FOCUS from the treasury, (4) inspect the on-chain
+  // treasury / jetton master. Designed for QA + reviewer demo.
+
+  // List users with consolidated stats — telegram_id, plan, FOCUS balance,
+  // wallet binding, Stars spend, last-seen. Search by telegram_id substring.
+  app.get('/api/admin-v2/tester/users', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const q = `${req.query.q || ''}`.trim();
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+
+      let query = supabase.from('users')
+        .select('telegram_id, username, first_name, plan, vip_until, created_at, updated_at')
+        .order('updated_at', { ascending: false }).limit(limit);
+      if (q && /^\d+$/.test(q)) query = query.eq('telegram_id', Number(q));
+      else if (q) query = query.or(`username.ilike.%${q}%,first_name.ilike.%${q}%`);
+
+      const { data: users, error } = await query;
+      if (error && !isMissingTableError(error)) throw error;
+      const rows = users || [];
+
+      // Enrich with FOCUS balance, wallet, Stars spend
+      const enriched = await Promise.all(rows.map(async (u) => {
+        const tid = Number(u.telegram_id);
+        const [ledgerR, walletR, starsR] = await Promise.all([
+          supabase.from('focus_token_ledger').select('delta').eq('user_telegram_id', tid),
+          supabase.from('user_wallet_links').select('wallet_address, chain').eq('user_telegram_id', tid).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+          supabase.from('stars_grants').select('amount_stars').eq('user_telegram_id', tid),
+        ]);
+        const focusBalance = (ledgerR.data || []).reduce((sum, r) => sum + Number(r.delta || 0), 0);
+        const starsSpent = (starsR.data || []).reduce((sum, r) => sum + Number(r.amount_stars || 0), 0);
+        return {
+          ...u,
+          focus_balance: focusBalance,
+          wallet_address: walletR.data?.wallet_address || null,
+          wallet_chain: walletR.data?.chain || null,
+          stars_spent: starsSpent,
+        };
+      }));
+
+      return res.json({ ok: true, rows: enriched });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // Full state of one user — for "act as user" page.
+  app.get('/api/admin-v2/tester/user/:telegramId', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const tid = Number(req.params.telegramId);
+      if (!tid) return res.status(400).json({ error: 'invalid telegram_id' });
+
+      const [userR, ledgerR, walletR, claimsR, nftR, starsR] = await Promise.all([
+        supabase.from('users').select('*').eq('telegram_id', tid).maybeSingle(),
+        supabase.from('focus_token_ledger').select('*').eq('user_telegram_id', tid).order('created_at', { ascending: false }).limit(50),
+        supabase.from('user_wallet_links').select('*').eq('user_telegram_id', tid).order('created_at', { ascending: false }),
+        supabase.from('focus_claim_requests').select('*').eq('user_telegram_id', tid).order('created_at', { ascending: false }).limit(20),
+        supabase.from('nft_trophy_awards').select('*').eq('user_telegram_id', tid).order('created_at', { ascending: false }),
+        supabase.from('stars_grants').select('*').eq('user_telegram_id', tid).order('created_at', { ascending: false }).limit(20),
+      ]);
+
+      const focusBalance = (ledgerR.data || []).reduce((sum, r) => sum + Number(r.delta || 0), 0);
+
+      // On-chain FOCUS balance if wallet bound
+      let onChainBalance = null;
+      const walletAddr = walletR.data?.[0]?.wallet_address;
+      if (walletAddr) {
+        try {
+          const jetton = require('./jetton');
+          if (jetton.isConfigured()) {
+            const r = await jetton.getOnChainBalance(walletAddr);
+            if (r.ok) onChainBalance = { balance: r.balance, explorer: r.explorer };
+          }
+        } catch {}
+      }
+
+      return res.json({
+        ok: true,
+        user: userR.data || null,
+        focusBalance,
+        onChainBalance,
+        wallets: walletR.data || [],
+        ledger: ledgerR.data || [],
+        claims: claimsR.data || [],
+        nfts: nftR.data || [],
+        starsGrants: starsR.data || [],
+      });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // Credit FOCUS to a user (test grant — bypasses cooldowns/limits).
+  app.post('/api/admin-v2/tester/credit-focus', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const tid = Number(req.body?.telegramId);
+      const amount = Math.floor(Number(req.body?.amount));
+      const reason = `${req.body?.reason || 'tester_grant'}`.trim();
+      if (!tid || !amount) return res.status(400).json({ error: 'telegramId + amount required' });
+
+      const { error } = await supabase.from('focus_token_ledger').insert({
+        user_telegram_id: tid,
+        delta: amount,
+        reason,
+        reference_id: `tester:${Date.now()}`,
+        metadata: { granted_by_admin: s.admin_telegram_id },
+      });
+      if (error) throw error;
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'tester_credit_focus', 'users', tid, { amount, reason });
+      return res.json({ ok: true, message: `Credited ${amount} \$FOCUS to ${tid}` });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // Bind a wallet for testing (no TON Connect needed — just paste address).
+  app.post('/api/admin-v2/tester/bind-wallet', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      const tid = Number(req.body?.telegramId);
+      const address = `${req.body?.address || ''}`.trim();
+      const chain = `${req.body?.chain || 'testnet'}`.trim();
+      if (!tid || !address) return res.status(400).json({ error: 'telegramId + address required' });
+      // Validate address
+      try { require('@ton/ton').Address.parse(address); }
+      catch (e) { return res.status(400).json({ error: 'invalid TON address: ' + e.message }); }
+
+      // Upsert wallet link
+      const { error } = await supabase.from('user_wallet_links').upsert({
+        user_telegram_id: tid,
+        wallet_address: address,
+        chain,
+        bound_at: new Date().toISOString(),
+      }, { onConflict: 'user_telegram_id' });
+      if (error) throw error;
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'tester_bind_wallet', 'users', tid, { address, chain });
+      return res.json({ ok: true, message: `Wallet ${address.slice(0, 10)}... bound to ${tid}` });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // Direct on-chain $FOCUS transfer — bypasses claim queue.
+  // Sends from treasury straight to any address.
+  app.post('/api/admin-v2/tester/jetton-transfer', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      const to = `${req.body?.to || ''}`.trim();
+      const amount = Math.floor(Number(req.body?.amount));
+      const comment = `${req.body?.comment || 'Tester transfer'}`.trim();
+      if (!to || !amount) return res.status(400).json({ error: 'to + amount required' });
+
+      let jetton;
+      try { jetton = require('./jetton'); }
+      catch (e) { return res.status(500).json({ error: 'jetton module missing' }); }
+      if (!jetton.isConfigured()) {
+        return res.status(503).json({ error: 'TREASURY_MNEMONIC or FOCUS_JETTON_MASTER_ADDRESS not set in env' });
+      }
+
+      const result = await jetton.sendFocus(to, amount, { comment });
+      if (!result.ok) return res.status(502).json({ error: 'send failed', reason: result.reason });
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'tester_jetton_transfer', 'wallet', to, { amount, comment });
+      return res.json({ ok: true, ...result, message: `Sent ${amount} \$FOCUS to ${to}` });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // Create a synthetic test user — useful when DB is empty + you want to
+  // demo flows without going through Mini App registration.
+  app.post('/api/admin-v2/tester/create-user', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+      let tid = Number(req.body?.telegramId);
+      const firstName = `${req.body?.firstName || ''}`.trim() || 'Test User';
+      const username = `${req.body?.username || ''}`.trim() || null;
+      const plan = `${req.body?.plan || 'free'}`.trim();
+      if (!tid) {
+        // generate a random test ID in the 7-digit range
+        tid = 9000000 + Math.floor((Date.now() % 1000000));
+      }
+      const { data, error } = await supabase.from('users').upsert({
+        telegram_id: tid,
+        first_name: firstName,
+        username,
+        plan,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'telegram_id' }).select().single();
+      if (error) throw error;
+      await writeAuditLog(s.admin_telegram_id, 'admin', 'tester_create_user', 'users', tid, { firstName, username, plan });
+      return res.json({ ok: true, user: data, message: `Created test user ${tid}` });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
+  // Treasury status — balance, on-chain FOCUS held, master jetton info.
+  app.get('/api/admin-v2/tester/treasury', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      let jetton;
+      try { jetton = require('./jetton'); }
+      catch (e) { return res.json({ ok: true, configured: false, error: 'jetton module missing' }); }
+
+      const configured = jetton.isConfigured();
+      if (!configured) return res.json({ ok: true, configured: false });
+
+      const treasury = await jetton.getTreasury();
+      const treasuryAddr = treasury.address.toString({ testOnly: !jetton.IS_MAINNET, bounceable: false });
+      const onChainBalance = await jetton.getOnChainBalance(treasuryAddr);
+
+      return res.json({
+        ok: true,
+        configured: true,
+        network: jetton.NETWORK,
+        treasury: {
+          address: treasuryAddr,
+          explorer: jetton.explorerAddr(treasuryAddr),
+        },
+        jetton: {
+          master: process.env.FOCUS_JETTON_MASTER_ADDRESS,
+          masterExplorer: jetton.explorerAddr(process.env.FOCUS_JETTON_MASTER_ADDRESS),
+          metadataUrl: 'https://focus-game-omega.vercel.app/focus-jetton.json',
+        },
+        treasuryFocusBalance: onChainBalance.ok ? onChainBalance.balance : null,
+        treasuryJettonWallet: onChainBalance.ok ? onChainBalance.walletAddress : null,
+        treasuryJettonExplorer: onChainBalance.ok ? onChainBalance.explorer : null,
+      });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
   // ---------- Flash sales (admin-controlled, time-limited) ----------
   app.get('/api/admin-v2/flash-sales', async (req, res) => {
     try {

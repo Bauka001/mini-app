@@ -343,6 +343,7 @@ function renderShell(content) {
     nav('promotion', '🎉', 'Акция күні'),
     nav('users',     '👥', 'Қолданушылар'),
     nav('tickets',   '🎫', 'Тікеттер'),
+    nav('tester',    '🧪', 'Тестер (Mini App-сыз)'),
     nav('flash',     '⚡', 'Flash sale'),
     nav('broadcast', '📣', 'Хабар тарату'),
     nav('audit',     '📜', 'Audit log'),
@@ -1084,6 +1085,7 @@ async function render() {
     case 'focus':     view = await viewFocus();       break;
     case 'broadcast': view = await viewBroadcast();   break;
     case 'flash':     view = await viewFlashSales();  break;
+    case 'tester':    view = await viewTester();      break;
     case 'audit':     view = await viewAudit();       break;
     case 'dashboard':
     default:          view = await viewDashboard();   break;
@@ -1376,6 +1378,253 @@ async function viewFlashSales() {
     });
     root.appendChild(t);
   } catch (e) { root.appendChild(el('div',{ class:'card', style:'color:var(--danger)' }, 'Қате: ' + e.message)); }
+  return root;
+}
+
+/* =================== TESTER (Mini App-сыз тест) =================== */
+let testerSelectedUserId = null;
+
+async function viewTester() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, '🧪 Тестер'),
+      el('div', { class:'page-sub' }, 'Mini App ашпай-ақ кез келген фичаны тест жасаңыз: user-ге кіру, FOCUS аудару, NFT mint.'),
+    ]),
+    el('button', { class:'btn ghost', onclick: () => render() }, '🔄  Жаңарту'),
+  ]));
+
+  // ===== Section 1: Treasury status =====
+  const treasuryCard = el('div', { class:'card', style:'margin-bottom:16px' });
+  treasuryCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px' }, '🏦 Treasury status'));
+  try {
+    const t = await api('/api/admin-v2/tester/treasury');
+    if (!t.configured) {
+      treasuryCard.appendChild(el('div', { style:'color:var(--warn);font-size:13px' }, '⚠ Jetton конфигурацияланбаған. .env-те TREASURY_MNEMONIC + FOCUS_JETTON_MASTER_ADDRESS қажет.'));
+    } else {
+      const grid = el('div', { style:'display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:13px' });
+      grid.appendChild(el('div', { class:'kv' }, [el('div', { class:'k' }, 'Network'), el('div', { class:'v' }, t.network)]));
+      grid.appendChild(el('div', { class:'kv' }, [el('div', { class:'k' }, 'Treasury $FOCUS'), el('div', { class:'v', style:'color:var(--ok);font-weight:700' }, (t.treasuryFocusBalance ?? '—') + ' FOCUS')]));
+      grid.appendChild(el('div', { class:'kv', style:'grid-column:1/-1' }, [
+        el('div', { class:'k' }, 'Treasury wallet'),
+        el('div', { class:'v', style:'font-family:monospace;font-size:11px;word-break:break-all' }, [
+          t.treasury.address, ' ',
+          el('a', { href: t.treasury.explorer, target:'_blank', style:'color:var(--accent)' }, 'Tonviewer↗'),
+        ]),
+      ]));
+      grid.appendChild(el('div', { class:'kv', style:'grid-column:1/-1' }, [
+        el('div', { class:'k' }, 'Jetton master'),
+        el('div', { class:'v', style:'font-family:monospace;font-size:11px;word-break:break-all' }, [
+          t.jetton.master, ' ',
+          el('a', { href: t.jetton.masterExplorer, target:'_blank', style:'color:var(--accent)' }, 'Tonviewer↗'),
+        ]),
+      ]));
+      treasuryCard.appendChild(grid);
+    }
+  } catch (e) {
+    treasuryCard.appendChild(el('div', { style:'color:var(--danger)' }, 'Қате: ' + e.message));
+  }
+  root.appendChild(treasuryCard);
+
+  // ===== Section 2: Direct on-chain transfer =====
+  const xferCard = el('div', { class:'card', style:'margin-bottom:16px' });
+  xferCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '⚡ Тікелей $FOCUS аудару (treasury → кез келген address)'));
+  const toAddr = el('input', { placeholder:'TON address (0Q.../EQ.../kQ...)' });
+  const xferAmount = el('input', { placeholder:'Қанша FOCUS', type:'number' });
+  const xferComment = el('input', { placeholder:'Comment (TX-те жазылады)', value:'Tester transfer' });
+  xferCard.appendChild(el('div', { class:'field' }, [el('label', {}, 'Recipient'), toAddr]));
+  xferCard.appendChild(el('div', { class:'field' }, [el('label', {}, 'Amount'), xferAmount]));
+  xferCard.appendChild(el('div', { class:'field' }, [el('label', {}, 'Comment'), xferComment]));
+  xferCard.appendChild(el('button', { class:'btn', onclick: async () => {
+    try {
+      const r = await api('/api/admin-v2/tester/jetton-transfer', {
+        method:'POST',
+        body: JSON.stringify({ to: toAddr.value.trim(), amount: Number(xferAmount.value), comment: xferComment.value }),
+      });
+      alert('✓ ' + r.message + '\nNetwork: ' + r.network + '\nTreasury: ' + r.treasuryExplorer);
+    } catch (e) { alert('Қате: ' + e.message); }
+  } }, 'Жіберу'));
+  root.appendChild(xferCard);
+
+  // ===== Section 3: User list + "act as" =====
+  const userSearchInput = el('input', { placeholder:'telegram_id, username, or first_name…', style:'flex:1' });
+  const usersCard = el('div', { class:'card', style:'margin-bottom:16px' });
+  usersCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between' }, [
+    el('span', {}, '👥 Users'),
+    el('button', { class:'btn sm', onclick: async () => {
+      const firstName = prompt('Test user-дың аты:', 'Test Alice');
+      if (!firstName) return;
+      try {
+        const r = await api('/api/admin-v2/tester/create-user', {
+          method:'POST',
+          body: JSON.stringify({ firstName }),
+        });
+        alert('✓ ' + r.message + '\n\ntelegram_id: ' + r.user.telegram_id);
+        await renderUsers();
+      } catch(e) { alert('Қате: ' + e.message); }
+    }}, '+ Test user құру'),
+  ]));
+  usersCard.appendChild(el('div', { style:'display:flex;gap:8px;margin-bottom:10px' }, [
+    userSearchInput,
+    el('button', { class:'btn ghost', onclick: async () => { await renderUsers(); } }, 'Іздеу'),
+  ]));
+  const usersList = el('div', { style:'max-height:400px;overflow-y:auto' });
+  usersCard.appendChild(usersList);
+
+  async function renderUsers() {
+    usersList.innerHTML = '';
+    try {
+      const r = await api('/api/admin-v2/tester/users?q=' + encodeURIComponent(userSearchInput.value.trim()));
+      if (!r.rows.length) { usersList.appendChild(el('div', { style:'color:var(--muted);font-size:13px' }, 'Тіркелген user жоқ')); return; }
+      r.rows.forEach(u => {
+        const row = el('div', {
+          style:'display:grid;grid-template-columns:1fr auto;gap:8px;padding:10px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;align-items:center',
+          onclick: async () => { testerSelectedUserId = u.telegram_id; await renderUserDetail(); }
+        });
+        const left = el('div', {});
+        left.appendChild(el('div', { style:'font-weight:600' }, (u.first_name || '—') + ' ' + (u.username ? '@'+u.username : '')));
+        left.appendChild(el('div', { style:'font-size:11px;color:var(--muted);font-family:monospace' }, 'tg:' + u.telegram_id + ' · ' + (u.plan || 'free')));
+        const right = el('div', { style:'text-align:right;font-size:11px' });
+        right.appendChild(el('div', { style:'color:var(--ok);font-weight:700' }, u.focus_balance + ' FOCUS'));
+        right.appendChild(el('div', { style:'color:var(--muted)' }, u.wallet_address ? '🟢 wallet' : '⚪ no wallet'));
+        right.appendChild(el('div', { style:'color:var(--muted)' }, u.stars_spent + '⭐ spent'));
+        row.appendChild(left); row.appendChild(right);
+        usersList.appendChild(row);
+      });
+    } catch (e) {
+      usersList.appendChild(el('div', { style:'color:var(--danger)' }, 'Қате: ' + e.message));
+    }
+  }
+  root.appendChild(usersCard);
+
+  // ===== Section 4: User detail (act as) =====
+  const detailCard = el('div', { class:'card' });
+  detailCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '🎭 «Act as» панелі'));
+  const detailBody = el('div');
+  detailCard.appendChild(detailBody);
+
+  async function renderUserDetail() {
+    detailBody.innerHTML = '';
+    if (!testerSelectedUserId) {
+      detailBody.appendChild(el('div', { style:'color:var(--muted);font-size:13px' }, '↑ Жоғарыдан user таңдаңыз'));
+      return;
+    }
+    try {
+      const u = await api('/api/admin-v2/tester/user/' + testerSelectedUserId);
+      const header = el('div', { style:'display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--surface-2);border-radius:8px;margin-bottom:10px' });
+      header.appendChild(el('div', {}, [
+        el('div', { style:'font-weight:700' }, (u.user?.first_name || 'User') + ' (' + testerSelectedUserId + ')'),
+        el('div', { style:'font-size:11px;color:var(--muted)' }, 'plan: ' + (u.user?.plan || 'free')),
+      ]));
+      header.appendChild(el('div', { style:'text-align:right' }, [
+        el('div', { style:'font-size:18px;font-weight:800;color:var(--ok)' }, u.focusBalance + ' FOCUS'),
+        u.onChainBalance ? el('div', { style:'font-size:11px;color:var(--accent)' }, '+ ' + u.onChainBalance.balance + ' on-chain') : null,
+      ]));
+      detailBody.appendChild(header);
+
+      // Quick actions
+      const actions = el('div', { style:'display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px' });
+
+      // Credit FOCUS
+      const creditCard = el('div', { class:'card', style:'padding:12px' });
+      creditCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:8px;font-size:13px' }, '💎 FOCUS беру'));
+      const creditAmount = el('input', { placeholder:'Қанша', type:'number', value:'100' });
+      const creditReason = el('input', { placeholder:'Reason', value:'tester_grant' });
+      creditCard.appendChild(creditAmount);
+      creditCard.appendChild(creditReason);
+      creditCard.appendChild(el('button', { class:'btn sm', style:'margin-top:8px;width:100%', onclick: async () => {
+        try {
+          const r = await api('/api/admin-v2/tester/credit-focus', {
+            method:'POST',
+            body: JSON.stringify({ telegramId: testerSelectedUserId, amount: Number(creditAmount.value), reason: creditReason.value }),
+          });
+          alert('✓ ' + r.message);
+          renderUserDetail();
+        } catch(e) { alert('Қате: ' + e.message); }
+      }}, 'Беру'));
+      actions.appendChild(creditCard);
+
+      // Bind wallet
+      const bindCard = el('div', { class:'card', style:'padding:12px' });
+      bindCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:8px;font-size:13px' }, '🔗 Wallet байланыстыру'));
+      const bindAddr = el('input', { placeholder:'TON address' });
+      bindCard.appendChild(bindAddr);
+      bindCard.appendChild(el('button', { class:'btn sm', style:'margin-top:8px;width:100%', onclick: async () => {
+        try {
+          const r = await api('/api/admin-v2/tester/bind-wallet', {
+            method:'POST',
+            body: JSON.stringify({ telegramId: testerSelectedUserId, address: bindAddr.value.trim() }),
+          });
+          alert('✓ ' + r.message);
+          renderUserDetail();
+        } catch(e) { alert('Қате: ' + e.message); }
+      }}, 'Байланыстыру'));
+      actions.appendChild(bindCard);
+
+      detailBody.appendChild(actions);
+
+      // Wallets list
+      if (u.wallets.length > 0) {
+        const wsec = el('div', { style:'margin-bottom:14px' });
+        wsec.appendChild(el('div', { style:'font-weight:600;font-size:13px;margin-bottom:6px' }, '🔗 Байланысқан wallet-тер'));
+        u.wallets.forEach(w => {
+          wsec.appendChild(el('div', { style:'padding:6px;background:var(--surface-2);border-radius:6px;font-size:11px;font-family:monospace;word-break:break-all;margin-bottom:4px' }, [
+            w.wallet_address, ' (', w.chain || 'mainnet', ')',
+          ]));
+        });
+        detailBody.appendChild(wsec);
+      }
+
+      // Recent ledger
+      if (u.ledger.length > 0) {
+        const lsec = el('div', { style:'margin-bottom:14px' });
+        lsec.appendChild(el('div', { style:'font-weight:600;font-size:13px;margin-bottom:6px' }, '📜 Соңғы FOCUS жазбалары'));
+        u.ledger.slice(0, 5).forEach(l => {
+          lsec.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr auto auto;gap:8px;font-size:11px;padding:4px;border-bottom:1px solid rgba(255,255,255,.04)' }, [
+            el('div', {}, l.reason),
+            el('div', { style:'color:'+(l.delta > 0 ? 'var(--ok)' : 'var(--danger)') }, (l.delta > 0 ? '+' : '') + l.delta),
+            el('div', { style:'color:var(--muted)' }, (l.created_at || '').slice(5, 16)),
+          ]));
+        });
+        detailBody.appendChild(lsec);
+      }
+
+      // Claims
+      if (u.claims.length > 0) {
+        const csec = el('div', { style:'margin-bottom:14px' });
+        csec.appendChild(el('div', { style:'font-weight:600;font-size:13px;margin-bottom:6px' }, '💸 Claims'));
+        u.claims.forEach(c => {
+          csec.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr auto auto;gap:8px;font-size:11px;padding:4px;border-bottom:1px solid rgba(255,255,255,.04)' }, [
+            el('div', {}, c.amount + ' FOCUS → ' + (c.wallet_address || '').slice(0, 12) + '…'),
+            el('div', { style:'color:'+(c.status === 'success' ? 'var(--ok)' : c.status === 'pending' ? 'var(--warn)' : 'var(--muted)') }, c.status),
+            el('div', { style:'color:var(--muted)' }, (c.created_at || '').slice(5, 16)),
+          ]));
+        });
+        detailBody.appendChild(csec);
+      }
+
+      // NFTs
+      if (u.nfts.length > 0) {
+        const nsec = el('div', {});
+        nsec.appendChild(el('div', { style:'font-weight:600;font-size:13px;margin-bottom:6px' }, '🏆 NFT trophies'));
+        u.nfts.forEach(n => {
+          nsec.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr auto;gap:8px;font-size:11px;padding:4px' }, [
+            el('div', {}, n.trophy_code),
+            el('div', { style:'color:var(--muted)' }, n.status),
+          ]));
+        });
+        detailBody.appendChild(nsec);
+      }
+    } catch (e) {
+      detailBody.appendChild(el('div', { style:'color:var(--danger)' }, 'Қате: ' + e.message));
+    }
+  }
+
+  root.appendChild(detailCard);
+
+  // Initial load
+  await renderUsers();
+  await renderUserDetail();
   return root;
 }
 
