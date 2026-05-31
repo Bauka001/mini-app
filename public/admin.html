@@ -343,6 +343,7 @@ function renderShell(content) {
     nav('promotion', '🎉', 'Акция күні'),
     nav('users',     '👥', 'Қолданушылар'),
     nav('tickets',   '🎫', 'Тікеттер'),
+    nav('activity',  '📊', 'Активтілік'),
     nav('tester',    '🧪', 'Тестер (Mini App-сыз)'),
     nav('flash',     '⚡', 'Flash sale'),
     nav('broadcast', '📣', 'Хабар тарату'),
@@ -1086,6 +1087,7 @@ async function render() {
     case 'broadcast': view = await viewBroadcast();   break;
     case 'flash':     view = await viewFlashSales();  break;
     case 'tester':    view = await viewTester();      break;
+    case 'activity':  view = await viewActivity();    break;
     case 'audit':     view = await viewAudit();       break;
     case 'dashboard':
     default:          view = await viewDashboard();   break;
@@ -1378,6 +1380,136 @@ async function viewFlashSales() {
     });
     root.appendChild(t);
   } catch (e) { root.appendChild(el('div',{ class:'card', style:'color:var(--danger)' }, 'Қате: ' + e.message)); }
+  return root;
+}
+
+/* =================== АКТИВТІЛІК (Activity) =================== */
+async function viewActivity() {
+  const root = el('div');
+  root.appendChild(el('div', { class:'page-head' }, [
+    el('div', {}, [
+      el('div', { class:'page-title' }, '📊 Активтілік'),
+      el('div', { class:'page-sub' }, 'Кім кірді, кім ашты, кім сатып алды — соңғы 24 сағат + 7 күн.'),
+    ]),
+    el('button', { class:'btn ghost', onclick: () => render() }, '🔄  Жаңарту'),
+  ]));
+
+  try {
+    const r = await api('/api/admin-v2/activity');
+
+    // === Summary tiles ===
+    const grid = el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px' });
+    const tile = (label, value, color) => el('div', {
+      class: 'card',
+      style:'padding:14px;text-align:center'
+    }, [
+      el('div', { style:'font-size:24px;font-weight:800;color:' + (color || 'var(--text)') }, String(value)),
+      el('div', { style:'font-size:11px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.5px' }, label),
+    ]);
+    grid.appendChild(tile('Барлық клиент', r.summary.totalUsers));
+    grid.appendChild(tile('Қазір онлайн', r.summary.onlineNow, 'var(--ok)'));
+    grid.appendChild(tile('Бүгін активті', r.summary.activeToday, 'var(--accent)'));
+    grid.appendChild(tile('Бүгін жаңа', r.summary.newToday, 'var(--warn)'));
+    grid.appendChild(tile('Соңғы 1 сағат', r.summary.newThisHour, 'var(--warn)'));
+    root.appendChild(grid);
+
+    // === Currently online ===
+    const onlineCard = el('div', { class:'card', style:'margin-bottom:16px' });
+    onlineCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '🟢 Қазір онлайн (соңғы 5 минут)'));
+    if (!r.online.length) {
+      onlineCard.appendChild(el('div', { style:'color:var(--muted);font-size:13px' }, 'Қазір ешкім онлайн жоқ.'));
+    } else {
+      r.online.forEach(u => {
+        const ago = ((Date.parse(r.nowIso) - Date.parse(u.updated_at)) / 1000) | 0;
+        onlineCard.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:6px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px' }, [
+          el('div', {}, (u.first_name || '—') + (u.username ? ' · @' + u.username : '')),
+          el('div', { style:'color:var(--accent)' }, u.plan || 'free'),
+          el('div', { style:'color:var(--muted)' }, ago + 'с бұрын'),
+        ]));
+      });
+    }
+    root.appendChild(onlineCard);
+
+    // === Admin logins ===
+    const loginsCard = el('div', { class:'card', style:'margin-bottom:16px' });
+    loginsCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '🔑 Admin кіру тарихы (7 күн)'));
+    if (!r.adminLogins.length) {
+      loginsCard.appendChild(el('div', { style:'color:var(--muted);font-size:13px' }, 'Соңғы 7 күнде admin кіруі жоқ.'));
+    } else {
+      r.adminLogins.forEach(l => {
+        const when = new Date(l.created_at).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' });
+        loginsCard.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr auto;gap:8px;padding:6px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px' }, [
+          el('div', { style:'font-family:monospace' }, 'tg:' + l.actor_telegram_id),
+          el('div', { style:'color:var(--accent)' }, l.actor_role + ' · session:' + (l.entity_id || '').slice(0, 8)),
+          el('div', { style:'color:var(--muted)' }, when),
+        ]));
+      });
+    }
+    root.appendChild(loginsCard);
+
+    // === Recent paid ===
+    const paidCard = el('div', { class:'card', style:'margin-bottom:16px' });
+    paidCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '💰 Соңғы төлемдер (7 күн)'));
+    if (!r.recentPaid.length) {
+      paidCard.appendChild(el('div', { style:'color:var(--muted);font-size:13px' }, 'Соңғы 7 күнде төлем жоқ.'));
+    } else {
+      r.recentPaid.forEach(p => {
+        const amount = p.provider === 'telegram_stars'
+          ? p.amount_nano + ' ⭐'
+          : p.provider === 'ton'
+          ? (Number(p.amount_nano) / 1e9).toFixed(2) + ' TON'
+          : p.amount_nano;
+        const when = new Date(p.paid_at).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' });
+        paidCard.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;padding:6px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px' }, [
+          el('div', { style:'font-family:monospace' }, 'tg:' + p.user_telegram_id),
+          el('div', {}, p.plan_code),
+          el('div', { style:'color:var(--ok);font-weight:700' }, amount + ' (' + (p.provider || 'manual') + ')'),
+          el('div', { style:'color:var(--muted)' }, when),
+        ]));
+      });
+    }
+    root.appendChild(paidCard);
+
+    // === Recent FOCUS grants ===
+    const focusCard = el('div', { class:'card', style:'margin-bottom:16px' });
+    focusCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '💎 Соңғы $FOCUS қозғалысы (24 сағат)'));
+    if (!r.recentFocus.length) {
+      focusCard.appendChild(el('div', { style:'color:var(--muted);font-size:13px' }, 'Соңғы 24 сағатта $FOCUS қозғалысы жоқ.'));
+    } else {
+      r.recentFocus.forEach(f => {
+        const when = new Date(f.created_at).toLocaleString('ru-RU', { timeZone: 'Asia/Almaty' });
+        focusCard.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr 1fr auto auto;gap:8px;padding:6px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px' }, [
+          el('div', { style:'font-family:monospace' }, 'tg:' + f.user_telegram_id),
+          el('div', { style:'color:var(--muted)' }, f.reason),
+          el('div', { style:'color:' + (Number(f.delta) > 0 ? 'var(--ok)' : 'var(--danger)') + ';font-weight:700' }, (Number(f.delta) > 0 ? '+' : '') + f.delta),
+          el('div', { style:'color:var(--muted)' }, when),
+        ]));
+      });
+    }
+    root.appendChild(focusCard);
+
+    // === All users active today ===
+    const activeCard = el('div', { class:'card' });
+    activeCard.appendChild(el('div', { style:'font-weight:700;margin-bottom:10px' }, '👥 Бүгін активті (' + r.recentActive.length + ')'));
+    if (!r.recentActive.length) {
+      activeCard.appendChild(el('div', { style:'color:var(--muted);font-size:13px' }, 'Бүгін ешкім кірген жоқ.'));
+    } else {
+      const wrap = el('div', { style:'max-height:300px;overflow-y:auto' });
+      r.recentActive.forEach(u => {
+        const ago = ((Date.parse(r.nowIso) - Date.parse(u.updated_at)) / 60000) | 0;
+        wrap.appendChild(el('div', { style:'display:grid;grid-template-columns:1fr auto auto;gap:8px;padding:6px;border-bottom:1px solid rgba(255,255,255,.04);font-size:12px' }, [
+          el('div', {}, (u.first_name || '—') + (u.username ? ' · @' + u.username : '') + ' · tg:' + u.telegram_id),
+          el('div', { style:'color:var(--accent)' }, u.plan || 'free'),
+          el('div', { style:'color:var(--muted)' }, ago + ' мин бұрын'),
+        ]));
+      });
+      activeCard.appendChild(wrap);
+    }
+    root.appendChild(activeCard);
+
+  } catch (e) {
+    root.appendChild(el('div', { class:'card', style:'color:var(--danger)' }, 'Қате: ' + e.message));
+  }
   return root;
 }
 

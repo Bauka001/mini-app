@@ -1272,6 +1272,95 @@ function registerAdminV2(app, deps) {
     } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
   });
 
+  // ---------- Activity dashboard — who's online + recent logins ----------
+  // Aggregates: (1) currently active users (updated_at < 5 min), (2) recently
+  // active in last 24h, (3) admin panel logins, (4) recent purchases / FOCUS
+  // grants. Designed for the 📊 Активтілік admin tab.
+  app.get('/api/admin-v2/activity', async (req, res) => {
+    try {
+      const s = await requireAdminV2(req, res); if (!s) return;
+      if (!ensureSupabase(res)) return;
+
+      const now = Date.now();
+      const fiveMinAgo = new Date(now - 5 * 60 * 1000).toISOString();
+      const oneHourAgo = new Date(now - 60 * 60 * 1000).toISOString();
+      const oneDayAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+      const oneWeekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      // 1. Currently online (last 5 minutes)
+      const onlineQ = await supabase
+        .from('users')
+        .select('telegram_id, first_name, username, plan, updated_at')
+        .gte('updated_at', fiveMinAgo)
+        .order('updated_at', { ascending: false })
+        .limit(50);
+
+      // 2. Active last 24h
+      const recentActiveQ = await supabase
+        .from('users')
+        .select('telegram_id, first_name, username, plan, updated_at')
+        .gte('updated_at', oneDayAgo)
+        .order('updated_at', { ascending: false })
+        .limit(100);
+
+      // 3. Admin logins last 7d
+      const adminLoginsQ = await supabase
+        .from('audit_logs')
+        .select('actor_telegram_id, actor_role, action, entity_id, created_at')
+        .eq('action', 'admin_v2_login')
+        .gte('created_at', oneWeekAgo)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      // 4. Recent paid payments
+      const paidQ = await supabase
+        .from('payment_orders')
+        .select('id, user_telegram_id, plan_code, provider, amount_nano, paid_at')
+        .eq('status', 'paid')
+        .gte('paid_at', oneWeekAgo)
+        .order('paid_at', { ascending: false })
+        .limit(30);
+
+      // 5. Recent FOCUS grants
+      const focusQ = await supabase
+        .from('focus_token_ledger')
+        .select('user_telegram_id, delta, reason, created_at')
+        .gte('created_at', oneDayAgo)
+        .order('created_at', { ascending: false })
+        .limit(30);
+
+      // Totals
+      const totalUsersQ = await supabase
+        .from('users')
+        .select('telegram_id', { count: 'exact', head: true });
+      const newToday = await supabase
+        .from('users')
+        .select('telegram_id', { count: 'exact', head: true })
+        .gte('created_at', oneDayAgo);
+      const newThisHour = await supabase
+        .from('users')
+        .select('telegram_id', { count: 'exact', head: true })
+        .gte('created_at', oneHourAgo);
+
+      return res.json({
+        ok: true,
+        nowIso: new Date(now).toISOString(),
+        summary: {
+          totalUsers: totalUsersQ.count || 0,
+          newToday: newToday.count || 0,
+          newThisHour: newThisHour.count || 0,
+          onlineNow: (onlineQ.data || []).length,
+          activeToday: (recentActiveQ.data || []).length,
+        },
+        online: onlineQ.data || [],
+        recentActive: recentActiveQ.data || [],
+        adminLogins: adminLoginsQ.data || [],
+        recentPaid: paidQ.data || [],
+        recentFocus: focusQ.data || [],
+      });
+    } catch (error) { return res.status(500).json({ error: String(error.message || error) }); }
+  });
+
   // ---------- Broadcast message to users ----------
   app.post('/api/admin-v2/broadcast', async (req, res) => {
     try {
