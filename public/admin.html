@@ -108,10 +108,30 @@
   .grid-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
   .grid-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
   @media (max-width: 1080px) { .grid-4 { grid-template-columns: repeat(2, 1fr); } .grid-3 { grid-template-columns: 1fr 1fr; } }
-  @media (max-width: 720px)  {
-    .app { grid-template-columns: 1fr; } .sidebar { position:relative; height:auto; }
+
+  /* === Mobile drawer (sidebar as overlay) === */
+  .mobile-bar { display:none; align-items:center; justify-content:space-between; padding:14px 16px; background: rgba(11,16,32,.95); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 100; }
+  .mobile-bar .brand { padding:0; }
+  .hamburger { display:none; width:42px; height:42px; border-radius:10px; background: rgba(255,255,255,.06); border: 1px solid var(--line); align-items:center; justify-content:center; font-size:20px; color: var(--text); }
+  .drawer-overlay { display:none; position:fixed; inset:0; background: rgba(0,0,0,.5); backdrop-filter: blur(4px); z-index: 200; }
+  .drawer-overlay.open { display: block; }
+
+  @media (max-width: 720px) {
+    .app { grid-template-columns: 1fr; }
     .grid-4, .grid-3, .grid-2 { grid-template-columns: 1fr; }
-    .main { padding:18px; }
+    .main { padding: 0 14px 18px; }
+    .page-head { margin-top: 14px; }
+    .mobile-bar { display: flex; }
+    .hamburger { display: inline-flex; }
+    /* Sidebar becomes a slide-in drawer */
+    .sidebar {
+      position: fixed; top: 0; left: -280px; height: 100vh; width: 280px;
+      z-index: 300; transition: left .25s ease;
+      background: var(--bg-0); overflow-y: auto;
+      box-shadow: 8px 0 30px rgba(0,0,0,.5);
+    }
+    .sidebar.open { left: 0; }
+    .sidebar .brand { display:none; } /* duplicate of mobile-bar brand */
   }
 
   .stat .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
@@ -323,9 +343,28 @@ function renderLogin(authConfig) {
 
 /* ---------- SHELL ---------- */
 function renderShell(content) {
+  // === Mobile drawer state ===
+  const drawer = { el: null, overlay: null, open: false };
+  const closeDrawer = () => {
+    drawer.open = false;
+    drawer.el?.classList.remove('open');
+    drawer.overlay?.classList.remove('open');
+  };
+  const openDrawer = () => {
+    drawer.open = true;
+    drawer.el?.classList.add('open');
+    drawer.overlay?.classList.add('open');
+  };
+
   const nav = (id, icon, label) => el('div', {
     class: 'nav-item' + (state.route === id ? ' active' : ''),
-    onclick: () => { state.route = id; render(); },
+    onclick: () => {
+      state.route = id;
+      closeDrawer();
+      render();
+      // Scroll to top so the user actually sees the new page (mobile)
+      try { window.scrollTo({ top: 0, behavior: 'instant' }); } catch { window.scrollTo(0, 0); }
+    },
   }, [el('span', { class:'nav-icon' }, icon), el('span', {}, label)]);
 
   const initials = (state.me?.login || 'A').slice(0,2).toUpperCase();
@@ -361,8 +400,29 @@ function renderShell(content) {
       el('button', { class:'btn ghost', style:'width:100%', onclick: logout }, '🚪  Шығу'),
     ]),
   ]);
+  drawer.el = sidebar;
 
-  return el('div', { class:'app' }, [sidebar, el('main', { class:'main' }, content)]);
+  // Mobile top bar with hamburger button — visible only on small screens (CSS)
+  const hamburger = el('button', {
+    class: 'hamburger',
+    onclick: () => drawer.open ? closeDrawer() : openDrawer(),
+    'aria-label': 'Меню'
+  }, '☰');
+  const mobileBar = el('div', { class: 'mobile-bar' }, [
+    el('div', { class: 'brand' }, [
+      el('div', { class:'brand-mark' }, 'F'),
+      el('div', { class:'brand-name' }, 'Focus Admin'),
+    ]),
+    hamburger,
+  ]);
+  const overlay = el('div', { class: 'drawer-overlay', onclick: closeDrawer });
+  drawer.overlay = overlay;
+
+  return el('div', { class:'app' }, [
+    sidebar,
+    overlay,
+    el('main', { class:'main' }, [mobileBar, content]),
+  ]);
 }
 
 /* ---------- DASHBOARD ---------- */
