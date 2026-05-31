@@ -468,6 +468,32 @@ async function applyPaidEntitlement(paymentOrder, verificationPayload = {}) {
   const nowIso = now.toISOString();
   const userTelegramId = Number(paymentOrder.user_telegram_id);
   const paymentOrderId = `${paymentOrder.id}`;
+
+  // === Idempotency guard ===
+  // Telegram retries webhooks, sometimes more than once. The pre-existing
+  // payment_orders update was gated on status=created|pending so the DB
+  // write was idempotent, but every other side-effect (entitlement upsert,
+  // user.plan_expiry, raffle-ticket allocation, sendTelegramMessage) fired
+  // unconditionally — so each retry extended plan_expiry by +365 days,
+  // issued a fresh raffle ticket, and re-notified the user. Refuse to
+  // do any of that if this order is already marked paid; just echo a
+  // success result so the webhook handler still returns 200 to Telegram.
+  const { data: existing, error: existingErr } = await supabase
+    .from('payment_orders')
+    .select('status, paid_at')
+    .eq('id', paymentOrderId)
+    .maybeSingle();
+  if (existingErr && !isMissingTableError(existingErr)) throw existingErr;
+  if (existing?.status === 'paid') {
+    return {
+      status: 'already_paid',
+      paidAt: existing.paid_at || nowIso,
+      tierCode: planOffer.tierCode,
+      endsAt: null,
+      raffleTicketNumber: null,
+      idempotent: true,
+    };
+  }
   const activeEntitlementQuery = await supabase
     .from('user_entitlements')
     .select('ends_at')
