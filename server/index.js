@@ -2749,6 +2749,38 @@ app.post('/tickets/issue', writeLimiter, async (req, res) => {
       });
     }
 
+    // === Dedup: never issue a second plan_upgrade ticket per active entitlement ===
+    // The frontend's local `claimedPlanRewardKeys` deduper depends on Zustand
+    // persisting a list across Mini App relaunches. When persistence misses
+    // (private mode, storage cleared, schema migration), the client re-fires
+    // /tickets/issue on every reopen — that's how this user accumulated 9
+    // identical 'Premium Car Raffle' tickets in 24h and got renotified each
+    // time. Server-side guarantee: only one plan_upgrade ticket per (user,
+    // current plan, active entitlement window). Subsequent calls return the
+    // existing ticket without re-issuing or re-notifying.
+    if (source === 'plan_upgrade') {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: prior } = await supabase
+        .from('tickets')
+        .select('id, ticket_number, user_telegram_id, user_name, event_name, event_date, price, purchase_date, status, source, verified_at, verified_by')
+        .eq('user_telegram_id', userTelegramId)
+        .eq('source', 'plan_upgrade')
+        .gte('purchase_date', sevenDaysAgo)
+        .order('purchase_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (prior) {
+        return res.json({
+          ok: true,
+          ticketId: prior.id,
+          ticketNumber: prior.ticket_number,
+          ticket: mapTicketRow(prior),
+          plan: null,
+          idempotent: true,
+        });
+      }
+    }
+
     // Server is authoritative for id and ticket_number. Retry on the unique constraint
     // race (DB enforces uniqueness on ticket_number).
     let inserted = null;
