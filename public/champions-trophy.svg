@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b1535"/>
+      <stop offset="100%" stop-color="#1a0a3e"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fde68a"/>
+      <stop offset="40%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="trophyShine" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fff" stop-opacity="0.45"/>
+      <stop offset="60%" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#facc15" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#facc15" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="brainGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8"/>
+      <feOffset dx="0" dy="4" result="offsetblur"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.5"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="800" fill="url(#bgGrad)"/>
+  <circle cx="400" cy="340" r="320" fill="url(#glow)"/>
+
+  <!-- Confetti / sparkles -->
+  <g fill="#facc15" opacity="0.8">
+    <circle cx="120" cy="150" r="4"/>
+    <circle cx="680" cy="180" r="5"/>
+    <circle cx="160" cy="540" r="3"/>
+    <circle cx="650" cy="580" r="4"/>
+    <circle cx="100" cy="380" r="3"/>
+    <circle cx="700" cy="380" r="3"/>
+  </g>
+  <g fill="#a855f7" opacity="0.7">
+    <circle cx="200" cy="220" r="3"/>
+    <circle cx="610" cy="260" r="4"/>
+    <circle cx="200" cy="460" r="4"/>
+  </g>
+
+  <!-- Trophy -->
+  <g filter="url(#softShadow)" transform="translate(400, 380)">
+    <!-- Base / pedestal -->
+    <rect x="-90" y="180" width="180" height="40" rx="6" fill="#1f2937"/>
+    <rect x="-110" y="220" width="220" height="20" rx="4" fill="#374151"/>
+    <rect x="-130" y="240" width="260" height="22" rx="6" fill="#1f2937"/>
+
+    <!-- Stem -->
+    <rect x="-22" y="120" width="44" height="60" fill="#7c2d12"/>
+
+    <!-- Cup body -->
+    <path d="M -130 -130
+             L 130 -130
+             L 110 60
+             Q 100 130 0 130
+             Q -100 130 -110 60
+             Z"
+          fill="url(#goldGrad)" stroke="#92400e" stroke-width="3"/>
+
+    <!-- Cup shine -->
+    <path d="M -100 -110 L -50 -110 L -70 50 Q -80 100 -100 100 Z"
+          fill="url(#trophyShine)"/>
+
+    <!-- Handles -->
+    <path d="M -130 -90 Q -200 -60 -195 30 Q -190 100 -130 90"
+          stroke="url(#goldGrad)" stroke-width="22" fill="none" stroke-linecap="round"/>
+    <path d="M 130 -90 Q 200 -60 195 30 Q 190 100 130 90"
+          stroke="url(#goldGrad)" stroke-width="22" fill="none" stroke-linecap="round"/>
+
+    <!-- Brain icon on cup -->
+    <g transform="translate(0, -40) scale(1.4)">
+      <!-- Left hemisphere -->
+      <path d="M -40 -30
+               C -55 -35 -65 -20 -65 -5
+               C -75 5 -70 25 -55 30
+               C -55 45 -40 50 -25 45
+               L -25 -25
+               C -30 -30 -35 -33 -40 -30 Z"
+            fill="url(#brainGrad)"/>
+      <!-- Right hemisphere -->
+      <path d="M 40 -30
+               C 55 -35 65 -20 65 -5
+               C 75 5 70 25 55 30
+               C 55 45 40 50 25 45
+               L 25 -25
+               C 30 -30 35 -33 40 -30 Z"
+            fill="url(#brainGrad)"/>
+      <!-- Brain details -->
+      <path d="M -25 -20 Q -15 -15 -25 -5 Q -15 0 -25 10 Q -15 20 -25 30"
+            stroke="#fce7f3" stroke-width="2" fill="none"/>
+      <path d="M 25 -20 Q 15 -15 25 -5 Q 15 0 25 10 Q 15 20 25 30"
+            stroke="#fce7f3" stroke-width="2" fill="none"/>
+    </g>
+
+    <!-- "1" on cup base -->
+    <text x="0" y="120" text-anchor="middle" font-family="Georgia, serif" font-weight="900"
+          font-size="50" fill="#92400e">№1</text>
+  </g>
+
+  <!-- Title text -->
+  <text x="400" y="700" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        font-weight="900" font-size="48" fill="#fde68a"
+        letter-spacing="2">BRAIN CHAMPIONS</text>
+
+  <!-- Subtitle: prize -->
+  <text x="400" y="745" text-anchor="middle"
+        font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+        font-weight="600" font-size="26" fill="#facc15">
+    100,000 ₸ · 1-orын
+  </text>
+</svg>

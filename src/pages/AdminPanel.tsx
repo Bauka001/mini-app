@@ -228,7 +228,7 @@ export default function AdminPanel() {
                         <div className="flex items-center gap-3">
                           {ticket.eventName.includes('VIP') || ticket.eventName.includes('Premium') ? (
                             <div className="w-8 h-8 rounded-lg overflow-hidden flex-shrink-0 border border-yellow-500/30">
-                              <img src="/mustang.jpg" alt="Mustang" className="w-full h-full object-cover" />
+                              <img src="/champions-trophy.svg" alt="Brain Champions League" className="w-full h-full object-contain" />
                             </div>
                           ) : (
                             <TicketIcon className="w-8 h-8 text-gray-500" />

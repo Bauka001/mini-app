@@ -326,7 +326,7 @@ export const getCasePreviewRewards = (caseDefinition: CaseDefinition, t: TFuncti
       type: 'raffle_ticket',
       amount: 1,
       prizeTitle: 'Champions League Pass',
-      prizeImageUrl: '/mustang.jpg',
+      prizeImageUrl: '/champions-trophy.svg',
       eventName: 'Brain Champions League — Bonus Entry',
       eventDate: new Date().toISOString(),
       ticketNumber: 12345678,

@@ -816,9 +816,9 @@ const Home = () => {
           className="relative w-full aspect-[16/5] rounded-2xl overflow-hidden group cursor-pointer border border-amber-500/30 shadow-[0_8px_30px_rgb(0,0,0,0.3)]"
         >
           <img
-            src="/mustang.jpg"
-            alt="Ford Mustang"
-            className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            src="/champions-trophy.svg"
+            alt="Brain Champions League"
+            className="absolute inset-0 w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/50 to-transparent z-10" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent z-10" />

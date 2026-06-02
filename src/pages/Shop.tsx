@@ -1617,9 +1617,9 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms, promotionEndISO }: {
                 <div className="relative w-full aspect-video rounded-lg border-2 border-amber-400 p-0.5 bg-amber-500/10 shadow-[0_0_15px_rgba(251,191,36,0.5)] overflow-hidden group">
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 rounded pointer-events-none" />
                   <img
-                    src="/mustang.jpg"
-                    alt="Ford Mustang"
-                    className="w-full h-full object-cover rounded transform group-hover:scale-105 transition-transform duration-500"
+                    src="/champions-trophy.svg"
+                    alt="Brain Champions League"
+                    className="w-full h-full object-contain rounded transform group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute bottom-1.5 left-2 z-20 flex items-center gap-1">
                     <Car size={12} className="text-amber-400" />
@@ -2099,7 +2099,7 @@ const ShopInventorySection = ({
 
                 <div className="flex items-center gap-3">
                   <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 border-2 border-yellow-500/30 shadow-lg">
-                    <img src="/mustang.jpg" alt="Mustang" className="w-full h-full object-cover" />
+                    <img src="/champions-trophy.svg" alt="Brain Champions League" className="w-full h-full object-contain" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-2xl font-black text-yellow-800 font-mono tracking-wider">

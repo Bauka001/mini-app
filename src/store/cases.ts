@@ -92,7 +92,7 @@ const DUPLICATE_SKIN_FALLBACK_COINS: Record<CaseId, number> = {
 };
 
 const CAR_RAFFLE_EVENT_NAME = 'Brain Champions League — Bonus Entry';
-const CAR_RAFFLE_TICKET_IMAGE_URL = '/mustang.jpg';
+const CAR_RAFFLE_TICKET_IMAGE_URL = '/champions-trophy.svg';
 const IPHONE_17_IMAGE_URL = '/iphone-17-prize.svg';
 
 const createTicketNumber = () => Math.floor(Math.random() * 90000000) + 10000000;
