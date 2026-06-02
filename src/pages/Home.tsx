@@ -43,6 +43,9 @@ const gameButtons = [
   { title: 'game_pairs', icon: Copy, path: '/game/pairs' },
   { title: 'game_odd_one', icon: Eye, path: '/game/odd-one' },
   { title: 'game_2048', icon: Grid2x2, path: '/game/2048' },
+  { title: 'game_sozkoman', icon: Type, path: '/game/sozkoman' },
+  { title: 'game_dala_tarih', icon: Brain, path: '/game/dala-tarih' },
+  { title: 'game_togyzkumalak', icon: Grid, path: '/game/togyzkumalak' },
 ];
 
 const vipGamePaths = new Set(['/game/schulte', '/game/stroop']);
