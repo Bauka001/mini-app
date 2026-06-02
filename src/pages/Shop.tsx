@@ -1617,14 +1617,14 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms, promotionEndISO }: {
                 <div className="relative w-full aspect-video rounded-lg border-2 border-amber-400 p-0.5 bg-amber-500/10 shadow-[0_0_15px_rgba(251,191,36,0.5)] overflow-hidden group">
                   <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent z-10 rounded pointer-events-none" />
                   <img
-                    src="/champions-trophy.svg"
-                    alt="Brain Champions League"
+                    src="/iphone-17-prize.svg"
+                    alt="iPhone 17 Pro Max"
                     className="w-full h-full object-contain rounded transform group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute bottom-1.5 left-2 z-20 flex items-center gap-1">
-                    <Car size={12} className="text-amber-400" />
+                    <span className="text-[12px]">📱</span>
                     <span className="text-[10px] font-black text-white uppercase tracking-wider drop-shadow-[0_1px_1px_rgba(0,0,0,1)]">
-                      Ford Mustang
+                      iPhone 17
                     </span>
                   </div>
                   <div className="absolute top-1.5 right-1.5 z-20">

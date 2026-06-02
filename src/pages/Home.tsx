@@ -819,8 +819,8 @@ const Home = () => {
           className="relative w-full aspect-[16/5] rounded-2xl overflow-hidden group cursor-pointer border border-amber-500/30 shadow-[0_8px_30px_rgb(0,0,0,0.3)]"
         >
           <img
-            src="/champions-trophy.svg"
-            alt="Brain Champions League"
+            src="/iphone-17-prize.svg"
+            alt="iPhone 17 Pro Max"
             className="absolute inset-0 w-full h-full object-contain transition-transform duration-700 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-l from-black/80 via-black/50 to-transparent z-10" />
@@ -834,13 +834,13 @@ const Home = () => {
 
           <div className="absolute left-5 bottom-3 z-20 flex max-w-[220px] flex-col items-start">
             <div className="flex items-center gap-2 mb-0.5">
-              <Car size={14} className="text-amber-400" />
+              <span className="text-amber-400">📱</span>
               <span className="text-[10px] font-black text-amber-300 uppercase tracking-widest">{t('main_prize')}</span>
             </div>
             <h3 className="text-base font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-left">
               {t('win_car')}
             </h3>
-            <p className="text-[10px] text-white/70 mt-0.5 text-left">Ford Mustang GT - {t('premium_pack')}</p>
+            <p className="text-[10px] text-white/70 mt-0.5 text-left">iPhone 17 Pro Max - {t('premium_pack')}</p>
             <div className="flex items-center gap-2 mt-2">
               <div className="flex items-center gap-1.5 bg-white/15 backdrop-blur-sm rounded-xl px-3 py-1.5">
                 <Gem size={14} className="text-blue-400" />
