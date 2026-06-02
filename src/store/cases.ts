@@ -91,7 +91,7 @@ const DUPLICATE_SKIN_FALLBACK_COINS: Record<CaseId, number> = {
   legendary_case: 1100,
 };
 
-const CAR_RAFFLE_EVENT_NAME = 'Legendary Car Raffle';
+const CAR_RAFFLE_EVENT_NAME = 'Brain Champions League — Bonus Entry';
 const CAR_RAFFLE_TICKET_IMAGE_URL = '/mustang.jpg';
 const IPHONE_17_IMAGE_URL = '/iphone-17-prize.svg';
 
@@ -228,7 +228,7 @@ export const buildReward = (
       id: `${caseId}-raffle-ticket-${Date.now()}`,
       type: 'raffle_ticket',
       amount: 1,
-      prizeTitle: 'Car Raffle Ticket',
+      prizeTitle: 'Champions League Pass',
       prizeImageUrl: CAR_RAFFLE_TICKET_IMAGE_URL,
       eventName: CAR_RAFFLE_EVENT_NAME,
       eventDate: state.promotionEndISO || new Date().toISOString(),

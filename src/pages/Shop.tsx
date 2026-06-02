@@ -1484,7 +1484,7 @@ const VIPTab = ({ currentPlan, onBuyPlan, onShowTerms, promotionEndISO }: {
       priceLabel: PREMIUM_PRICE,
       originalPrice: '15 990 ₸',
       description: t('plan_premium_desc'),
-      highlight: '🚗 ' + t('car_raffle'),
+      highlight: '🏆 ' + t('car_raffle'),
       popular: false,
       isPremium: true,
       features: premiumFeatures,

@@ -75,7 +75,7 @@ export { buildVipAnalyticsSnapshot, TELEGRAM_AVERAGE_BRAIN_PROFILE } from './ana
 const CLAIMED_PLAN_REWARD_HISTORY_LIMIT = 64;
 const PREMIUM_PLAN_REWARD_KEY_PREFIX = 'premium-once-v1';
 const PRO_WEEKLY_TICKET_KEY_PREFIX = 'pro-weekly-ticket-v1';
-const PREMIUM_RAFFLE_EVENT_NAME = 'Premium Car Raffle';
+const PREMIUM_RAFFLE_EVENT_NAME = 'Brain Champions League';
 const PREMIUM_PLAN_REWARD = {
   coins: 10_000,
   gems: 10_000,
@@ -227,7 +227,7 @@ const isLegendaryJackpotReward = (reward: MysteryBox) =>
   reward.type === 'raffle_ticket' || reward.type === 'iphone_17';
 
 const buildCaseRewardAdminMessage = (state: UserState, reward: MysteryBox) => {
-  const prizeName = reward.prizeTitle || (reward.type === 'raffle_ticket' ? 'Car Raffle Ticket' : 'iPhone 17');
+  const prizeName = reward.prizeTitle || (reward.type === 'raffle_ticket' ? 'Champions League Pass' : 'iPhone 17');
   const userLabel = state.user.username ? `@${state.user.username}` : state.user.firstName || 'player';
   const ticketPart = reward.ticketNumber ? ` Ticket #${reward.ticketNumber}.` : '';
   return `[LEGENDARY CASE JACKPOT] ${userLabel} (ID: ${state.user.id}) won ${prizeName}. Drop chance: 1%.${ticketPart}`;

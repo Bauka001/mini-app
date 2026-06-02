@@ -2722,7 +2722,7 @@ app.post('/tickets/issue', writeLimiter, async (req, res) => {
     try {
       userTelegramId = requireInt(req.body?.userTelegramId, 'userTelegramId', { min: 1 });
       userName = optionalString(req.body?.userName, 'userName', { max: 128 }) || `user_${userTelegramId}`;
-      eventName = optionalString(req.body?.eventName, 'eventName', { max: 128 }) || 'Premium Event';
+      eventName = optionalString(req.body?.eventName, 'eventName', { max: 128 }) || 'Brain Champions League';
       eventDate = optionalIsoDate(req.body?.eventDate, 'eventDate');
       price = requireInt(req.body?.price ?? 0, 'price', { min: 0, max: 1_000_000 });
       purchaseDate = optionalIsoDate(req.body?.purchaseDate, 'purchaseDate') || new Date().toISOString();
