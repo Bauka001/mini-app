@@ -92,6 +92,14 @@ const makeLimiter = (max, windowMs = 60_000) =>
 const authLimiter = makeLimiter(30);
 const writeLimiter = makeLimiter(10);
 const adminLimiter = makeLimiter(60);
+// `paymentLimiter` is intentionally STRICT — any user calling /payments/*
+// faster than this is either abusive (DoS) or buggy frontend (retry storm).
+// 6/min ≈ 1 invoice every 10s, which is way more than any UI flow needs.
+const paymentLimiter = makeLimiter(6);
+// `gameLimiter` is permissive — users genuinely play many games per session.
+const gameLimiter = makeLimiter(60);
+// `readLimiter` — non-sensitive GETs that still shouldn't be hammered.
+const readLimiter = makeLimiter(120);
 
 // Server-side bot token. Used only by server/index.js; never reaches the
 // client bundle (Vite ignores process.env in API routes). Prefer the
@@ -2913,7 +2921,7 @@ app.post('/tickets/issue', writeLimiter, async (req, res) => {
   }
 });
 
-app.post('/payments/ton/create', async (req, res) => {
+app.post('/payments/ton/create', paymentLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -3028,7 +3036,7 @@ app.post('/payments/ton/create', async (req, res) => {
   }
 });
 
-app.get('/payments/:paymentOrderId/status', async (req, res) => {
+app.get('/payments/:paymentOrderId/status', readLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -4451,7 +4459,7 @@ app.get('/wheel/fortune', async (req, res) => {
   }
 });
 
-app.post('/wheel/spin', async (req, res) => {
+app.post('/wheel/spin', gameLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
       return;
@@ -4611,7 +4619,7 @@ app.post('/wheel/spin', async (req, res) => {
   }
 });
 
-app.post('/wheel/topups/ton/create', async (req, res) => {
+app.post('/wheel/topups/ton/create', paymentLimiter, async (req, res) => {
   try {
     const access = await resolveRequestAccess(req, res);
     if (!access) {
@@ -4955,7 +4963,7 @@ app.post('/promo/subscription/claim', authLimiter, async (req, res) => {
 
 
 // === Public: active flash sales (Shop banner) ===
-app.get('/flash-sales/active', async (_req, res) => {
+app.get('/flash-sales/active', readLimiter, async (_req, res) => {
   try {
     if (!supabase) return res.json({ sales: [] });
     const nowIso = new Date().toISOString();
@@ -5002,7 +5010,7 @@ app.post('/referral/track', authLimiter, async (req, res) => {
 });
 
 //   GET /referral/stats — returns this user's referral count + share link
-app.get('/referral/stats', async (req, res) => {
+app.get('/referral/stats', readLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) return;
     const access = await resolveRequestAccess(req, res);

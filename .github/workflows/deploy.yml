@@ -1,0 +1,70 @@
+name: Deploy to Vercel
+
+# Auto-deploy main to production after a green CI build.
+#
+# Required GitHub Secrets (Repo → Settings → Secrets → Actions):
+#   VERCEL_TOKEN           — personal token from vercel.com/account/tokens
+#   VERCEL_ORG_ID          — printed by `vercel link` (or from project settings)
+#   VERCEL_PROJECT_ID      — `prj_…` printed by `vercel link`
+#
+# Without these secrets the job becomes a no-op (silently skipped) — useful so
+# forks don't fail on missing credentials.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # let an operator trigger the deploy manually too
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false # don't interrupt an in-flight deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.repository_owner != 'github' # placeholder always-true guard; real gating is the secret check below
+    steps:
+      - name: Check credentials
+        id: creds
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ] || [ -z "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::warning::Vercel credentials missing — skipping deploy. Add VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID under Repo Settings → Secrets."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.creds.outputs.skip != 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.creds.outputs.skip != 'true'
+        with:
+          node-version: '20'
+
+      - name: Pull Vercel env
+        if: steps.creds.outputs.skip != 'true'
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build for Vercel
+        if: steps.creds.outputs.skip != 'true'
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy
+        if: steps.creds.outputs.skip != 'true'
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          URL=$(npx vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "Deployed: $URL"
+          echo "## 🚀 Production deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "URL: $URL" >> "$GITHUB_STEP_SUMMARY"

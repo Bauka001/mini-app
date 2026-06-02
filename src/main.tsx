@@ -11,6 +11,9 @@ import telegramAnalytics from '@telegram-apps/analytics';
 
 bootstrapTelegram();
 registerPwa();
+// Initialise error monitoring after telegram bootstrap so user identity is
+// available to tag events. No-ops when VITE_SENTRY_DSN is unset.
+import('./utils/monitoring').then(({ initMonitoring }) => initMonitoring());
 
 // === Chunk-load self-healer ==================================================
 // After a deploy, the index.html the user has cached in Telegram WebView still
