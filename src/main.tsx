@@ -11,6 +11,48 @@ import telegramAnalytics from '@telegram-apps/analytics';
 
 bootstrapTelegram();
 registerPwa();
+
+// === Stale-bundle detector ==================================================
+// Telegram's WebView caches the HTML document aggressively and often ignores
+// Cache-Control, so after a deploy a user can keep running the OLD bundle
+// indefinitely — no chunk-load error fires (the old chunks still exist on
+// Vercel), they just never see the new features. We stamp every build with a
+// unique __BUILD_ID__ and publish a no-cache /version.json carrying the same
+// id. On boot we compare them: a mismatch means the cached HTML loaded an
+// out-of-date bundle, so we hard-reload once (bounded) into the fresh version.
+(async () => {
+  try {
+    const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const { build } = await res.json();
+    const current = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : '';
+    const KEY = 'focus-version-reload';
+    if (build && current && build !== current) {
+      let tries = 0;
+      try { tries = parseInt(sessionStorage.getItem(KEY) || '0', 10) || 0; } catch { /* noop */ }
+      if (tries < 2) {
+        try { sessionStorage.setItem(KEY, String(tries + 1)); } catch { /* noop */ }
+        // Drop SW + caches so the reload genuinely re-fetches fresh assets.
+        try {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map((r) => r.unregister()));
+          }
+          if (typeof caches !== 'undefined') {
+            const keys = await caches.keys();
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          }
+        } catch { /* noop */ }
+        const url = new URL(window.location.href);
+        url.searchParams.set('_v', build);
+        window.location.replace(url.toString());
+        return;
+      }
+    } else {
+      try { sessionStorage.removeItem(KEY); } catch { /* noop */ }
+    }
+  } catch { /* version check is best-effort */ }
+})();
 // Initialise error monitoring after telegram bootstrap so user identity is
 // available to tag events. No-ops when VITE_SENTRY_DSN is unset.
 import('./utils/monitoring').then(({ initMonitoring }) => initMonitoring());

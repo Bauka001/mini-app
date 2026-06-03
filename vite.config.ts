@@ -2,12 +2,34 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+// Unique build id stamped into both the bundle (__BUILD_ID__) and a
+// no-cache /version.json. The runtime compares the two on boot — when a
+// Telegram WebView serves a stale cached bundle after a deploy, the ids
+// diverge and we hard-reload once into the fresh version.
+const BUILD_ID = `${Date.now()}`
+
+const emitVersion = () => ({
+  name: 'emit-version-json',
+  writeBundle(options: { dir?: string }) {
+    const outDir = options.dir || 'dist'
+    try {
+      writeFileSync(join(outDir, 'version.json'), JSON.stringify({ build: BUILD_ID }))
+    } catch { /* non-fatal */ }
+  },
+})
 
 export default defineConfig({
   base: './',
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   plugins: [
     react(),
     tailwindcss(),
+    emitVersion(),
     VitePWA({
       // Self-destroying SW: the previous deploys shipped a precaching SW that
       // got stuck on Telegram users — it kept serving stale chunks across
