@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Play, RotateCcw, Coins, Share2, Puzzle, Activity, Brain, Calculator, Keyboard, Zap, Trophy, Star, Pause, Home, Target, Route } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/useStoreImpl';
@@ -8,6 +8,7 @@ import { hapticFeedback } from '../utils/telegram';
 import { ChestModal } from './ChestModal';
 import { DailyQuestPopup } from './DailyQuestPopup';
 import { motion, AnimatePresence } from 'framer-motion';
+import { TierBadge, PersonalBestPill, Confetti, RewardLine, useGameResult } from './GameResult';
 
 type GameState = 'instruction' | 'playing' | 'paused' | 'finished';
 
@@ -33,7 +34,110 @@ const getGameEmblem = (title: string) => {
   return emblemStyles[title] || { icon: <Trophy size={80} strokeWidth={1.5} />, color: 'from-gray-400 to-gray-600', glow: 'shadow-gray-500/50' };
 };
 
+/**
+ * Stand-alone post-game screen with tiered ranking, personal-best tracking,
+ * confetti for high tiers, and bonus coin display for Diamond / Platinum.
+ */
+const GameOverScreen: React.FC<{
+  gameId: string;
+  title: string;
+  lastScore: unknown;
+  lastCoins: number;
+  onRestart: () => void;
+  onShare: () => void;
+  onBack: () => void;
+}> = ({ gameId, title, lastScore, lastCoins, onRestart, onShare, onBack }) => {
+  const { t } = useTranslation();
+  const { numeric, prevBest, isNewBest, tier, tierBonus } = useGameResult(gameId, lastScore, lastCoins);
+  const tierMsg = {
+    bronze: 'Бастамашы',
+    silver: 'Жақсы',
+    gold: 'Ең жоғары',
+    platinum: 'Топ',
+    diamond: 'Аңыз',
+  }[tier];
+  return (
+    <div className="flex flex-col h-screen bg-black text-white relative overflow-hidden">
+      <Confetti tier={tier} />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute top-[-20%] left-[-20%] w-[500px] h-[500px] bg-amber-500/15 rounded-full blur-[120px] pointer-events-none" />
+
+      <div className="relative z-10 flex-1 overflow-y-auto px-6 pt-6 pb-4 flex flex-col items-center text-center">
+        <motion.div initial={{ y: -10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="mb-3">
+          <div className="text-xs text-stone-400 uppercase tracking-widest font-bold">{title}</div>
+          <h1 className="text-2xl font-black bg-gradient-to-r from-amber-300 to-rose-400 bg-clip-text text-transparent">
+            {tierMsg}!
+          </h1>
+        </motion.div>
+
+        <TierBadge tier={tier} large />
+
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mt-4 mb-2 px-3 py-1 rounded-full bg-stone-800/80 border border-stone-700 text-[10px] uppercase tracking-widest text-stone-300"
+        >Тур қорытындысы</motion.div>
+
+        <motion.div
+          initial={{ scale: 0.6 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 200, damping: 18, delay: 0.3 }}
+          className="mb-1"
+        >
+          <div className="text-6xl font-black text-white drop-shadow-[0_0_20px_rgba(251,191,36,0.45)]">
+            {typeof lastScore === 'object' ? JSON.stringify(lastScore) : lastScore}
+          </div>
+        </motion.div>
+
+        <div className="mb-4">
+          <PersonalBestPill best={prevBest} current={numeric} isNewBest={isNewBest} />
+        </div>
+
+        <div className="w-full max-w-sm space-y-2 mb-5">
+          <RewardLine icon="🪙" label={t('coins_earned', 'Coins earned')} value={`+${lastCoins}`} tone="primary" />
+          {tierBonus > 0 && (
+            <motion.div initial={{ x: -30, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: 0.4 }}>
+              <RewardLine
+                icon={tier === 'diamond' ? '💎' : '🏆'}
+                label={tier === 'diamond' ? 'Алмаз бонусы (×2)' : 'Платина бонусы (+50%)'}
+                value={`+${tierBonus}`}
+                tone={tier === 'diamond' ? 'focus' : 'gem'}
+              />
+            </motion.div>
+          )}
+        </div>
+
+        <div className="w-full max-w-xs flex flex-col gap-2.5">
+          <button
+            onClick={onRestart}
+            className="bg-white text-black font-bold py-3.5 px-8 rounded-xl text-lg hover:scale-105 transition-transform flex items-center justify-center gap-2 shadow-lg"
+          >
+            <RotateCcw size={20} />
+            {t('play_again', 'Play Again')}
+          </button>
+          <button
+            onClick={onShare}
+            className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold py-3 px-8 rounded-xl text-base hover:scale-105 transition-transform flex items-center justify-center gap-2 shadow-lg"
+          >
+            <Share2 size={18} />
+            {t('share_result', 'Share')}
+          </button>
+          <button
+            onClick={onBack}
+            className="bg-transparent text-white font-bold py-3 px-8 rounded-xl text-base border border-white/20 hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
+          >
+            <Home size={18} />
+            {t('menu', 'Menu')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, children, onExit }) => {
+  const location = useLocation();
   const [gameState, setGameState] = useState<GameState>('instruction');
   const [lastScore, setLastScore] = useState<any>(null);
   const [lastCoins, setLastCoins] = useState<number>(0);
@@ -173,7 +277,22 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
             </div>
           </motion.div>
 
-          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400 mb-4 drop-shadow-lg leading-tight">{title}</h1>
+          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400 mb-2 drop-shadow-lg leading-tight">{title}</h1>
+
+          {/* Personal best preview from earlier sessions — motivation pre-play */}
+          {(() => {
+            const m = /\/game\/([a-z0-9-]+)/.exec(location.pathname);
+            const id = m ? m[1] : null;
+            if (!id) return null;
+            let best = 0;
+            try { best = parseInt(localStorage.getItem(`focus-best:${id}`) || '0', 10) || 0; } catch {}
+            if (best <= 0) return null;
+            return (
+              <div className="mb-3 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30 inline-flex items-center gap-1.5 text-xs font-bold text-amber-200">
+                🏆 Жеке рекорд: <span className="text-amber-100">{best}</span>
+              </div>
+            );
+          })()}
 
           <div className="bg-secondary/80 backdrop-blur-xl p-5 rounded-3xl mb-4 w-full max-w-sm mx-auto border border-white/10 shadow-2xl text-left">
             <h2 className="text-base font-bold mb-2 text-white uppercase tracking-wider text-center">{t('instructions', 'Instructions')}</h2>
@@ -199,56 +318,20 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
     );
   }
 
-  // 2. GAME OVER SCREEN
+  // 2. GAME OVER SCREEN — tiered result + confetti + personal best
   if (gameState === 'finished') {
-    return (
-      <div className="flex flex-col h-screen bg-black text-white p-6 relative overflow-hidden">
-        <div className="absolute bottom-[-20%] right-[-20%] w-[500px] h-[500px] bg-blue-600/20 rounded-full blur-[100px] pointer-events-none" />
-        
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center">
-          <h1 className="text-4xl font-black text-white mb-8">{t('game_over', 'Game Over')}</h1>
-          
-          <div className="bg-secondary/80 backdrop-blur-xl p-8 rounded-3xl mb-8 w-full max-w-sm border border-white/10 shadow-2xl">
-            <div className="text-gray-400 text-sm font-medium uppercase tracking-wide mb-2">{t('final_score', 'Final Score')}</div>
-            <p className="text-6xl font-black text-white mb-8">
-              {typeof lastScore === 'object' ? JSON.stringify(lastScore) : lastScore}
-            </p>
-
-            <div className="flex flex-col items-center gap-2 bg-black/40 p-4 rounded-2xl border border-white/5">
-              <span className="text-gray-400 text-sm font-medium uppercase tracking-wide">{t('coins_earned', 'Coins Earned')}</span>
-              <div className="flex items-center gap-2 text-primary text-4xl font-black">
-                <Coins size={32} fill="currentColor" />
-                +{lastCoins}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 w-full max-w-xs">
-            <button
-              onClick={handleRestart}
-              className="bg-white text-black font-bold py-3.5 px-8 rounded-xl text-lg hover:scale-105 transition-transform flex items-center justify-center gap-2 shadow-lg"
-            >
-              <RotateCcw size={20} />
-              {t('play_again', 'Play Again')}
-            </button>
-            <button
-              onClick={handleShare}
-              className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold py-3.5 px-8 rounded-xl text-lg hover:scale-105 transition-transform flex items-center justify-center gap-2 shadow-lg"
-            >
-              <Share2 size={20} />
-              {t('share_result')}
-            </button>
-            <button
-              onClick={handleBack}
-              className="bg-transparent text-white font-bold py-3.5 px-8 rounded-xl text-lg border border-white/20 hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
-            >
-              <Home size={20} />
-              {t('menu', 'Menu')}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    // Pull gameId from URL path (/game/<id>) for the per-game personal best
+    const pathMatch = /\/game\/([a-z0-9-]+)/.exec(location.pathname);
+    const gameId = pathMatch ? pathMatch[1] : 'unknown';
+    return <GameOverScreen
+      gameId={gameId}
+      title={title}
+      lastScore={lastScore}
+      lastCoins={lastCoins}
+      onRestart={handleRestart}
+      onShare={handleShare}
+      onBack={handleBack}
+    />;
   }
 
   // 3. PLAYING SCREEN
