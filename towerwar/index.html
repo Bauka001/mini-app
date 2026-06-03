@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>QULA SOǴYSY — Tower War Online</title>
+<style>
+  :root{ --bg:#0c1322; --you:#3da9fc; --enemy:#ff5d5d; --neutral:#8b95a7; --ink:#eaf1ff; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;}
+  html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;user-select:none;}
+  #app{position:relative;height:100dvh;display:flex;flex-direction:column;align-items:center;}
+  #hud{width:100%;max-width:520px;display:flex;justify-content:space-between;align-items:center;
+    padding:10px 16px;gap:10px;z-index:5;}
+  .side{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;}
+  .dot{width:14px;height:14px;border-radius:50%;}
+  .you .dot{background:var(--you);} .enemy .dot{background:var(--enemy);}
+  #title{font-weight:900;letter-spacing:1px;font-size:14px;opacity:.85;}
+  #title small{color:#ffcc4d;font-weight:600;}
+  #board{position:relative;touch-action:none;background:
+    radial-gradient(circle at 50% 0%, #182338 0%, #0c1322 60%);
+    border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.5);margin-top:4px;}
+  canvas{display:block;border-radius:14px;}
+  #overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:16px;background:rgba(8,12,24,.93);border-radius:14px;
+    text-align:center;padding:24px;z-index:10;}
+  #overlay.hide{display:none;}
+  h1{font-size:26px;margin:0;letter-spacing:1px;}
+  h1 b{color:#ffcc4d;}
+  .sub{opacity:.7;font-size:14px;max-width:300px;line-height:1.5;}
+  .btn{background:var(--you);color:#04101f;font-weight:800;border:none;border-radius:14px;
+    padding:15px 30px;font-size:16px;cursor:pointer;min-width:200px;}
+  .btn.alt{background:#1e2942;color:var(--ink);}
+  .btn:active{transform:scale(.96);}
+  .btn:disabled{opacity:.5;}
+  .status{font-size:13px;opacity:.7;min-height:18px;}
+  .big{font-size:40px;font-weight:900;}
+  .win{color:var(--you);} .lose{color:var(--enemy);}
+  #hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:12px;
+    opacity:.5;text-align:center;width:92%;z-index:4;}
+  .spin{width:22px;height:22px;border:3px solid #2a3a5a;border-top-color:var(--you);
+    border-radius:50%;animation:sp 1s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="hud">
+    <div class="side you"><span class="dot"></span><span id="youCnt">0</span></div>
+    <div id="title">QULA SOǴYSY <small>online</small></div>
+    <div class="side enemy"><span id="enemyCnt">0</span><span class="dot"></span></div>
+  </div>
+
+  <div id="board">
+    <canvas id="c"></canvas>
+    <div id="hint">Өз мұнараңды бас → таңда, мақсатты бас → жарты әскерді жібер</div>
+    <div id="overlay">
+      <h1>QULA <b>SOǴYSY</b></h1>
+      <div class="sub">Мұнараларды басып ал. Барлық картаны жеңіп ал. Нақты онлайн қарсыласпен немесе ботпен ойна.</div>
+      <button class="btn" id="findBtn">🌐 Онлайн матч табу</button>
+      <button class="btn alt" id="botBtn">🤖 Ботпен ойнау</button>
+      <div class="status" id="status"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const board = document.getElementById('board');
+const overlay = document.getElementById('overlay');
+const statusEl = document.getElementById('status');
+
+// ---- responsive square-ish board ----
+let W, H;
+function fit(){
+  const maxW = Math.min(520, window.innerWidth - 8);
+  const maxH = window.innerHeight - 90;
+  const size = Math.min(maxW, maxH * 0.78);
+  W = Math.round(size); H = Math.round(size * 1.18);
+  board.style.width = W+'px'; board.style.height = H+'px';
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = W*dpr; cv.height = H*dpr; cv.style.width = W+'px'; cv.style.height = H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize', fit); fit();
+
+// ---- game state from server ----
+let me = 1;                 // my player number
+let towers = [];            // {id,x,y,o,c,ty}
+let squads = [];
+let selected = new Set();   // selected tower ids (mine)
+let dragFrom = null, dragXY = null;
+let playing = false;
+
+const COL = {
+  you:'#3da9fc', enemy:'#ff5d5d', neutral:'#8b95a7',
+  youGlow:'rgba(61,169,252,.35)', enemyGlow:'rgba(255,93,93,.35)',
+};
+function ownerColor(o){ if(o===0) return COL.neutral; return o===me ? COL.you : COL.enemy; }
+function ownerGlow(o){ return o===me ? COL.youGlow : COL.enemyGlow; }
+
+function towerRadius(t){
+  const base = t.ty==='home'?26 : t.ty==='fort'?28 : t.ty==='cannon'?23 : 20;
+  return base * (W/420);
+}
+function px(t){ return { x:t.x*W, y:t.y*H }; }
+
+// ---- rendering ----
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // connection lines for selected (aim helpers)
+  if(dragFrom!=null && dragXY){
+    const f = towers.find(t=>t.id===dragFrom); if(f){ const p=px(f);
+      ctx.strokeStyle='rgba(61,169,252,.5)'; ctx.lineWidth=3; ctx.setLineDash([6,6]);
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(dragXY.x,dragXY.y); ctx.stroke(); ctx.setLineDash([]);
+    }
+  }
+  // squads (troops in flight)
+  for(const s of squads){
+    const x=s.x*W, y=s.y*H;
+    ctx.fillStyle = ownerColor(s.o);
+    ctx.beginPath(); ctx.arc(x,y, 4*(W/420)+Math.min(6,s.c*0.15), 0, 7); ctx.fill();
+    ctx.fillStyle='#04101f'; ctx.font=`700 ${10*(W/420)}px sans-serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(s.c, x, y);
+  }
+  // towers
+  for(const t of towers){
+    const p=px(t), r=towerRadius(t);
+    const isSel = selected.has(t.id);
+    // glow
+    if(t.o!==0){ ctx.fillStyle=ownerGlow(t.o); ctx.beginPath(); ctx.arc(p.x,p.y,r+8,0,7); ctx.fill(); }
+    // ring for selection
+    if(isSel){ ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(p.x,p.y,r+5,0,7); ctx.stroke(); }
+    // body
+    ctx.fillStyle = ownerColor(t.o);
+    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7); ctx.fill();
+    // inner ring by type
+    ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(p.x,p.y,r*0.72,0,7); ctx.stroke();
+    // count
+    ctx.fillStyle = t.o===0 ? '#0c1322' : '#04101f';
+    ctx.font=`800 ${r*0.85}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(t.c, p.x, p.y);
+  }
+  // HUD counts
+  let yc=0, ec=0;
+  for(const t of towers){ if(t.o===me) yc+=t.c; else if(t.o!==0) ec+=t.c; }
+  for(const s of squads){ if(s.o===me) yc+=s.c; else ec+=s.c; }
+  document.getElementById('youCnt').textContent = yc;
+  document.getElementById('enemyCnt').textContent = ec;
+}
+function loop(){ draw(); requestAnimationFrame(loop); }
+loop();
+
+// ---- input: tap-select then tap-target, plus drag ----
+function hitTower(mx,my){
+  for(const t of towers){ const p=px(t); const r=towerRadius(t)+6;
+    if((mx-p.x)**2+(my-p.y)**2 <= r*r) return t; }
+  return null;
+}
+function localXY(e){
+  const rect = cv.getBoundingClientRect();
+  const cx = e.touches?e.touches[0].clientX:e.clientX;
+  const cy = e.touches?e.touches[0].clientY:e.clientY;
+  return { x:cx-rect.left, y:cy-rect.top };
+}
+let downTower=null, moved=false;
+function onDown(e){
+  if(!playing) return;
+  const {x,y}=localXY(e); const t=hitTower(x,y);
+  moved=false; downTower=t;
+  if(t && t.o===me){ dragFrom=t.id; dragXY={x,y}; }
+  e.preventDefault();
+}
+function onMove(e){
+  if(!playing||dragFrom==null) return;
+  const {x,y}=localXY(e); dragXY={x,y}; moved=true;
+  e.preventDefault();
+}
+function onUp(e){
+  if(!playing){ return; }
+  const {x,y}=localXY(e); const t=hitTower(x,y);
+  // drag-release onto a different tower → send
+  if(dragFrom!=null && moved && t && t.id!==dragFrom){
+    ws && ws.send(JSON.stringify({type:'send', from:dragFrom, to:t.id}));
+    // also send from any other selected towers
+    for(const id of selected){ if(id!==dragFrom) ws.send(JSON.stringify({type:'send',from:id,to:t.id})); }
+    selected.clear();
+    dragFrom=null; dragXY=null; downTower=null; return;
+  }
+  dragFrom=null; dragXY=null;
+  // tap (no drag)
+  if(!moved && downTower){
+    const t2=downTower;
+    if(t2.o===me){
+      if(selected.has(t2.id)) selected.delete(t2.id); else selected.add(t2.id);
+    } else {
+      // target: send from all selected
+      if(selected.size){
+        for(const id of selected) ws.send(JSON.stringify({type:'send',from:id,to:t2.id}));
+        selected.clear();
+      }
+    }
+  }
+  downTower=null; moved=false;
+  e.preventDefault();
+}
+cv.addEventListener('mousedown',onDown); cv.addEventListener('mousemove',onMove);
+window.addEventListener('mouseup',onUp);
+cv.addEventListener('touchstart',onDown,{passive:false});
+cv.addEventListener('touchmove',onMove,{passive:false});
+window.addEventListener('touchend',onUp,{passive:false});
+
+// ---- networking ----
+let ws=null;
+function connect(then){
+  const proto = location.protocol==='https:'?'wss':'ws';
+  ws = new WebSocket(`${proto}://${location.host}`);
+  ws.onopen = ()=>{ then && then(); };
+  ws.onclose = ()=>{ if(playing){ setStatus('Байланыс үзілді'); } };
+  ws.onerror = ()=>{ setStatus('Серверге қосыла алмадым'); };
+  ws.onmessage = (ev)=>{
+    const m = JSON.parse(ev.data);
+    if(m.type==='hello'){}
+    else if(m.type==='searching'){ setStatus('Қарсылас іздеуде…'); showSearching(); }
+    else if(m.type==='matched'){
+      me = m.you;
+      setStatus(m.opponent==='bot'?'Бот табылды!':'Қарсылас табылды!');
+      startMatch();
+    }
+    else if(m.type==='state'){ towers=m.towers; squads=m.squads; }
+    else if(m.type==='gameover'){ endMatch(m); }
+  };
+}
+function setStatus(s){ statusEl.textContent=s; }
+function showSearching(){
+  overlay.classList.remove('hide');
+  overlay.innerHTML = `<div class="spin"></div><div class="sub">Қарсылас іздеуде…<br>5 сек ішінде табылмаса — ботпен бастаймыз.</div>
+    <button class="btn alt" id="cancelBtn">Болдырмау</button>`;
+  document.getElementById('cancelBtn').onclick = ()=>{ try{ws.send(JSON.stringify({type:'leave'}));}catch(e){} location.reload(); };
+}
+function startMatch(){
+  playing=true; selected.clear(); overlay.classList.add('hide');
+}
+function endMatch(m){
+  playing=false;
+  overlay.classList.remove('hide');
+  const won = m.youWon;
+  overlay.innerHTML = `
+    <div class="big ${won?'win':'lose'}">${won?'🏆 ЖЕҢІС':'💀 ЖЕҢІЛІС'}</div>
+    <div class="sub">${m.forfeit?(won?'Қарсылас ойыннан шықты':''):''}${won?'Бүкіл картаны бағындырдың!':'Қарсылас картаны басып алды.'}</div>
+    <button class="btn" id="againBtn">🌐 Тағы матч</button>
+    <button class="btn alt" id="botAgainBtn">🤖 Ботпен</button>`;
+  document.getElementById('againBtn').onclick = ()=>queueFind();
+  document.getElementById('botAgainBtn').onclick = ()=>queueBot();
+}
+
+function queueFind(){
+  resetOverlayToSearch();
+  if(ws && ws.readyState===1){ ws.send(JSON.stringify({type:'find'})); }
+  else connect(()=>ws.send(JSON.stringify({type:'find'})));
+}
+function queueBot(){
+  if(ws && ws.readyState===1){ ws.send(JSON.stringify({type:'bot'})); }
+  else connect(()=>ws.send(JSON.stringify({type:'bot'})));
+}
+function resetOverlayToSearch(){ setStatus('Қосылуда…'); }
+
+document.getElementById('findBtn').onclick = queueFind;
+document.getElementById('botBtn').onclick = queueBot;
+</script>
+</body>
+</html>
