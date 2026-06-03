@@ -70,13 +70,25 @@ export const MathBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: strin
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [isWrong, setIsWrong] = useState(false);
+  // Adaptive multiplier — auto-scales question complexity inside the chosen
+  // difficulty band. Range 0.5×–2.0×; starts at 1.0×. Each correct answer
+  // nudges up by ~10%, each wrong drops to 0.8×. A user who's nailing it
+  // gets stretched; a struggling user gets a break. Reduces 'too easy' /
+  // 'too hard' churn that fixed difficulties cause.
+  const [skillBoost, setSkillBoost] = useState(1);
   const skinClass = SKIN_STYLES[activeSkin] || SKIN_STYLES.default;
 
   const questionRef = useRef<{ text: string, answer: number, options: number[] } | null>(null);
   questionRef.current = question;
+  const skillRef = useRef(skillBoost);
+  skillRef.current = skillBoost;
 
   const generateQuestion = useCallback(() => {
-    const opRange = config.opRange;
+    // Scale the upper bound by current skill multiplier — pulls in or pushes
+    // out the question's number range without changing which ops are allowed.
+    const baseMax = config.opRange[1];
+    const adaptiveMax = Math.max(config.opRange[0] + 5, Math.round(baseMax * skillRef.current));
+    const opRange: [number, number] = [config.opRange[0], adaptiveMax];
     const ops = config.ops;
     const op = ops[Math.floor(Math.random() * ops.length)];
     let a, b, ans;
@@ -152,10 +164,16 @@ export const MathBoard = ({ onEnd, isGamePaused, theme }: { onEnd: (score: strin
     if (isCorrect) {
       setCorrectCount(c => c + 1);
       setCombo(c => c + 1);
+      // Adaptive: each correct = +10% skill, capped at 2× — within ~6 right
+      // answers user is at peak difficulty for their chosen tier.
+      setSkillBoost((s) => Math.min(2, s * 1.1));
       addPointsForWin();
       haptic.impact('light');
     } else {
       setCombo(0);
+      // Wrong answer = sharp drop to 0.8× (or 0.5× floor). Faster recovery
+      // path than the slow +10% ladder feels fair, not punishing.
+      setSkillBoost((s) => Math.max(0.5, s * 0.8));
       setIsWrong(true);
       haptic.notification('error');
       setTimeout(() => setIsWrong(false), 300);
