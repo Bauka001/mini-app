@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>QUMSAǴAT — Merge & Automate</title>
+<style>
+  :root{
+    --bg:#0e1020; --panel:#171a35; --ink:#eef0ff; --accent:#ffcc4d; --danger:#ff5c7a;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    overflow:hidden;user-select:none;touch-action:none;}
+  #wrap{position:relative;height:100dvh;display:flex;flex-direction:column;align-items:center;}
+  header{width:100%;max-width:440px;display:flex;justify-content:space-between;
+    align-items:center;padding:10px 14px;gap:10px;}
+  .brand{font-weight:800;letter-spacing:1px;font-size:18px;}
+  .brand small{color:var(--accent);font-weight:600;letter-spacing:0;}
+  .stat{background:var(--panel);border-radius:12px;padding:6px 12px;text-align:center;min-width:74px;}
+  .stat .lbl{font-size:10px;opacity:.6;text-transform:uppercase;letter-spacing:1px;}
+  .stat .val{font-size:18px;font-weight:800;}
+  #stage{position:relative;border-radius:16px;overflow:hidden;
+    box-shadow:0 10px 40px rgba(0,0,0,.5);background:#0a0c1a;margin-top:4px;}
+  canvas{display:block;}
+  #dropline{position:absolute;left:0;top:0;width:100%;height:2px;
+    background:repeating-linear-gradient(90deg,var(--danger) 0 8px,transparent 8px 16px);
+    opacity:.0;pointer-events:none;transition:opacity .2s;}
+  #ghost{position:absolute;border-radius:50%;pointer-events:none;opacity:.5;
+    transform:translate(-50%,-50%);transition:none;}
+  footer{width:100%;max-width:440px;display:flex;gap:8px;padding:10px 14px;align-items:center;}
+  .auto{flex:1;background:var(--panel);border-radius:12px;padding:8px 12px;
+    display:flex;align-items:center;gap:10px;cursor:pointer;border:1px solid transparent;}
+  .auto:active{transform:scale(.98);}
+  .auto.ready{border-color:var(--accent);box-shadow:0 0 14px rgba(255,204,77,.3);}
+  .auto .ic{font-size:22px;}
+  .auto .t{font-size:11px;opacity:.7;}
+  .auto .c{font-size:14px;font-weight:800;}
+  .gen-pill{position:absolute;top:8px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.55);border-radius:20px;padding:4px 12px;font-size:11px;
+    display:flex;gap:6px;align-items:center;opacity:0;transition:opacity .3s;}
+  .gen-pill.on{opacity:1;}
+  #overlay{position:absolute;inset:0;background:rgba(8,10,24,.92);display:none;
+    flex-direction:column;align-items:center;justify-content:center;gap:14px;
+    text-align:center;padding:24px;z-index:20;}
+  #overlay.show{display:flex;animation:fade .3s;}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+  #overlay h1{font-size:28px;margin:0;}
+  #overlay .big{font-size:54px;font-weight:900;color:var(--accent);margin:4px;}
+  #overlay p{opacity:.7;max-width:300px;margin:2px;font-size:14px;}
+  .btn{background:var(--accent);color:#1a1500;font-weight:800;border:none;
+    border-radius:14px;padding:14px 26px;font-size:16px;cursor:pointer;}
+  .btn.alt{background:var(--panel);color:var(--ink);}
+  .btn:active{transform:scale(.96);}
+  .row{display:flex;gap:10px;}
+  #shareCard{display:none;}
+  .hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+    font-size:12px;opacity:.45;text-align:center;width:90%;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <div class="brand">QUMSAǴAT <small>құм·сағат</small></div>
+    <div style="display:flex;gap:8px">
+      <div class="stat"><div class="lbl">Скор</div><div class="val" id="score">0</div></div>
+      <div class="stat"><div class="lbl">Рекорд</div><div class="val" id="best">0</div></div>
+    </div>
+  </header>
+
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div id="dropline"></div>
+    <div id="ghost"></div>
+    <div class="gen-pill" id="genPill">⚙️ <span id="genTxt">Авто-генератор: OFF</span></div>
+    <div class="hint" id="hint">Түсіру үшін экранды басып, саусақты жылжыт ✦ бірдейлерін қос</div>
+    <div id="overlay">
+      <h1 id="ovTitle">QUMSAǴAT</h1>
+      <div class="big" id="ovScore"></div>
+      <p id="ovMsg">Бірдей шарларды қос. Үлкейген сайын авто-генератор қосылады — ойын өзі ойнай бастайды.</p>
+      <div class="row">
+        <button class="btn" id="playBtn">Ойнау ▶</button>
+        <button class="btn alt" id="shareBtn" style="display:none">Бөлісу ↗</button>
+      </div>
+      <p style="font-size:11px;opacity:.4" id="ovTip"></p>
+    </div>
+  </div>
+
+  <footer>
+    <div class="auto" id="autoBtn">
+      <div class="ic">⚙️</div>
+      <div>
+        <div class="t">АВТО-ГЕНЕРАТОР</div>
+        <div class="c" id="autoTxt">Lv 0 · құны 50</div>
+      </div>
+    </div>
+    <div class="auto" id="speedBtn" style="flex:.7">
+      <div class="ic">⚡</div>
+      <div>
+        <div class="t">ЖЫЛДАМДЫҚ</div>
+        <div class="c" id="speedTxt">×1</div>
+      </div>
+    </div>
+  </footer>
+</div>
+
+<canvas id="shareCard" width="600" height="800"></canvas>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script>
+const { Engine, Render, Runner, World, Bodies, Body, Events, Composite } = Matter;
+
+// ---- Tier definitions (Suika-style ladder) ----
+const TIERS = [
+  {name:"тұқым",   r:14, color:"#9be15d", score:1},
+  {name:"бүршік",  r:19, color:"#58d68d", score:3},
+  {name:"жидек",   r:25, color:"#ff8fa3", score:6},
+  {name:"шие",     r:32, color:"#ff5c7a", score:10},
+  {name:"алма",    r:40, color:"#ff9f43", score:15},
+  {name:"апельсин",r:49, color:"#ffcc4d", score:25},
+  {name:"қауын",   r:59, color:"#c8f56b", score:40},
+  {name:"арбуз",   r:72, color:"#2ecc71", score:80},
+  {name:"планета", r:88, color:"#5dade2", score:200},
+];
+
+const STAGE_W = Math.min(440, window.innerWidth);
+const STAGE_H = Math.min(window.innerHeight - 170, 640);
+const WALL = 8;
+const DEATH_Y = 90;          // toluy syzygy
+const DROP_TIER_MAX = 4;     // qoldan tek 0..4 tier tasталады
+
+const stage = document.getElementById('stage');
+stage.style.width = STAGE_W+'px'; stage.style.height = STAGE_H+'px';
+
+const engine = Engine.create();
+engine.gravity.y = 1.1;
+const world = engine.world;
+
+const render = Render.create({
+  element: stage, engine,
+  canvas: document.getElementById('c'),
+  options:{ width:STAGE_W, height:STAGE_H, wireframes:false, background:'#0a0c1a' }
+});
+Render.run(render);
+const runner = Runner.create();
+Runner.run(runner, engine);
+
+// walls
+const wallOpts = { isStatic:true, render:{fillStyle:'#1b1f3a'} };
+World.add(world, [
+  Bodies.rectangle(STAGE_W/2, STAGE_H+WALL, STAGE_W, WALL*2, wallOpts),
+  Bodies.rectangle(-WALL, STAGE_H/2, WALL*2, STAGE_H*2, wallOpts),
+  Bodies.rectangle(STAGE_W+WALL, STAGE_H/2, WALL*2, STAGE_H*2, wallOpts),
+]);
+
+// ---- Game state ----
+let state = {
+  score:0, best:+(localStorage.getItem('qs_best')||0),
+  running:false, gameover:false,
+  autoLv:0, autoCost:50, speed:1, nextTier:0,
+  dropX:STAGE_W/2, lastAuto:0, overTimer:0, maxTierReached:0,
+};
+document.getElementById('best').textContent = state.best;
+
+function makeBall(x,y,tier){
+  const t = TIERS[tier];
+  const b = Bodies.circle(x,y,t.r,{
+    restitution:0.18, friction:0.4, density:0.0012,
+    render:{ fillStyle:t.color },
+  });
+  b.tier = tier; b.merging=false;
+  return b;
+}
+
+function drop(tier, x){
+  if(state.gameover) return;
+  const b = makeBall(x, 40, tier);
+  World.add(world, b);
+}
+
+// ---- Merge on collision ----
+Events.on(engine,'collisionStart',ev=>{
+  for(const pair of ev.pairs){
+    const a=pair.bodyA, b=pair.bodyB;
+    if(a.tier===undefined||b.tier===undefined) continue;
+    if(a.tier!==b.tier) continue;
+    if(a.merging||b.merging) continue;
+    if(a.tier>=TIERS.length-1) continue;
+    a.merging=b.merging=true;
+    const nx=(a.position.x+b.position.x)/2, ny=(a.position.y+b.position.y)/2;
+    const nt=a.tier+1;
+    World.remove(world,a); World.remove(world,b);
+    const nb=makeBall(nx,ny,nt);
+    World.add(world,nb);
+    Body.setVelocity(nb,{x:0,y:-2});
+    addScore(TIERS[nt].score);
+    popFx(nx,ny,TIERS[nt].color);
+    if(nt>state.maxTierReached){ state.maxTierReached=nt; onNewTier(nt); }
+    if(navigator.vibrate) navigator.vibrate(8);
+  }
+});
+
+// ---- Unlock automation as you climb tiers ----
+function onNewTier(t){
+  // tier 4 (alma) jetkende auto-generator iske qosylady habarlamasy
+  if(t===4){ flashPill("⚙️ Авто-генератор ашылды! Төменнен қос →"); }
+  if(t===6){ flashPill("⚡ Жылдамдықты арттыруға болады!"); }
+}
+
+let pillTimer;
+function flashPill(txt){
+  const p=document.getElementById('genPill');
+  document.getElementById('genTxt').textContent=txt;
+  p.classList.add('on'); clearTimeout(pillTimer);
+  pillTimer=setTimeout(()=>p.classList.remove('on'),2600);
+}
+
+function addScore(n){
+  state.score+=n;
+  document.getElementById('score').textContent=state.score;
+}
+
+// ---- Particle pop ----
+const fx=[];
+function popFx(x,y,color){ for(let i=0;i<8;i++) fx.push({x,y,
+  vx:(Math.random()-.5)*4,vy:(Math.random()-.5)*4,life:1,color}); }
+Events.on(render,'afterRender',()=>{
+  const ctx=render.context;
+  // death line glow when balls high
+  for(let i=fx.length-1;i>=0;i--){ const p=fx[i]; p.x+=p.vx;p.y+=p.vy;p.life-=.04;
+    if(p.life<=0){fx.splice(i,1);continue;}
+    ctx.globalAlpha=p.life;ctx.fillStyle=p.color;
+    ctx.beginPath();ctx.arc(p.x,p.y,3*p.life,0,7);ctx.fill();ctx.globalAlpha=1; }
+  // draw death line
+  ctx.strokeStyle='rgba(255,92,122,.35)';ctx.setLineDash([8,8]);ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(0,DEATH_Y);ctx.lineTo(STAGE_W,DEATH_Y);ctx.stroke();ctx.setLineDash([]);
+});
+
+// ---- Idle generator + speed + game-over check ----
+let acc=0;
+Events.on(engine,'beforeUpdate',()=>{
+  if(!state.running||state.gameover) return;
+  const now=engine.timing.timestamp;
+  // auto generator
+  if(state.autoLv>0){
+    const interval = 2200 / state.speed / (1+state.autoLv*0.15);
+    if(now-state.lastAuto>interval){
+      state.lastAuto=now;
+      const t=Math.floor(Math.random()*Math.min(3,DROP_TIER_MAX+1));
+      drop(t, 40+Math.random()*(STAGE_W-80));
+    }
+  }
+  // speed -> engine timescale
+  engine.timing.timeScale = state.speed;
+
+  // game over: any settled ball above death line
+  let danger=false;
+  for(const b of Composite.allBodies(world)){
+    if(b.tier===undefined) continue;
+    if(b.position.y - TIERS[b.tier].r < DEATH_Y && Math.abs(b.velocity.y)<0.4){
+      danger=true; break;
+    }
+  }
+  if(danger){ state.overTimer+=16; if(state.overTimer>1500) endGame(); }
+  else state.overTimer=Math.max(0,state.overTimer-40);
+  document.getElementById('dropline').style.opacity = danger? '1':'0';
+});
+
+// ---- Input: aim + drop ----
+let aiming=false;
+function clientX(e){ return (e.touches?e.touches[0].clientX:e.clientX); }
+function updateGhost(x){
+  const rect=stage.getBoundingClientRect();
+  let gx=Math.max(WALL,Math.min(STAGE_W-WALL, x-rect.left));
+  state.dropX=gx;
+  const g=document.getElementById('ghost');
+  const t=TIERS[state.nextTier];
+  g.style.width=g.style.height=(t.r*2)+'px';
+  g.style.background=t.color;
+  g.style.left=gx+'px'; g.style.top='40px';
+}
+function startAim(e){ if(!state.running)return; aiming=true; updateGhost(clientX(e)); document.getElementById('ghost').style.display='block'; }
+function moveAim(e){ if(!aiming)return; updateGhost(clientX(e)); e.preventDefault(); }
+function endAim(e){ if(!aiming)return; aiming=false;
+  document.getElementById('ghost').style.display='none';
+  drop(state.nextTier, state.dropX);
+  state.nextTier=Math.floor(Math.random()*Math.min(3,DROP_TIER_MAX+1));
+}
+stage.addEventListener('mousedown',startAim);
+stage.addEventListener('mousemove',moveAim);
+window.addEventListener('mouseup',endAim);
+stage.addEventListener('touchstart',startAim,{passive:false});
+stage.addEventListener('touchmove',moveAim,{passive:false});
+window.addEventListener('touchend',endAim);
+
+// ---- Upgrades ----
+document.getElementById('autoBtn').addEventListener('click',()=>{
+  if(!state.running)return;
+  if(state.score>=state.autoCost){
+    state.score-=state.autoCost; addScore(0);
+    state.autoLv++; state.autoCost=Math.round(state.autoCost*1.8);
+    document.getElementById('autoTxt').textContent=`Lv ${state.autoLv} · құны ${state.autoCost}`;
+    flashPill(`⚙️ Авто-генератор Lv ${state.autoLv} — ойын жылдамырақ толады!`);
+    if(navigator.vibrate)navigator.vibrate(12);
+  } else flashPill(`Жетпейді: ${state.autoCost} скор керек`);
+});
+document.getElementById('speedBtn').addEventListener('click',()=>{
+  if(!state.running)return;
+  const cost=120*state.speed;
+  if(state.speed>=4){flashPill("Макс жылдамдық ⚡×4");return;}
+  if(state.score>=cost){
+    state.score-=cost; addScore(0); state.speed++;
+    document.getElementById('speedTxt').textContent='×'+state.speed;
+    flashPill(`⚡ Жылдамдық ×${state.speed}`);
+  } else flashPill(`Жетпейді: ${cost} скор керек`);
+});
+
+// ---- Game flow ----
+const overlay=document.getElementById('overlay');
+function startGame(){
+  // clear bodies
+  for(const b of Composite.allBodies(world)){ if(b.tier!==undefined) World.remove(world,b); }
+  Object.assign(state,{score:0,running:true,gameover:false,autoLv:0,autoCost:50,
+    speed:1,nextTier:0,lastAuto:0,overTimer:0,maxTierReached:0});
+  engine.timing.timeScale=1;
+  document.getElementById('score').textContent='0';
+  document.getElementById('autoTxt').textContent='Lv 0 · құны 50';
+  document.getElementById('speedTxt').textContent='×1';
+  overlay.classList.remove('show');
+}
+function endGame(){
+  state.running=false; state.gameover=true;
+  if(state.score>state.best){ state.best=state.score; localStorage.setItem('qs_best',state.best);
+    document.getElementById('best').textContent=state.best; }
+  document.getElementById('ovTitle').textContent='Толып кетті!';
+  document.getElementById('ovScore').textContent=state.score;
+  const peak=TIERS[state.maxTierReached].name;
+  document.getElementById('ovMsg').textContent=
+    `Ең үлкен: «${peak}» · Авто Lv${state.autoLv} · ⚡×${state.speed}`;
+  document.getElementById('ovTip').textContent='💡 Кеңес: үлкен шарларды астына жина, ұсақтарын үстіне таста';
+  document.getElementById('playBtn').textContent='Қайта ▶';
+  document.getElementById('shareBtn').style.display='inline-block';
+  overlay.classList.add('show');
+}
+document.getElementById('playBtn').addEventListener('click',startGame);
+
+// ---- Share artifact (canvas snapshot) ----
+document.getElementById('shareBtn').addEventListener('click',async()=>{
+  const sc=document.getElementById('shareCard'), x=sc.getContext('2d');
+  // bg
+  const g=x.createLinearGradient(0,0,0,800); g.addColorStop(0,'#171a35');g.addColorStop(1,'#0a0c1a');
+  x.fillStyle=g;x.fillRect(0,0,600,800);
+  x.textAlign='center';
+  x.fillStyle='#ffcc4d';x.font='800 46px sans-serif';x.fillText('QUMSAǴAT',300,90);
+  x.fillStyle='#8a8fb5';x.font='600 20px sans-serif';x.fillText('merge & automate',300,122);
+  // score
+  x.fillStyle='#eef0ff';x.font='800 150px sans-serif';x.fillText(state.score,300,330);
+  x.fillStyle='#8a8fb5';x.font='600 24px sans-serif';x.fillText('СКОР',300,370);
+  // peak ball viz
+  const t=TIERS[state.maxTierReached];
+  x.fillStyle=t.color;x.beginPath();x.arc(300,520,90,0,7);x.fill();
+  x.fillStyle='#0a0c1a';x.font='800 26px sans-serif';x.fillText(t.name,300,530);
+  x.fillStyle='#eef0ff';x.font='600 22px sans-serif';
+  x.fillText(`⚙️ Авто Lv${state.autoLv}   ⚡×${state.speed}`,300,660);
+  x.fillStyle='#ffcc4d';x.font='700 22px sans-serif';
+  x.fillText('Сен қаншаға жетесің?',300,730);
+  // share / download
+  sc.toBlob(async (blob)=>{
+    const file=new File([blob],'qumsagat.png',{type:'image/png'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      try{ await navigator.share({files:[file],title:'QUMSAǴAT',
+        text:`QUMSAǴAT-та ${state.score} скор жинадым! Сен қаншаға жетесің?`}); }catch(e){}
+    } else {
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+      a.download='qumsagat.png';a.click();
+    }
+  });
+});
+
+// show start screen
+overlay.classList.add('show');
+</script>
+</body>
+</html>

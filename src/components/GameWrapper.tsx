@@ -171,11 +171,17 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
           
           <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400 mb-6 drop-shadow-lg leading-tight">{title}</h1>
           
-          <div className="bg-secondary/80 backdrop-blur-xl p-6 rounded-3xl mb-8 w-full max-w-sm border border-white/10 shadow-2xl">
-            <h2 className="text-lg font-bold mb-3 text-white uppercase tracking-wider">{t('instructions', 'Instructions')}</h2>
-            <p className="text-gray-300 leading-relaxed text-base">
-              {instructions}
-            </p>
+          <div className="bg-secondary/80 backdrop-blur-xl p-6 rounded-3xl mb-8 w-full max-w-sm border border-white/10 shadow-2xl text-left">
+            <h2 className="text-lg font-bold mb-3 text-white uppercase tracking-wider text-center">{t('instructions', 'Instructions')}</h2>
+            {/* Multi-line instructions: split on blank line for paragraphs, then
+                on single newline for ordered steps (lines starting with "•" or
+                a digit + ". "). Preserves the simple one-string callsites while
+                letting newer games supply a structured rulebook via `\n`. */}
+            <div className="text-gray-300 leading-relaxed text-sm space-y-2 whitespace-pre-line">
+              {instructions.split(/\n\s*\n/).map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
+            </div>
           </div>
           
           <button
