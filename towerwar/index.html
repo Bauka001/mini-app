@@ -5,41 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>QULA SOǴYSY — Tower War Online</title>
 <style>
-  :root{ --bg:#0c1322; --you:#3da9fc; --enemy:#ff5d5d; --neutral:#8b95a7; --ink:#eaf1ff; }
+  :root{ --you:#2de2ff; --enemy:#ff3b6b; --gold:#ffd166; --ink:#eaf3ff; }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;}
-  html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+  html,body{height:100%;background:#04060d;color:var(--ink);overflow:hidden;
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;user-select:none;}
   #app{position:relative;height:100dvh;display:flex;flex-direction:column;align-items:center;}
-  #hud{width:100%;max-width:520px;display:flex;justify-content:space-between;align-items:center;
-    padding:10px 16px;gap:10px;z-index:5;}
-  .side{display:flex;align-items:center;gap:8px;font-weight:800;font-size:15px;}
-  .dot{width:14px;height:14px;border-radius:50%;}
-  .you .dot{background:var(--you);} .enemy .dot{background:var(--enemy);}
-  #title{font-weight:900;letter-spacing:1px;font-size:14px;opacity:.85;}
-  #title small{color:#ffcc4d;font-weight:600;}
-  #board{position:relative;touch-action:none;background:
-    radial-gradient(circle at 50% 0%, #182338 0%, #0c1322 60%);
-    border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.5);margin-top:4px;}
-  canvas{display:block;border-radius:14px;}
+  #hud{width:100%;max-width:560px;display:flex;justify-content:space-between;align-items:center;
+    padding:12px 18px;gap:10px;z-index:5;}
+  .side{display:flex;align-items:center;gap:9px;font-weight:900;font-size:19px;letter-spacing:.5px;}
+  .you{color:var(--you);text-shadow:0 0 12px rgba(45,226,255,.6);}
+  .enemy{color:var(--enemy);text-shadow:0 0 12px rgba(255,59,107,.6);}
+  .dot{width:13px;height:13px;border-radius:50%;}
+  .you .dot{background:var(--you);box-shadow:0 0 10px var(--you);}
+  .enemy .dot{background:var(--enemy);box-shadow:0 0 10px var(--enemy);}
+  #title{font-weight:900;letter-spacing:2px;font-size:13px;opacity:.9;text-align:center;}
+  #title small{color:var(--gold);font-weight:700;letter-spacing:1px;}
+  #board{position:relative;touch-action:none;border-radius:18px;overflow:hidden;
+    box-shadow:0 18px 60px rgba(0,0,0,.65), inset 0 0 0 1px rgba(120,180,255,.08);margin-top:2px;}
+  canvas{display:block;}
   #overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;gap:16px;background:rgba(8,12,24,.93);border-radius:14px;
-    text-align:center;padding:24px;z-index:10;}
+    justify-content:center;gap:18px;background:rgba(4,7,16,.86);backdrop-filter:blur(6px);
+    text-align:center;padding:26px;z-index:10;}
   #overlay.hide{display:none;}
-  h1{font-size:26px;margin:0;letter-spacing:1px;}
-  h1 b{color:#ffcc4d;}
-  .sub{opacity:.7;font-size:14px;max-width:300px;line-height:1.5;}
-  .btn{background:var(--you);color:#04101f;font-weight:800;border:none;border-radius:14px;
-    padding:15px 30px;font-size:16px;cursor:pointer;min-width:200px;}
-  .btn.alt{background:#1e2942;color:var(--ink);}
+  h1{font-size:30px;margin:0;letter-spacing:3px;font-weight:900;
+     text-shadow:0 0 24px rgba(45,226,255,.5);}
+  h1 b{color:var(--gold);text-shadow:0 0 24px rgba(255,209,102,.6);}
+  .sub{opacity:.78;font-size:14px;max-width:320px;line-height:1.55;}
+  .btn{position:relative;background:linear-gradient(135deg,#2de2ff,#1aa8ff);color:#02121b;
+    font-weight:900;border:none;border-radius:15px;padding:16px 32px;font-size:16px;cursor:pointer;
+    min-width:230px;letter-spacing:.5px;box-shadow:0 8px 30px rgba(45,226,255,.35);}
+  .btn.alt{background:linear-gradient(135deg,#26304d,#1a2238);color:var(--ink);
+    box-shadow:0 8px 24px rgba(0,0,0,.4);}
   .btn:active{transform:scale(.96);}
-  .btn:disabled{opacity:.5;}
-  .status{font-size:13px;opacity:.7;min-height:18px;}
-  .big{font-size:40px;font-weight:900;}
-  .win{color:var(--you);} .lose{color:var(--enemy);}
-  #hint{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:12px;
-    opacity:.5;text-align:center;width:92%;z-index:4;}
-  .spin{width:22px;height:22px;border:3px solid #2a3a5a;border-top-color:var(--you);
-    border-radius:50%;animation:sp 1s linear infinite;}
+  .status{font-size:13px;opacity:.75;min-height:18px;letter-spacing:.3px;}
+  .big{font-size:46px;font-weight:900;letter-spacing:2px;}
+  .win{color:var(--you);text-shadow:0 0 30px rgba(45,226,255,.7);}
+  .lose{color:var(--enemy);text-shadow:0 0 30px rgba(255,59,107,.7);}
+  #hint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);font-size:12px;
+    opacity:.5;text-align:center;width:92%;z-index:4;pointer-events:none;}
+  .spin{width:26px;height:26px;border:3px solid #1d2a44;border-top-color:var(--you);
+    border-radius:50%;animation:sp 1s linear infinite;box-shadow:0 0 18px rgba(45,226,255,.4);}
   @keyframes sp{to{transform:rotate(360deg);}}
 </style>
 </head>
@@ -47,16 +52,16 @@
 <div id="app">
   <div id="hud">
     <div class="side you"><span class="dot"></span><span id="youCnt">0</span></div>
-    <div id="title">QULA SOǴYSY <small>online</small></div>
+    <div id="title">QULA SOǴYSY <small>⚡ ONLINE</small></div>
     <div class="side enemy"><span id="enemyCnt">0</span><span class="dot"></span></div>
   </div>
 
   <div id="board">
     <canvas id="c"></canvas>
-    <div id="hint">Өз мұнараңды бас → таңда, мақсатты бас → жарты әскерді жібер</div>
+    <div id="hint">Өз ядроңды бас → таңда · мақсатты бас → энергияны жібер</div>
     <div id="overlay">
       <h1>QULA <b>SOǴYSY</b></h1>
-      <div class="sub">Мұнараларды басып ал. Барлық картаны жеңіп ал. Нақты онлайн қарсыласпен немесе ботпен ойна.</div>
+      <div class="sub">Энергия-ядроларды бағындыр. Бүкіл картаны бас. Нақты онлайн қарсыласпен немесе ботпен шайқас.</div>
       <button class="btn" id="findBtn">🌐 Онлайн матч табу</button>
       <button class="btn alt" id="botBtn">🤖 Ботпен ойнау</button>
       <div class="status" id="status"></div>
@@ -65,210 +70,264 @@
 </div>
 
 <script>
-const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const board = document.getElementById('board');
-const overlay = document.getElementById('overlay');
-const statusEl = document.getElementById('status');
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const board=document.getElementById('board'), overlay=document.getElementById('overlay'), statusEl=document.getElementById('status');
+const TAU=Math.PI*2, CAP=60;
 
-// ---- responsive square-ish board ----
-let W, H;
+// ---------- sizing ----------
+let W,H,DPR;
 function fit(){
-  const maxW = Math.min(520, window.innerWidth - 8);
-  const maxH = window.innerHeight - 90;
-  const size = Math.min(maxW, maxH * 0.78);
-  W = Math.round(size); H = Math.round(size * 1.18);
-  board.style.width = W+'px'; board.style.height = H+'px';
-  const dpr = window.devicePixelRatio || 1;
-  cv.width = W*dpr; cv.height = H*dpr; cv.style.width = W+'px'; cv.style.height = H+'px';
-  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const maxW=Math.min(560, window.innerWidth-6);
+  const maxH=window.innerHeight-96;
+  const w=Math.min(maxW, maxH/1.16);
+  W=Math.round(w); H=Math.round(w*1.16);
+  board.style.width=W+'px'; board.style.height=H+'px';
+  DPR=Math.min(2, window.devicePixelRatio||1);
+  cv.width=W*DPR; cv.height=H*DPR; cv.style.width=W+'px'; cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  buildStars();
 }
-window.addEventListener('resize', fit); fit();
+window.addEventListener('resize', fit);
 
-// ---- game state from server ----
-let me = 1;                 // my player number
-let towers = [];            // {id,x,y,o,c,ty}
-let squads = [];
-let selected = new Set();   // selected tower ids (mine)
-let dragFrom = null, dragXY = null;
-let playing = false;
+// ---------- starfield / nebula bg ----------
+let stars=[];
+function buildStars(){ stars=[]; const n=Math.round(W*H/5200);
+  for(let i=0;i<n;i++) stars.push({x:Math.random()*W,y:Math.random()*H,
+    r:Math.random()*1.6+.3, a:Math.random()*.6+.2, tw:Math.random()*TAU, sp:Math.random()*.4+.15}); }
+fit();
 
-const COL = {
-  you:'#3da9fc', enemy:'#ff5d5d', neutral:'#8b95a7',
-  youGlow:'rgba(61,169,252,.35)', enemyGlow:'rgba(255,93,93,.35)',
-};
-function ownerColor(o){ if(o===0) return COL.neutral; return o===me ? COL.you : COL.enemy; }
-function ownerGlow(o){ return o===me ? COL.youGlow : COL.enemyGlow; }
+// ---------- palette ----------
+let me=1;
+const C={ you:'#2de2ff', enemy:'#ff3b6b', neutral:'#7d8aa5', gold:'#ffd166' };
+function col(o){ return o===0?C.neutral : (o===me?C.you:C.enemy); }
+function rgb(o){ return o===0?[125,138,165] : (o===me?[45,226,255]:[255,59,107]); }
 
-function towerRadius(t){
-  const base = t.ty==='home'?26 : t.ty==='fort'?28 : t.ty==='cannon'?23 : 20;
-  return base * (W/420);
-}
-function px(t){ return { x:t.x*W, y:t.y*H }; }
+// ---------- game state ----------
+let towers=[], squads=[], playing=false;
+let selected=new Set(), dragFrom=null, dragXY=null;
+// visual stores
+const tv=new Map();   // tower visuals: id -> {disp, owner, flash, born, rot}
+const sv=new Map();   // squad visuals: id -> {x,y, tx,ty, trail:[]}
+let particles=[], shocks=[];
+let shake=0;
 
-// ---- rendering ----
-function draw(){
-  ctx.clearRect(0,0,W,H);
-  // connection lines for selected (aim helpers)
-  if(dragFrom!=null && dragXY){
-    const f = towers.find(t=>t.id===dragFrom); if(f){ const p=px(f);
-      ctx.strokeStyle='rgba(61,169,252,.5)'; ctx.lineWidth=3; ctx.setLineDash([6,6]);
-      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(dragXY.x,dragXY.y); ctx.stroke(); ctx.setLineDash([]);
-    }
-  }
-  // squads (troops in flight)
-  for(const s of squads){
-    const x=s.x*W, y=s.y*H;
-    ctx.fillStyle = ownerColor(s.o);
-    ctx.beginPath(); ctx.arc(x,y, 4*(W/420)+Math.min(6,s.c*0.15), 0, 7); ctx.fill();
-    ctx.fillStyle='#04101f'; ctx.font=`700 ${10*(W/420)}px sans-serif`;
-    ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(s.c, x, y);
-  }
-  // towers
-  for(const t of towers){
-    const p=px(t), r=towerRadius(t);
-    const isSel = selected.has(t.id);
-    // glow
-    if(t.o!==0){ ctx.fillStyle=ownerGlow(t.o); ctx.beginPath(); ctx.arc(p.x,p.y,r+8,0,7); ctx.fill(); }
-    // ring for selection
-    if(isSel){ ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(p.x,p.y,r+5,0,7); ctx.stroke(); }
-    // body
-    ctx.fillStyle = ownerColor(t.o);
-    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,7); ctx.fill();
-    // inner ring by type
-    ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(p.x,p.y,r*0.72,0,7); ctx.stroke();
-    // count
-    ctx.fillStyle = t.o===0 ? '#0c1322' : '#04101f';
-    ctx.font=`800 ${r*0.85}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
-    ctx.fillText(t.c, p.x, p.y);
-  }
-  // HUD counts
-  let yc=0, ec=0;
-  for(const t of towers){ if(t.o===me) yc+=t.c; else if(t.o!==0) ec+=t.c; }
-  for(const s of squads){ if(s.o===me) yc+=s.c; else ec+=s.c; }
-  document.getElementById('youCnt').textContent = yc;
-  document.getElementById('enemyCnt').textContent = ec;
-}
-function loop(){ draw(); requestAnimationFrame(loop); }
-loop();
+function px(t){ return {x:t.x*W, y:t.y*H}; }
+function radius(t){ const base=t.ty==='home'?27:t.ty==='fort'?29:t.ty==='cannon'?23:21; return base*(W/430); }
 
-// ---- input: tap-select then tap-target, plus drag ----
-function hitTower(mx,my){
-  for(const t of towers){ const p=px(t); const r=towerRadius(t)+6;
-    if((mx-p.x)**2+(my-p.y)**2 <= r*r) return t; }
-  return null;
-}
-function localXY(e){
-  const rect = cv.getBoundingClientRect();
-  const cx = e.touches?e.touches[0].clientX:e.clientX;
-  const cy = e.touches?e.touches[0].clientY:e.clientY;
-  return { x:cx-rect.left, y:cy-rect.top };
-}
-let downTower=null, moved=false;
-function onDown(e){
-  if(!playing) return;
-  const {x,y}=localXY(e); const t=hitTower(x,y);
-  moved=false; downTower=t;
-  if(t && t.o===me){ dragFrom=t.id; dragXY={x,y}; }
-  e.preventDefault();
-}
-function onMove(e){
-  if(!playing||dragFrom==null) return;
-  const {x,y}=localXY(e); dragXY={x,y}; moved=true;
-  e.preventDefault();
-}
-function onUp(e){
-  if(!playing){ return; }
-  const {x,y}=localXY(e); const t=hitTower(x,y);
-  // drag-release onto a different tower → send
-  if(dragFrom!=null && moved && t && t.id!==dragFrom){
-    ws && ws.send(JSON.stringify({type:'send', from:dragFrom, to:t.id}));
-    // also send from any other selected towers
-    for(const id of selected){ if(id!==dragFrom) ws.send(JSON.stringify({type:'send',from:id,to:t.id})); }
-    selected.clear();
-    dragFrom=null; dragXY=null; downTower=null; return;
-  }
-  dragFrom=null; dragXY=null;
-  // tap (no drag)
-  if(!moved && downTower){
-    const t2=downTower;
-    if(t2.o===me){
-      if(selected.has(t2.id)) selected.delete(t2.id); else selected.add(t2.id);
-    } else {
-      // target: send from all selected
-      if(selected.size){
-        for(const id of selected) ws.send(JSON.stringify({type:'send',from:id,to:t2.id}));
-        selected.clear();
-      }
-    }
-  }
-  downTower=null; moved=false;
-  e.preventDefault();
-}
-cv.addEventListener('mousedown',onDown); cv.addEventListener('mousemove',onMove);
-window.addEventListener('mouseup',onUp);
-cv.addEventListener('touchstart',onDown,{passive:false});
-cv.addEventListener('touchmove',onMove,{passive:false});
-window.addEventListener('touchend',onUp,{passive:false});
+// ---------- fx spawners ----------
+function burst(x,y,color,n,power){ for(let i=0;i<n;i++){ const a=Math.random()*TAU, s=Math.random()*power+power*.3;
+  particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,dr:Math.random()*2+1,color}); } }
+function shock(x,y,color,maxR){ shocks.push({x,y,r:6,maxR,life:1,color}); }
+function ambient(t){ const p=px(t), r=radius(t), a=Math.random()*TAU, rr=r*(.7+Math.random()*.5);
+  particles.push({x:p.x+Math.cos(a)*rr, y:p.y+Math.sin(a)*rr, vx:0, vy:-(.2+Math.random()*.4),
+    life:1, dr:Math.random()*1.4+.6, color:col(t.o), amb:true}); }
 
-// ---- networking ----
+// ---------- networking ----------
 let ws=null;
 function connect(then){
-  const proto = location.protocol==='https:'?'wss':'ws';
-  ws = new WebSocket(`${proto}://${location.host}`);
-  ws.onopen = ()=>{ then && then(); };
-  ws.onclose = ()=>{ if(playing){ setStatus('Байланыс үзілді'); } };
-  ws.onerror = ()=>{ setStatus('Серверге қосыла алмадым'); };
-  ws.onmessage = (ev)=>{
-    const m = JSON.parse(ev.data);
-    if(m.type==='hello'){}
-    else if(m.type==='searching'){ setStatus('Қарсылас іздеуде…'); showSearching(); }
-    else if(m.type==='matched'){
-      me = m.you;
-      setStatus(m.opponent==='bot'?'Бот табылды!':'Қарсылас табылды!');
-      startMatch();
-    }
-    else if(m.type==='state'){ towers=m.towers; squads=m.squads; }
+  const proto=location.protocol==='https:'?'wss':'ws';
+  ws=new WebSocket(`${proto}://${location.host}`);
+  ws.onopen=()=>then&&then();
+  ws.onclose=()=>{ if(playing) setStatus('Байланыс үзілді'); };
+  ws.onerror=()=>setStatus('Серверге қосыла алмадым');
+  ws.onmessage=ev=>{ const m=JSON.parse(ev.data);
+    if(m.type==='searching'){ setStatus('Қарсылас іздеуде…'); showSearching(); }
+    else if(m.type==='matched'){ me=m.you; setStatus(m.opponent==='bot'?'Бот табылды!':'Қарсылас табылды!'); startMatch(); }
+    else if(m.type==='state'){ ingest(m); }
     else if(m.type==='gameover'){ endMatch(m); }
   };
 }
+function ingest(m){
+  // detect captures for fx
+  for(const t of m.towers){ const v=tv.get(t.id);
+    if(v && v.owner!==t.o){ const p={x:t.x*W,y:t.y*H};
+      shock(p.x,p.y, col(t.o), radius(t)*3.2); burst(p.x,p.y, col(t.o), 26, 5);
+      if(t.o===me || v.owner===me){ shake=Math.min(14, shake+9); }
+    }
+  }
+  towers=m.towers; squads=m.squads;
+  // sync squad visuals
+  const seen=new Set();
+  for(const s of squads){ seen.add(s.id); let v=sv.get(s.id);
+    if(!v){ v={x:s.x*W,y:s.y*H,tx:s.x*W,ty:s.y*H,trail:[],o:s.o}; sv.set(s.id,v); }
+    v.tx=s.x*W; v.ty=s.y*H; v.o=s.o; v.c=s.c; }
+  for(const id of [...sv.keys()]) if(!seen.has(id)) sv.delete(id);
+  // tower visuals
+  for(const t of towers){ let v=tv.get(t.id);
+    if(!v){ v={disp:t.c, owner:t.o, flash:0, born:performance.now(), rot:Math.random()*TAU}; tv.set(t.id,v); }
+    v.owner=t.o; v.tgt=t.c; }
+}
 function setStatus(s){ statusEl.textContent=s; }
-function showSearching(){
-  overlay.classList.remove('hide');
-  overlay.innerHTML = `<div class="spin"></div><div class="sub">Қарсылас іздеуде…<br>5 сек ішінде табылмаса — ботпен бастаймыз.</div>
+
+// ---------- match flow ----------
+function showSearching(){ overlay.classList.remove('hide');
+  overlay.innerHTML=`<div class="spin"></div><div class="sub">Қарсылас іздеуде…<br>5 сек ішінде табылмаса — ботпен бастаймыз.</div>
     <button class="btn alt" id="cancelBtn">Болдырмау</button>`;
-  document.getElementById('cancelBtn').onclick = ()=>{ try{ws.send(JSON.stringify({type:'leave'}));}catch(e){} location.reload(); };
-}
-function startMatch(){
-  playing=true; selected.clear(); overlay.classList.add('hide');
-}
-function endMatch(m){
-  playing=false;
-  overlay.classList.remove('hide');
-  const won = m.youWon;
-  overlay.innerHTML = `
-    <div class="big ${won?'win':'lose'}">${won?'🏆 ЖЕҢІС':'💀 ЖЕҢІЛІС'}</div>
-    <div class="sub">${m.forfeit?(won?'Қарсылас ойыннан шықты':''):''}${won?'Бүкіл картаны бағындырдың!':'Қарсылас картаны басып алды.'}</div>
+  document.getElementById('cancelBtn').onclick=()=>{ try{ws.send(JSON.stringify({type:'leave'}));}catch(e){} location.reload(); }; }
+function startMatch(){ playing=true; selected.clear(); tv.clear(); sv.clear(); particles=[]; shocks=[]; overlay.classList.add('hide'); }
+function endMatch(m){ playing=false; overlay.classList.remove('hide'); const won=m.youWon;
+  overlay.innerHTML=`<div class="big ${won?'win':'lose'}">${won?'🏆 ЖЕҢІС':'💀 ЖЕҢІЛІС'}</div>
+    <div class="sub">${m.forfeit&&won?'Қарсылас ойыннан шықты. ':''}${won?'Бүкіл картаны бағындырдың!':'Қарсылас картаны басып алды.'}</div>
     <button class="btn" id="againBtn">🌐 Тағы матч</button>
     <button class="btn alt" id="botAgainBtn">🤖 Ботпен</button>`;
-  document.getElementById('againBtn').onclick = ()=>queueFind();
-  document.getElementById('botAgainBtn').onclick = ()=>queueBot();
+  document.getElementById('againBtn').onclick=queueFind;
+  document.getElementById('botAgainBtn').onclick=queueBot; }
+function queueFind(){ setStatus('Қосылуда…'); if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'find'})); else connect(()=>ws.send(JSON.stringify({type:'find'}))); }
+function queueBot(){ if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:'bot'})); else connect(()=>ws.send(JSON.stringify({type:'bot'}))); }
+document.getElementById('findBtn').onclick=queueFind;
+document.getElementById('botBtn').onclick=queueBot;
+
+// ---------- input ----------
+function hit(mx,my){ for(const t of towers){ const p=px(t), r=radius(t)+8; if((mx-p.x)**2+(my-p.y)**2<=r*r) return t; } return null; }
+function loc(e){ const r=cv.getBoundingClientRect(); const cx=e.touches?e.touches[0].clientX:e.clientX, cy=e.touches?e.touches[0].clientY:e.clientY; return {x:cx-r.left,y:cy-r.top}; }
+let downT=null, moved=false;
+function onDown(e){ if(!playing) return; const {x,y}=loc(e); const t=hit(x,y); moved=false; downT=t;
+  if(t&&t.o===me){ dragFrom=t.id; dragXY={x,y}; } e.preventDefault(); }
+function onMove(e){ if(!playing||dragFrom==null) return; const {x,y}=loc(e); dragXY={x,y}; moved=true; e.preventDefault(); }
+function onUp(e){ if(!playing) return; const {x,y}=loc(e); const t=hit(x,y);
+  if(dragFrom!=null&&moved&&t&&t.id!==dragFrom){ ws.send(JSON.stringify({type:'send',from:dragFrom,to:t.id}));
+    for(const id of selected) if(id!==dragFrom) ws.send(JSON.stringify({type:'send',from:id,to:t.id}));
+    selected.clear(); dragFrom=null; dragXY=null; downT=null; return; }
+  dragFrom=null; dragXY=null;
+  if(!moved&&downT){ const t2=downT;
+    if(t2.o===me){ if(selected.has(t2.id)) selected.delete(t2.id); else selected.add(t2.id); }
+    else if(selected.size){ for(const id of selected) ws.send(JSON.stringify({type:'send',from:id,to:t2.id})); selected.clear(); } }
+  downT=null; moved=false; e.preventDefault(); }
+cv.addEventListener('mousedown',onDown); cv.addEventListener('mousemove',onMove); window.addEventListener('mouseup',onUp);
+cv.addEventListener('touchstart',onDown,{passive:false}); cv.addEventListener('touchmove',onMove,{passive:false}); window.addEventListener('touchend',onUp,{passive:false});
+
+// ---------- update ----------
+let last=performance.now(), tAcc=0;
+function update(dt, now){
+  tAcc+=dt;
+  // squad interpolation + trails
+  for(const [id,v] of sv){ v.x+=(v.tx-v.x)*Math.min(1,dt*14); v.y+=(v.ty-v.y)*Math.min(1,dt*14);
+    v.trail.push({x:v.x,y:v.y}); if(v.trail.length>9) v.trail.shift(); }
+  // tower disp tween + ambient + rotation
+  for(const t of towers){ const v=tv.get(t.id); if(!v) continue;
+    v.disp+=(v.tgt-v.disp)*Math.min(1,dt*10); v.rot+=dt*.5*(t.o===me?1:-1);
+    if(t.o!==0 && Math.random()<dt*5) ambient(t); }
+  // particles
+  for(let i=particles.length-1;i>=0;i--){ const p=particles[i];
+    p.x+=p.vx; p.y+=p.vy; if(!p.amb){ p.vx*=.92; p.vy*=.92; } p.life-=dt*(p.amb?1.3:1.7);
+    if(p.life<=0) particles.splice(i,1); }
+  // shock rings
+  for(let i=shocks.length-1;i>=0;i--){ const s=shocks[i]; s.r+=(s.maxR-s.r)*Math.min(1,dt*6); s.life-=dt*1.6; if(s.life<=0) shocks.splice(i,1); }
+  if(shake>0) shake=Math.max(0, shake-dt*30);
+  // HUD
+  let yc=0,ec=0; for(const t of towers){ if(t.o===me) yc+=t.c; else if(t.o!==0) ec+=t.c; }
+  for(const s of squads){ if(s.o===me) yc+=s.c; else ec+=s.c; }
+  document.getElementById('youCnt').textContent=yc; document.getElementById('enemyCnt').textContent=ec;
 }
 
-function queueFind(){
-  resetOverlayToSearch();
-  if(ws && ws.readyState===1){ ws.send(JSON.stringify({type:'find'})); }
-  else connect(()=>ws.send(JSON.stringify({type:'find'})));
-}
-function queueBot(){
-  if(ws && ws.readyState===1){ ws.send(JSON.stringify({type:'bot'})); }
-  else connect(()=>ws.send(JSON.stringify({type:'bot'})));
-}
-function resetOverlayToSearch(){ setStatus('Қосылуда…'); }
+// ---------- render helpers ----------
+function glowDot(x,y,r,color,alpha){ ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.globalAlpha=alpha;
+  const g=ctx.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0,color); g.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(x,y,r,0,TAU); ctx.fill(); ctx.restore(); }
 
-document.getElementById('findBtn').onclick = queueFind;
-document.getElementById('botBtn').onclick = queueBot;
+function drawBG(now){
+  // deep gradient
+  const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#0a1226'); g.addColorStop(.5,'#060a16'); g.addColorStop(1,'#0a0612');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // nebula blobs (top enemy / bottom you)
+  glowDot(W*0.5, H*0.08, W*0.6, 'rgba(255,59,107,0.16)', 1);
+  glowDot(W*0.5, H*0.94, W*0.6, 'rgba(45,226,255,0.16)', 1);
+  glowDot(W*0.5, H*0.5, W*0.5, 'rgba(120,90,200,0.10)', 1);
+  // hex/dot grid
+  ctx.save(); ctx.globalAlpha=.5; ctx.fillStyle='rgba(140,170,220,.05)';
+  const step=W/12; for(let gx=step/2; gx<W; gx+=step) for(let gy=step/2; gy<H; gy+=step){ ctx.beginPath(); ctx.arc(gx,gy,1.1,0,TAU); ctx.fill(); }
+  ctx.restore();
+  // stars
+  for(const s of stars){ s.tw+=0.04; const a=s.a*(0.6+0.4*Math.sin(s.tw)); s.y-=s.sp*0.3; if(s.y< -2){ s.y=H+2; s.x=Math.random()*W; }
+    ctx.globalAlpha=a; ctx.fillStyle='#cfe3ff'; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,TAU); ctx.fill(); }
+  ctx.globalAlpha=1;
+}
+
+function drawSquad(v,now){
+  const [r,g,b]=rgb(v.o); const color=`rgb(${r},${g},${b})`;
+  // trail
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(let i=0;i<v.trail.length;i++){ const p=v.trail[i], a=(i/v.trail.length); ctx.globalAlpha=a*0.5;
+    ctx.fillStyle=color; ctx.beginPath(); ctx.arc(p.x,p.y,(2+v.c*0.12)*a*(W/430),0,TAU); ctx.fill(); }
+  ctx.restore();
+  const rr=(4+Math.min(9,v.c*0.16))*(W/430);
+  glowDot(v.x,v.y,rr*3.2,color,0.8);
+  ctx.fillStyle=color; ctx.beginPath(); ctx.arc(v.x,v.y,rr,0,TAU); ctx.fill();
+  ctx.fillStyle='#04101f'; ctx.font=`800 ${rr*1.0}px sans-serif`; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(v.c, v.x, v.y);
+}
+
+function drawTower(t,now){
+  const v=tv.get(t.id); if(!v) return;
+  const p=px(t), r=radius(t); const [cr,cg,cb]=rgb(t.o); const color=`rgb(${cr},${cg},${cb})`;
+  const born=Math.min(1,(now-v.born)/350); const sc=0.6+0.4*easeOut(born);
+  // outer aura (pulse)
+  const pulse=t.o!==0?(0.5+0.5*Math.sin(now/450+t.id)):0.3;
+  glowDot(p.x,p.y, r*(2.4+pulse*0.5), color, t.o===0?0.22:0.5);
+  // growth ring (count / CAP)
+  const frac=Math.min(1, t.c/CAP);
+  ctx.save(); ctx.lineWidth=3.5*(W/430); ctx.lineCap='round';
+  ctx.strokeStyle='rgba(255,255,255,.10)'; ctx.beginPath(); ctx.arc(p.x,p.y,r*1.28,0,TAU); ctx.stroke();
+  ctx.strokeStyle=color; ctx.shadowColor=color; ctx.shadowBlur=12;
+  ctx.beginPath(); ctx.arc(p.x,p.y,r*1.28, -Math.PI/2, -Math.PI/2+TAU*frac); ctx.stroke(); ctx.restore();
+  // selection ring (rotating dashes)
+  if(selected.has(t.id)){ ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(now/600);
+    ctx.strokeStyle='#fff'; ctx.lineWidth=2.5*(W/430); ctx.setLineDash([6,7]); ctx.shadowColor='#fff'; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.arc(0,0,r*1.5,0,TAU); ctx.stroke(); ctx.restore(); }
+  // core sphere
+  ctx.save(); ctx.translate(p.x,p.y); ctx.scale(sc,sc);
+  const grd=ctx.createRadialGradient(-r*0.3,-r*0.3,r*0.1, 0,0,r);
+  grd.addColorStop(0, lighten(cr,cg,cb,70)); grd.addColorStop(0.55, color); grd.addColorStop(1, darken(cr,cg,cb,0.45));
+  ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(0,0,r,0,TAU); ctx.fill();
+  // rotating inner ring detail
+  ctx.rotate(v.rot); ctx.strokeStyle='rgba(255,255,255,.22)'; ctx.lineWidth=2;
+  ctx.beginPath(); for(let i=0;i<6;i++){ const a=i/6*TAU; ctx.moveTo(Math.cos(a)*r*0.5,Math.sin(a)*r*0.5); ctx.lineTo(Math.cos(a)*r*0.8,Math.sin(a)*r*0.8); } ctx.stroke();
+  ctx.rotate(-v.rot);
+  // glossy highlight
+  ctx.globalAlpha=0.25; ctx.fillStyle='#fff'; ctx.beginPath(); ctx.ellipse(-r*0.28,-r*0.34,r*0.42,r*0.24,-0.5,0,TAU); ctx.fill(); ctx.globalAlpha=1;
+  ctx.restore();
+  // count text
+  ctx.fillStyle = t.o===0?'#0a1326':'#02121b'; ctx.font=`900 ${r*0.92*sc}px sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(Math.round(v.disp), p.x, p.y+1);
+}
+
+function drawAim(now){
+  if(dragFrom==null||!dragXY) return; const f=towers.find(t=>t.id===dragFrom); if(!f) return; const p=px(f);
+  ctx.save(); ctx.globalCompositeOperation='lighter'; ctx.strokeStyle=C.you; ctx.lineWidth=3.5*(W/430);
+  ctx.shadowColor=C.you; ctx.shadowBlur=14; ctx.setLineDash([10,8]); ctx.lineDashOffset=-now/40;
+  ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(dragXY.x,dragXY.y); ctx.stroke(); ctx.restore();
+  glowDot(dragXY.x,dragXY.y,16*(W/430),C.you,0.7);
+}
+
+function render(now){
+  ctx.save();
+  if(shake>0){ ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake); }
+  drawBG(now);
+  // shock rings
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(const s of shocks){ ctx.globalAlpha=Math.max(0,s.life)*0.8; ctx.strokeStyle=s.color; ctx.lineWidth=3*(W/430);
+    ctx.shadowColor=s.color; ctx.shadowBlur=16; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,TAU); ctx.stroke(); }
+  ctx.restore();
+  drawAim(now);
+  for(const [id,v] of sv) drawSquad(v,now);
+  // particles (ambient + bursts)
+  ctx.save(); ctx.globalCompositeOperation='lighter';
+  for(const p of particles){ ctx.globalAlpha=Math.max(0,p.life)*(p.amb?0.6:0.9); ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.dr*(p.amb?1:p.life),0,TAU); ctx.fill(); }
+  ctx.restore();
+  for(const t of towers) drawTower(t,now);
+  ctx.restore();
+}
+
+// helpers
+function easeOut(t){ return 1-Math.pow(1-t,3); }
+function lighten(r,g,b,amt){ return `rgb(${Math.min(255,r+amt)},${Math.min(255,g+amt)},${Math.min(255,b+amt)})`; }
+function darken(r,g,b,f){ return `rgb(${Math.round(r*f)},${Math.round(g*f)},${Math.round(b*f)})`; }
+
+// ---------- main loop ----------
+function frame(now){ const dt=Math.min(0.05,(now-last)/1000); last=now; update(dt,now); render(now); requestAnimationFrame(frame); }
+requestAnimationFrame(frame);
 </script>
 </body>
 </html>

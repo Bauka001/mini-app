@@ -179,7 +179,7 @@ function broadcast(room) {
   const payload = {
     type: 'state',
     towers: room.towers.map(t => ({ id:t.id, x:t.x, y:t.y, o:t.owner, c:Math.round(t.count), ty:t.type })),
-    squads: room.squads.map(s => ({ x:+s.x.toFixed(3), y:+s.y.toFixed(3), o:s.owner, c:s.count })),
+    squads: room.squads.map(s => ({ id:s.id, x:+s.x.toFixed(3), y:+s.y.toFixed(3), o:s.owner, c:s.count, tx:+s.toX.toFixed(3), ty:+s.toY.toFixed(3) })),
   };
   for (const p of room.players) send(p, payload);
 }

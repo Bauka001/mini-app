@@ -149,44 +149,47 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
       <div className="flex flex-col h-screen bg-black text-white relative overflow-hidden">
         <div className="absolute top-[-20%] right-[-20%] w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] pointer-events-none" />
         <div className="absolute bottom-[-20%] left-[-20%] w-[500px] h-[500px] bg-primary/10 rounded-full blur-[100px] pointer-events-none" />
-        
-        {/* Top Bar */}
-        <div className="relative z-10 p-6 flex justify-between items-center">
+
+        {/* Top Bar — sticky so the back button stays reachable while scrolling */}
+        <div className="relative z-20 p-4 flex justify-between items-center bg-black/30 backdrop-blur-sm shrink-0">
             <button onClick={handleBack} className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
             <ArrowLeft size={24} />
             </button>
         </div>
-        
-        <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6 pb-12">
-          <motion.div 
+
+        {/* Scrollable instruction area — long rulebooks no longer hide the Start
+            button below the fold. flex-1 + overflow-y-auto lets the body grow
+            and scroll while the top bar + bottom Start CTA stay anchored. */}
+        <div className="relative z-10 flex-1 overflow-y-auto px-6 pt-2 pb-4 text-center"
+             style={{ WebkitOverflowScrolling: 'touch' as never }}>
+          <motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: "spring", duration: 0.8, bounce: 0.5 }}
-            className={`mb-6 p-6 rounded-full bg-gradient-to-br ${emblem.color} shadow-2xl ${emblem.glow}`}
+            className={`mx-auto mb-4 p-5 rounded-full bg-gradient-to-br ${emblem.color} shadow-2xl ${emblem.glow} w-fit`}
           >
-            <div className="text-white drop-shadow-lg scale-125">
+            <div className="text-white drop-shadow-lg scale-110">
               {emblem.icon}
             </div>
           </motion.div>
-          
-          <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400 mb-6 drop-shadow-lg leading-tight">{title}</h1>
-          
-          <div className="bg-secondary/80 backdrop-blur-xl p-6 rounded-3xl mb-8 w-full max-w-sm border border-white/10 shadow-2xl text-left">
-            <h2 className="text-lg font-bold mb-3 text-white uppercase tracking-wider text-center">{t('instructions', 'Instructions')}</h2>
-            {/* Multi-line instructions: split on blank line for paragraphs, then
-                on single newline for ordered steps (lines starting with "•" or
-                a digit + ". "). Preserves the simple one-string callsites while
-                letting newer games supply a structured rulebook via `\n`. */}
+
+          <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-400 mb-4 drop-shadow-lg leading-tight">{title}</h1>
+
+          <div className="bg-secondary/80 backdrop-blur-xl p-5 rounded-3xl mb-4 w-full max-w-sm mx-auto border border-white/10 shadow-2xl text-left">
+            <h2 className="text-base font-bold mb-2 text-white uppercase tracking-wider text-center">{t('instructions', 'Instructions')}</h2>
             <div className="text-gray-300 leading-relaxed text-sm space-y-2 whitespace-pre-line">
               {instructions.split(/\n\s*\n/).map((para, i) => (
                 <p key={i}>{para}</p>
               ))}
             </div>
           </div>
-          
+        </div>
+
+        {/* Sticky bottom CTA — always visible regardless of instruction length */}
+        <div className="relative z-20 px-6 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] bg-gradient-to-t from-black via-black/95 to-transparent shrink-0">
           <button
             onClick={handleStart}
-            className="w-full max-w-xs group bg-gradient-to-r from-primary to-orange-400 text-black font-black py-4 px-8 rounded-2xl text-xl hover:scale-105 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-4"
+            className="w-full max-w-xs mx-auto group bg-gradient-to-r from-primary to-orange-400 text-black font-black py-4 px-8 rounded-2xl text-xl hover:scale-105 transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-4"
           >
             <Play size={24} fill="currentColor" className="group-hover:translate-x-1 transition-transform" />
             {t('start', 'Start')}
