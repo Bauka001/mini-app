@@ -93,6 +93,30 @@ export const createStarsPayment = (productCode: string, promoCode?: string) =>
 export const getStarsPaymentStatus = (paymentOrderId: string) =>
   getJson<StarsPaymentStatus>(`/payments/stars/${encodeURIComponent(paymentOrderId)}/status`);
 
+// === 7-day free trial ===
+export interface TrialStatus {
+  available: boolean;
+  used: boolean;
+  active: boolean;
+  endsAt?: string;
+  daysLeft?: number;
+}
+export const getTrialStatus = () => getJson<TrialStatus>('/trial/status');
+export const activateTrial = () =>
+  postJson<{ ok: true; tier: string; endsAt: string; daysLeft: number }>('/trial/activate');
+
+// === Family plan ===
+export interface FamilyStatus {
+  role: 'owner' | 'member' | 'none';
+  seats?: number;
+  used?: number;
+  members?: { member_telegram_id: number; joined_at: string }[];
+  endsAt?: string;
+  inviteLink?: string;
+  ownerTelegramId?: number;
+}
+export const getFamilyStatus = () => getJson<FamilyStatus>('/family/status');
+
 /**
  * Open Telegram's Stars invoice in the WebApp and poll status until paid/expired.
  * Returns the final status.

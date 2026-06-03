@@ -146,10 +146,19 @@ const TONCENTER_API_KEY = `${process.env.TONCENTER_API_KEY || ''}`.trim();
 const TON_PAYMENT_TTL_MS = 15 * 60 * 1000;
 const TON_MIN_CONFIRMATIONS = Math.max(1, Number(process.env.TON_MIN_CONFIRMATIONS || 1));
 const TON_TOPUP_KZT_PER_TON = Math.max(1, Number(process.env.TON_TOPUP_KZT_PER_TON || 1000));
+// TON plan pricing. Corrected from the old 10/12.5/15 TON (which was ~4× the
+// KZT-equivalent at ~$5/TON and made TON payment uneconomical) to amounts that
+// roughly match the Stars/KZT price points. ~$5/TON → BASIC ≈ $20, PREMIUM ≈ $30.
 const TON_PLAN_CATALOG = {
-  basic: { tierCode: 'basic', durationDays: 365, amountNano: 10_000_000_000, displayAmount: '10 TON' },
-  pro: { tierCode: 'pro', durationDays: 365, amountNano: 12_500_000_000, displayAmount: '12.5 TON' },
-  premium: { tierCode: 'premium', durationDays: 365, amountNano: 15_000_000_000, displayAmount: '15 TON' },
+  // Yearly
+  basic:   { tierCode: 'basic',   durationDays: 365, amountNano: 4_000_000_000, displayAmount: '4 TON' },
+  pro:     { tierCode: 'pro',     durationDays: 365, amountNano: 5_000_000_000, displayAmount: '5 TON' },
+  premium: { tierCode: 'premium', durationDays: 365, amountNano: 6_000_000_000, displayAmount: '6 TON' },
+  family:  { tierCode: 'premium', durationDays: 365, amountNano: 10_000_000_000, displayAmount: '10 TON', familySeats: 4 },
+  // Monthly (≈ 1/8 of yearly → yearly is the better deal, nudges annual)
+  basic_monthly:   { tierCode: 'basic',   durationDays: 30, amountNano: 600_000_000,   displayAmount: '0.6 TON' },
+  pro_monthly:     { tierCode: 'pro',     durationDays: 30, amountNano: 750_000_000,   displayAmount: '0.75 TON' },
+  premium_monthly: { tierCode: 'premium', durationDays: 30, amountNano: 900_000_000,   displayAmount: '0.9 TON' },
 };
 const DEFAULT_TON_PROMO_CODE_CATALOG = {
   STARTUP: { code: 'STARTUP', discountPercent: 10, planCodes: ['basic', 'pro', 'premium'], requiredStartParam: 'startup' },
@@ -5033,6 +5042,238 @@ app.get('/referral/stats', readLimiter, async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'referral_stats_error' });
+  }
+});
+
+// === 7-day free Premium trial ===
+// One per user, ever. Grants a real PREMIUM entitlement for 7 days without any
+// payment. Tracked via a deterministic entitlement row id `trial-<uid>` so the
+// DB primary key itself prevents a second activation.
+const TRIAL_DURATION_DAYS = 7;
+const TRIAL_TIER = 'premium';
+
+app.get('/trial/status', readLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+    const uid = Number(access.identity.userId);
+    const { data, error } = await supabase
+      .from('user_entitlements')
+      .select('id, status, ends_at, metadata')
+      .eq('id', `trial-${uid}`)
+      .maybeSingle();
+    if (error && !isMissingTableError(error)) throw error;
+    if (!data) {
+      return res.json({ available: true, used: false, active: false });
+    }
+    const endsMs = data.ends_at ? Date.parse(data.ends_at) : 0;
+    const active = endsMs > Date.now();
+    return res.json({
+      available: false,
+      used: true,
+      active,
+      endsAt: data.ends_at,
+      daysLeft: active ? Math.ceil((endsMs - Date.now()) / 86_400_000) : 0,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'trial_status_error' });
+  }
+});
+
+app.post('/trial/activate', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+    const uid = Number(access.identity.userId);
+    const now = Date.now();
+    const nowIso = new Date(now).toISOString();
+    const endsMs = now + TRIAL_DURATION_DAYS * 86_400_000;
+    const endsIso = new Date(endsMs).toISOString();
+    const trialId = `trial-${uid}`;
+
+    // Refuse if a trial row already exists (used once already)
+    const { data: existing } = await supabase
+      .from('user_entitlements')
+      .select('id')
+      .eq('id', trialId)
+      .maybeSingle();
+    if (existing) {
+      return res.status(409).json({ error: 'trial_already_used' });
+    }
+
+    // Refuse if the user already has an active PAID plan (no point in a trial)
+    const { data: activePaid } = await supabase
+      .from('user_entitlements')
+      .select('id')
+      .eq('user_telegram_id', uid)
+      .eq('status', 'active')
+      .gte('ends_at', nowIso)
+      .neq('id', trialId)
+      .limit(1)
+      .maybeSingle();
+    if (activePaid) {
+      return res.status(409).json({ error: 'already_premium' });
+    }
+
+    const { error: entErr } = await supabase.from('user_entitlements').insert({
+      id: trialId,
+      user_telegram_id: uid,
+      tier_code: TRIAL_TIER,
+      status: 'active',
+      starts_at: nowIso,
+      ends_at: endsIso,
+      source_payment_order_id: trialId,
+      metadata: { source: 'free_trial', durationDays: TRIAL_DURATION_DAYS },
+      updated_at: nowIso,
+    });
+    if (entErr) throw entErr;
+
+    // Mirror onto users.plan / plan_expiry so the UI unlocks immediately
+    const { error: userErr } = await supabase
+      .from('users')
+      .update({ plan: TRIAL_TIER, plan_expiry: endsMs, updated_at: nowIso })
+      .eq('telegram_id', uid);
+    if (userErr && !isMissingTableError(userErr)) throw userErr;
+
+    sendTelegramMessage(
+      uid,
+      `🎁 <b>7 күндік тегін PREMIUM іске қосылды!</b>\n\n`
+      + `Барлық премиум фунцияны ${new Date(endsMs).toLocaleDateString('ru-RU', { timeZone: 'Asia/Almaty' })} дейін пайдаланыңыз:\n`
+      + `• 11 ойынның бәрі\n• Adaptive қиындық\n• NFT trophies + $FOCUS\n• Brain Champions League\n\n`
+      + `Ұнаса — мерзім біткенше жазылыңыз, бонустарыңыз сақталады.`,
+    );
+
+    return res.json({ ok: true, tier: TRIAL_TIER, endsAt: endsIso, daysLeft: TRIAL_DURATION_DAYS });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'trial_activate_error' });
+  }
+});
+
+// === Family plan: member join + status ===
+// Owner buys FAMILY premium → gets a share link t.me/<bot>?startapp=fam_<ownerId>.
+// A member opening that link calls /family/join, takes one of the remaining
+// seats, and receives a premium entitlement valid until the family expires.
+app.post('/family/join', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+    const memberId = Number(access.identity.userId);
+    const ownerId = Number(req.body?.ownerTelegramId);
+    if (!ownerId) return res.status(400).json({ error: 'ownerTelegramId required' });
+    if (ownerId === memberId) return res.status(400).json({ error: 'owner_cannot_join_self' });
+
+    const { data: group, error: gErr } = await supabase
+      .from('family_groups')
+      .select('owner_telegram_id, seats, ends_at')
+      .eq('owner_telegram_id', ownerId)
+      .maybeSingle();
+    if (gErr && !isMissingTableError(gErr)) throw gErr;
+    if (!group) return res.status(404).json({ error: 'family_not_found' });
+    const endsMs = Date.parse(group.ends_at);
+    if (endsMs < Date.now()) return res.status(410).json({ error: 'family_expired' });
+
+    // Already a member?
+    const { data: existing } = await supabase
+      .from('family_members')
+      .select('id')
+      .eq('owner_telegram_id', ownerId)
+      .eq('member_telegram_id', memberId)
+      .maybeSingle();
+
+    if (!existing) {
+      // Seat check — owner occupies 1 seat, members fill the rest.
+      const { count } = await supabase
+        .from('family_members')
+        .select('id', { count: 'exact', head: true })
+        .eq('owner_telegram_id', ownerId);
+      if ((count || 0) >= (group.seats - 1)) {
+        return res.status(409).json({ error: 'family_full' });
+      }
+      const { error: mErr } = await supabase.from('family_members').insert({
+        owner_telegram_id: ownerId,
+        member_telegram_id: memberId,
+      });
+      if (mErr) throw mErr;
+    }
+
+    // Grant member a premium entitlement until the family subscription ends.
+    const nowIso = new Date().toISOString();
+    const entId = `family-${ownerId}-${memberId}`;
+    await supabase.from('user_entitlements').upsert({
+      id: entId,
+      user_telegram_id: memberId,
+      tier_code: 'premium',
+      status: 'active',
+      starts_at: nowIso,
+      ends_at: group.ends_at,
+      source_payment_order_id: entId,
+      metadata: { source: 'family_member', ownerTelegramId: ownerId },
+      updated_at: nowIso,
+    }, { onConflict: 'source_payment_order_id' });
+    await supabase
+      .from('users')
+      .update({ plan: 'premium', plan_expiry: endsMs, updated_at: nowIso })
+      .eq('telegram_id', memberId);
+
+    sendTelegramMessage(
+      memberId,
+      `👨‍👩‍👧‍👦 <b>Отбасы PREMIUM-ына қосылдыңыз!</b>\n\n`
+      + `Барлық премиум фунция ${new Date(endsMs).toLocaleDateString('ru-RU', { timeZone: 'Asia/Almaty' })} дейін ашық.`,
+    );
+    sendTelegramMessage(
+      ownerId,
+      `✅ Отбасыңызға жаңа мүше қосылды (tg:${memberId}).`,
+    );
+
+    return res.json({ ok: true, tier: 'premium', endsAt: group.ends_at });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'family_join_error' });
+  }
+});
+
+app.get('/family/status', readLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+    const uid = Number(access.identity.userId);
+    const botUser = (process.env.BOT_USERNAME || 'Focus_game_bot').replace(/^@/, '');
+
+    // As owner?
+    const { data: owned } = await supabase
+      .from('family_groups')
+      .select('owner_telegram_id, seats, ends_at')
+      .eq('owner_telegram_id', uid)
+      .maybeSingle();
+    if (owned) {
+      const { data: members } = await supabase
+        .from('family_members')
+        .select('member_telegram_id, joined_at')
+        .eq('owner_telegram_id', uid);
+      return res.json({
+        role: 'owner',
+        seats: owned.seats,
+        used: 1 + (members || []).length,
+        members: members || [],
+        endsAt: owned.ends_at,
+        inviteLink: `https://t.me/${botUser}?startapp=fam_${uid}`,
+      });
+    }
+    // As member?
+    const { data: membership } = await supabase
+      .from('family_members')
+      .select('owner_telegram_id, joined_at')
+      .eq('member_telegram_id', uid)
+      .maybeSingle();
+    if (membership) {
+      return res.json({ role: 'member', ownerTelegramId: membership.owner_telegram_id });
+    }
+    return res.json({ role: 'none' });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'family_status_error' });
   }
 });
 

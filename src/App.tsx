@@ -569,21 +569,38 @@ function App() {
     syncUserFromTelegram();
     fetchEntitlements();
 
-    // Referral tracking: if user opened via t.me/bot?start=ref_<userId>,
-    // post once to /referral/track (server dedupes via UNIQUE on referee).
+    // Deep-link handling from the start_param:
+    //   ref_<id>  → referral attribution (server dedupes on referee)
+    //   fam_<id>  → join a family premium group (member takes a seat)
     try {
       const startParam = WebApp.initDataUnsafe?.start_param || '';
-      const m = /^ref_(\d{5,})$/i.exec(startParam);
-      if (m && m[1]) {
-        const refUserId = Number(m[1]);
-        const initData = WebApp.initData || '';
-        if (initData && refUserId) {
-          fetch((import.meta.env.VITE_API_URL || '') + '/referral/track', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ initData, refUserId }),
-          }).catch(() => {});
-        }
+      const initData = WebApp.initData || '';
+      const apiBase = import.meta.env.VITE_API_URL || '';
+
+      const refM = /^ref_(\d{5,})$/i.exec(startParam);
+      if (refM && refM[1] && initData) {
+        fetch(apiBase + '/referral/track', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ initData, refUserId: Number(refM[1]) }),
+        }).catch(() => {});
+      }
+
+      const famM = /^fam_(\d{5,})$/i.exec(startParam);
+      if (famM && famM[1] && initData) {
+        fetch(apiBase + '/family/join', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-telegram-init-data': initData },
+          body: JSON.stringify({ ownerTelegramId: Number(famM[1]) }),
+        })
+          .then((r) => r.ok ? r.json() : null)
+          .then((d) => {
+            if (d?.ok) {
+              fetchEntitlements();
+              try { WebApp.showAlert?.('🎉 Отбасы PREMIUM-ына қосылдыңыз!'); } catch {}
+            }
+          })
+          .catch(() => {});
       }
     } catch (_) { /* non-fatal */ }
 

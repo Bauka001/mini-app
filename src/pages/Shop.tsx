@@ -17,6 +17,7 @@ import { hasTelegramStartParam, isTelegramWebApp } from '../utils/telegram';
 import { CASE_LIST } from '../store/cases';
 import { CaseList } from '../components/shop/CaseList';
 import { FlashSaleBanner } from '../components/FlashSaleBanner';
+import { TrialBanner } from '../components/TrialBanner';
 import { CaseOpeningModal } from '../components/shop/CaseOpeningModal';
 import { CaseIcon } from '../components/shop/CaseIcon';
 
@@ -1807,6 +1808,9 @@ const LegacyShopPage = () => {
         </div>
       </div>
 
+      {/* 7-day free trial offer (auto-hides once used) */}
+      <TrialBanner />
+
       {/* Active flash sale banner (auto-renders only if a sale is live) */}
       <FlashSaleBanner />
 
@@ -1921,6 +1925,12 @@ const STARS_QUICK_BUY_PRODUCTS: Array<{
   emoji: string;
   highlight?: boolean;
 }> = [
+  // === Monthly VIP (low barrier to entry) ===
+  { code: 'vip_basic_monthly',   label: 'BASIC / ай',    description: 'Айлық жазылым',                 stars: 15,  emoji: '🔹' },
+  { code: 'vip_pro_monthly',     label: 'PRO / ай',      description: 'Айлық жазылым',                 stars: 20,  emoji: '🔸' },
+  { code: 'vip_premium_monthly', label: 'PREMIUM / ай',  description: 'Айлық жазылым',                 stars: 25,  emoji: '⭐' },
+  // === Family (highlighted) ===
+  { code: 'vip_family',          label: 'FAMILY жылдық', description: '4 адамға PREMIUM · −40%/орын',  stars: 360, emoji: '👨‍👩‍👧‍👦', highlight: true },
   // === Bundles (highlighted) ===
   { code: 'bundle_starter',     label: 'Starter Pack',      description: 'VIP Basic + Rare Case + 100 $FOCUS · −17%', stars: 220, emoji: '🎁', highlight: true },
   { code: 'bundle_pro',         label: 'Pro Pack',          description: 'VIP Pro + 3 Rare + 300 $FOCUS · −19%',     stars: 450, emoji: '🎁', highlight: true },

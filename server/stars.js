@@ -25,6 +25,14 @@ const STARS_PRODUCT_CATALOG = {
   vip_pro:      { kind: 'vip',      tierCode: 'pro',       durationDays: 365, amountStars: 180, label: 'PRO Yearly',     description: 'PRO VIP — 365 days' },
   vip_premium:  { kind: 'vip',      tierCode: 'premium',   durationDays: 365, amountStars: 200, label: 'PREMIUM Yearly', description: 'PREMIUM VIP — 365 days' },
 
+  // === VIP plans (monthly) — lower barrier to entry; yearly shows "Save %" ===
+  vip_basic_monthly:   { kind: 'vip', tierCode: 'basic',   durationDays: 30, amountStars: 15, label: 'BASIC Monthly',   description: 'BASIC VIP — 30 days' },
+  vip_pro_monthly:     { kind: 'vip', tierCode: 'pro',     durationDays: 30, amountStars: 20, label: 'PRO Monthly',     description: 'PRO VIP — 30 days' },
+  vip_premium_monthly: { kind: 'vip', tierCode: 'premium', durationDays: 30, amountStars: 25, label: 'PREMIUM Monthly', description: 'PREMIUM VIP — 30 days' },
+
+  // === Family plan (yearly) — one purchase, owner + up to 3 linked members ===
+  vip_family: { kind: 'vip', tierCode: 'premium', durationDays: 365, amountStars: 360, familySeats: 4, label: 'FAMILY Yearly', description: 'PREMIUM VIP for 4 (owner + 3) — 365 days, ~40% off per seat' },
+
   // === Mystery cases ===
   case_basic:     { kind: 'case', caseId: 'basic_case',     amountStars: 25,  label: 'Basic Case',     description: 'One Basic Mystery Case' },
   case_rare:      { kind: 'case', caseId: 'rare_case',      amountStars: 50,  label: 'Rare Case',      description: 'One Rare Mystery Case' },
@@ -508,7 +516,37 @@ async function grantStarsProduct({
 
   if (product.kind === 'vip') {
     // Delegate to existing applyPaidEntitlement (handles entitlements + user plan + notification)
-    return applyPaidEntitlement(paymentOrder, verificationPayload);
+    const result = await applyPaidEntitlement(paymentOrder, verificationPayload);
+    // Family plan: create a family group so the owner can invite up to
+    // (familySeats - 1) members who each get premium until the group expires.
+    if (product.familySeats && product.familySeats > 1) {
+      try {
+        const endsMs = Date.now() + (product.durationDays || 365) * 86_400_000;
+        await supabase.from('family_groups').upsert({
+          owner_telegram_id: userTelegramId,
+          seats: product.familySeats,
+          ends_at: new Date(endsMs).toISOString(),
+          source_payment_order_id: paymentOrder.id,
+          updated_at: nowIso,
+        }, { onConflict: 'owner_telegram_id' });
+        if (typeof sendTelegramMessage === 'function') {
+          const botUser = (process.env.BOT_USERNAME || 'Focus_game_bot').replace(/^@/, '');
+          sendTelegramMessage(
+            userTelegramId,
+            `👨‍👩‍👧‍👦 <b>FAMILY PREMIUM іске қосылды!</b>\n\n`
+            + `Сіз + 3 адам PREMIUM пайдаланады.\n`
+            + `Отбасы мүшелерін шақыру сілтемесі:\n`
+            + `https://t.me/${botUser}?startapp=fam_${userTelegramId}\n\n`
+            + `Әр мүше осы сілтемемен кіріп, PREMIUM-ды бірден алады.`,
+          );
+        }
+      } catch (e) {
+        if (!isMissingTableError || !isMissingTableError(e)) {
+          console.warn('[stars] family group create failed:', e && e.message ? e.message : e);
+        }
+      }
+    }
+    return result;
   }
 
   // For non-VIP products, mark order paid first, then grant.
