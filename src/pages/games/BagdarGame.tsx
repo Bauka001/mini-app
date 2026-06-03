@@ -130,6 +130,25 @@ const BagdarBoard = ({ onEnd }: { onEnd: (score: number, coins: number) => void 
         <span className="text-emerald-300 font-bold">🏆 {score}</span>
       </div>
 
+      {/* Big phase banner — large, unmissable indicator of WHAT the user should do */}
+      <motion.div
+        key={phase}
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className={clsx(
+          'w-full mb-3 px-4 py-2.5 rounded-2xl border-2 text-center font-bold transition-all',
+          phase === 'show' && 'bg-amber-500/20 border-amber-400 text-amber-100',
+          phase === 'input' && 'bg-emerald-500/20 border-emerald-400 text-emerald-100 animate-pulse',
+          phase === 'success' && 'bg-emerald-500/30 border-emerald-300 text-white',
+          phase === 'fail' && 'bg-rose-500/20 border-rose-400 text-rose-100',
+        )}
+      >
+        {phase === 'show' && <>👀 Компасты қараңыз — инені бағытпен есте сақтаңыз</>}
+        {phase === 'input' && <>👆 ЕНДІ СІЗДІҢ КЕЗЕК · {userIdx + 1}/{sequence.length} бағыт енгізіңіз</>}
+        {phase === 'success' && <>✨ Тамаша! Келесі раунд...</>}
+        {phase === 'fail' && <>😔 Қате! Дұрыс: {DIR_LABEL[sequence[userIdx]]} ({DIR_LABEL_FULL[sequence[userIdx]]})</>}
+      </motion.div>
+
       {/* Compass face */}
       <div className="relative mb-6 select-none" style={{ width: 'min(80vw, 280px)', height: 'min(80vw, 280px)' }}>
         {/* Outer ring */}
@@ -224,13 +243,13 @@ const BagdarBoard = ({ onEnd }: { onEnd: (score: number, coins: number) => void 
         </AnimatePresence>
       </div>
 
-      {/* Direction pad */}
-      <div className="relative" style={{ width: '180px', height: '180px' }}>
+      {/* Direction pad - larger, clearer, full names */}
+      <div className="relative" style={{ width: '220px', height: '220px' }}>
         {DIRS.map((d) => {
           const angle = DIR_ANGLE[d];
           const isHL = highlightedBtn === d;
-          const top = 50 - 38 * Math.cos((angle * Math.PI) / 180);
-          const left = 50 + 38 * Math.sin((angle * Math.PI) / 180);
+          const top = 50 - 36 * Math.cos((angle * Math.PI) / 180);
+          const left = 50 + 36 * Math.sin((angle * Math.PI) / 180);
           return (
             <motion.button
               key={d}
@@ -239,27 +258,27 @@ const BagdarBoard = ({ onEnd }: { onEnd: (score: number, coins: number) => void 
               whileTap={{ scale: 0.92 }}
               animate={isHL ? { scale: 1.15 } : { scale: 1 }}
               className={clsx(
-                'absolute w-14 h-14 rounded-full border-2 flex flex-col items-center justify-center font-black transition-all -translate-x-1/2 -translate-y-1/2',
+                'absolute w-20 h-20 rounded-2xl border-2 flex flex-col items-center justify-center font-black transition-all -translate-x-1/2 -translate-y-1/2 shadow-lg',
                 phase === 'input'
-                  ? 'bg-gradient-to-br from-amber-500/30 to-rose-500/20 border-amber-400 text-amber-100 active:bg-amber-400/50'
-                  : 'bg-stone-800/40 border-stone-700 text-stone-500',
+                  ? 'bg-gradient-to-br from-amber-500/50 to-rose-500/40 border-amber-300 text-white active:bg-amber-400/70 hover:scale-110'
+                  : 'bg-stone-800/40 border-stone-700 text-stone-600',
                 isHL && 'ring-4 ring-emerald-400',
               )}
               style={{ top: `${top}%`, left: `${left}%` }}
             >
-              <div className="text-xl leading-none">{DIR_LABEL[d]}</div>
-              <div className="text-[8px] opacity-70 leading-none mt-0.5">{DIR_LABEL_FULL[d].slice(0, 3)}</div>
+              <div className="text-3xl leading-none">{DIR_LABEL[d]}</div>
+              <div className="text-[10px] opacity-90 leading-none mt-1 font-bold">{DIR_LABEL_FULL[d]}</div>
             </motion.button>
           );
         })}
         {/* Center label */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] text-stone-500 uppercase tracking-wider text-center">
-          Бағыт<br/>таңда
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] text-stone-500 uppercase tracking-wider text-center pointer-events-none">
+          {phase === 'input' ? '👆 түрт' : '⏳ күт'}
         </div>
       </div>
 
-      <div className="text-[11px] text-stone-500 text-center mt-4">
-        💡 С — Солтүстік · Ш — Шығыс · О — Оңтүстік · Б — Батыс
+      <div className="text-[11px] text-stone-400 text-center mt-4 leading-relaxed px-2">
+        🧭 <b>С</b> — Солтүстік (жоғары) · <b>Ш</b> — Шығыс (оң) · <b>О</b> — Оңтүстік (төмен) · <b>Б</b> — Батыс (сол)
       </div>
     </div>
   );

@@ -240,6 +240,24 @@ const SozkomanBoard = ({ onEnd }: { onEnd: (score: number, coins: number) => voi
 
   return (
     <div className="flex flex-col items-center px-3 pb-4">
+      {/* Example row — visible only before the first guess so first-timers
+          can see what the colours mean without abstract reading */}
+      {guesses.length === 0 && !finished && (
+        <div className="mb-3 px-3 py-2 rounded-xl bg-stone-900/60 border border-stone-700 w-full max-w-sm">
+          <div className="text-[10px] text-stone-400 uppercase tracking-wider mb-1.5 text-center">📖 Мысал — қалай оқу керек</div>
+          <div className="flex gap-1 justify-center mb-1">
+            <div className="w-8 h-8 rounded bg-emerald-500 border-2 border-emerald-400 flex items-center justify-center text-white font-black text-sm">А</div>
+            <div className="w-8 h-8 rounded bg-yellow-500 border-2 border-yellow-400 flex items-center justify-center text-white font-black text-sm">Л</div>
+            <div className="w-8 h-8 rounded bg-stone-700 border-2 border-stone-600 flex items-center justify-center text-stone-300 font-black text-sm">М</div>
+            <div className="w-8 h-8 rounded bg-stone-700 border-2 border-stone-600 flex items-center justify-center text-stone-300 font-black text-sm">А</div>
+            <div className="w-8 h-8 rounded bg-emerald-500 border-2 border-emerald-400 flex items-center justify-center text-white font-black text-sm">С</div>
+          </div>
+          <div className="text-[10px] text-stone-400 leading-relaxed text-center">
+            🟩 А, С — <b>орны дұрыс</b> · 🟨 Л — <b>сөзде бар, орны басқа</b> · ⬜ М, А — <b>сөзде жоқ</b>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-1.5 mb-4">
         {Array(MAX_ROUNDS).fill(0).map((_, i) => renderRow(i))}
       </div>
@@ -257,12 +275,6 @@ const SozkomanBoard = ({ onEnd }: { onEnd: (score: number, coins: number) => voi
       <div className="space-y-1 w-full max-w-md">
         {KEYBOARD_ROWS.map((row, ri) => (
           <div key={ri} className="flex justify-center gap-1">
-            {ri === 3 && (
-              <button
-                onClick={() => pressKey('ENTER')}
-                className="px-3 py-3 rounded text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-500"
-              >ENTER</button>
-            )}
             {row.map((k) => (
               <button
                 key={k}
@@ -270,14 +282,25 @@ const SozkomanBoard = ({ onEnd }: { onEnd: (score: number, coins: number) => voi
                 className={clsx('w-7 sm:w-8 h-10 rounded text-sm font-bold transition', keyBg(k))}
               >{k}</button>
             ))}
-            {ri === 3 && (
-              <button
-                onClick={() => pressKey('BACK')}
-                className="px-2 py-3 rounded text-xs font-bold bg-rose-600 text-white hover:bg-rose-500"
-              >⌫</button>
-            )}
           </div>
         ))}
+        {/* Action row — clear, prominent ENTER + BACKSPACE */}
+        <div className="flex justify-center gap-2 mt-2">
+          <button
+            onClick={() => pressKey('BACK')}
+            disabled={finished !== null}
+            className="flex-1 max-w-[120px] py-3 rounded-xl text-sm font-bold bg-rose-600 text-white hover:bg-rose-500 disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-lg"
+          >
+            <span className="text-lg">⌫</span> Өшіру
+          </button>
+          <button
+            onClick={() => pressKey('ENTER')}
+            disabled={Array.from(current).length !== WORD_LEN || finished !== null}
+            className="flex-1 max-w-[160px] py-3 rounded-xl text-sm font-bold bg-emerald-600 text-white hover:bg-emerald-500 disabled:bg-stone-700 disabled:text-stone-500 flex items-center justify-center gap-1.5 shadow-lg"
+          >
+            ✓ Тексеру (ENTER)
+          </button>
+        </div>
       </div>
     </div>
   );

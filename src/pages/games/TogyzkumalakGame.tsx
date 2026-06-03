@@ -33,6 +33,7 @@ const TogyzBoard = ({ onEnd }: { onEnd: (score: number, coins: number) => void }
   const [animating, setAnimating] = useState<number | null>(null);
   const [finished, setFinished] = useState<'won' | 'lost' | null>(null);
   const [lastMove, setLastMove] = useState<{ from: number; landed: number; captured: number } | null>(null);
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
   const [startedAt] = useState(Date.now());
 
   const sum = useMemo(() => board.reduce((a, b) => a + b, 0), [board]);
@@ -91,30 +92,67 @@ const TogyzBoard = ({ onEnd }: { onEnd: (score: number, coins: number) => void }
     setTimeout(() => onEnd(total, Math.round(total / 10)), 1500);
   };
 
+  // Compute landing preview — when user hovers/considers a hole, show where the
+  // last stone will land + whether it will capture (even count after move).
+  const previewLanding = (fromIdx: number): { landed: number; willCapture: boolean } | null => {
+    if (board[fromIdx] <= 0) return null;
+    const stones = board[fromIdx];
+    let pos = fromIdx;
+    for (let i = 0; i < stones; i++) pos = (pos + 1) % HOLE_COUNT;
+    // Simulate the count after landing (excluding capture)
+    const simBoard = [...board];
+    simBoard[fromIdx] = 0;
+    let p = fromIdx;
+    for (let i = 0; i < stones; i++) { p = (p + 1) % HOLE_COUNT; simBoard[p] += 1; }
+    const willCapture = simBoard[pos] >= 2 && simBoard[pos] % 2 === 0;
+    return { landed: pos, willCapture };
+  };
+
   const renderHole = (count: number, idx: number) => {
     const isAnimating = animating === idx;
     const isLastFrom = lastMove?.from === idx;
     const isLastLanded = lastMove?.landed === idx && (lastMove?.captured || 0) > 0;
+    const isHoverPreview = hoveredIdx === idx;
+    const hoverPreview = hoveredIdx !== null && hoveredIdx !== idx ? previewLanding(hoveredIdx) : null;
+    const isLandPreview = hoverPreview?.landed === idx;
     return (
       <motion.button
         key={idx}
         disabled={finished !== null || animating !== null || count === 0}
         onClick={() => playHole(idx)}
+        onMouseEnter={() => setHoveredIdx(idx)}
+        onMouseLeave={() => setHoveredIdx(null)}
         whileTap={{ scale: 0.92 }}
         animate={isAnimating ? { rotate: [0, -8, 8, -4, 0] } : isLastLanded ? { scale: [1, 1.18, 1] } : {}}
         transition={{ duration: 0.4 }}
         className={clsx(
-          'aspect-square rounded-full border-2 flex flex-col items-center justify-center transition-all',
+          'aspect-square rounded-full border-2 flex flex-col items-center justify-center transition-all relative',
           'shadow-inner',
-          count === 0 && 'bg-stone-900/60 border-stone-700 opacity-60',
+          count === 0 && 'bg-stone-900/60 border-stone-700 opacity-50',
           count > 0 && !finished && 'bg-gradient-to-br from-amber-900/80 to-amber-950 border-amber-600/50 hover:border-amber-400 hover:scale-105 cursor-pointer',
           finished && count > 0 && 'bg-stone-800/60 border-stone-700',
           isLastFrom && 'ring-2 ring-rose-400',
           isLastLanded && 'ring-2 ring-emerald-400',
+          isHoverPreview && 'ring-2 ring-sky-400',
+          isLandPreview && (hoverPreview?.willCapture ? 'ring-4 ring-emerald-300 shadow-emerald-500/40 shadow-lg' : 'ring-2 ring-amber-300/60'),
         )}
       >
-        <div className="text-2xl font-black text-amber-100">{count}</div>
-        <div className="text-[9px] uppercase text-amber-400/60 tracking-wider">{idx + 1}</div>
+        {/* Hole number — top */}
+        <div className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[8px] font-bold text-amber-400/80 bg-stone-900/70 px-1 rounded">{idx + 1}</div>
+        {/* Stone count — big center */}
+        <div className="text-2xl font-black text-amber-100 mt-1">{count}</div>
+        {/* Pebble visualisation (max 9 dots) */}
+        <div className="flex flex-wrap gap-0.5 justify-center mt-0.5" style={{ maxWidth: 30 }}>
+          {Array(Math.min(count, 9)).fill(0).map((_, i) => (
+            <span key={i} className="w-1 h-1 rounded-full bg-amber-300/70" />
+          ))}
+        </div>
+        {/* Landing marker (where last stone lands) */}
+        {isLandPreview && (
+          <div className="absolute -top-2 left-1/2 -translate-x-1/2 text-xs">
+            {hoverPreview?.willCapture ? '🎯' : '↓'}
+          </div>
+        )}
       </motion.button>
     );
   };
@@ -137,10 +175,39 @@ const TogyzBoard = ({ onEnd }: { onEnd: (score: number, coins: number) => void }
         </div>
       </div>
 
-      {/* Board */}
-      <div className="grid grid-cols-3 gap-3 w-full mb-4">
-        {board.map((count, idx) => renderHole(count, idx))}
+      {/* Board with direction indicator */}
+      <div className="relative w-full mb-4">
+        <div className="grid grid-cols-3 gap-3 w-full">
+          {board.map((count, idx) => renderHole(count, idx))}
+        </div>
+        {/* Direction guide: shows the 1→9→1 flow visually */}
+        <div className="absolute -right-1 top-1/2 -translate-y-1/2 -rotate-90 text-[9px] text-amber-400/50 font-bold tracking-widest pointer-events-none">
+          1→2→3→...→9→1
+        </div>
       </div>
+
+      {/* Hover hint - shows exactly what will happen if user taps a hole */}
+      {hoveredIdx !== null && board[hoveredIdx] > 0 && !animating && !finished && (() => {
+        const p = previewLanding(hoveredIdx);
+        if (!p) return null;
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={clsx(
+              'mb-3 text-xs text-center px-3 py-1.5 rounded-lg border',
+              p.willCapture
+                ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-200'
+                : 'bg-stone-800/60 border-stone-700 text-stone-300',
+            )}
+          >
+            №{hoveredIdx + 1} → соңғы құмалақ <b>№{p.landed + 1}</b>-ге түседі ·{' '}
+            {p.willCapture
+              ? <>🎯 <b>Қазанға +{(board[p.landed] || 0) + (((hoveredIdx + board[hoveredIdx]) % HOLE_COUNT) === p.landed ? 1 : 1)} құмалақ!</b></>
+              : <>ұстатыс жоқ</>}
+          </motion.div>
+        );
+      })()}
 
       {/* Last move info */}
       {lastMove && !finished && (
