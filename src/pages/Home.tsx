@@ -15,6 +15,7 @@ import { DailyRewardModal } from '../components/DailyRewardModal';
 import { NotificationsModal } from '../components/NotificationsModal';
 import { GuestBanner } from '../components/GuestBanner';
 import { DailyChallengeCard } from '../components/DailyChallengeCard';
+import { GameTile, useDailyGameId } from '../components/GameTile';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { hapticFeedback } from '../utils/telegram';
 import type { Variants } from 'framer-motion';
@@ -262,6 +263,7 @@ const Home = () => {
 
   const styles = useThemeStyles();
   const { isClaude, isLight, textPrimary, textSecondary, bgClass, headerClass, panelClass } = styles;
+  const dailyGameId = useDailyGameId();
 
   const [showDailyReward, setShowDailyReward] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -984,43 +986,20 @@ const Home = () => {
           animate="visible"
         >
           {gameButtons.map((game) => {
-            const Icon = game.icon;
             const isVipGame = vipGamePaths.has(game.path);
             const isUnlimitedVipGame = isVipGame && (plan === 'pro' || plan === 'premium');
             const trialsLeft = isVipGame ? getVipTrialsLeft(game.path) : null;
             return (
-              <motion.button
+              <GameTile
                 key={game.title}
-                whileTap={{ scale: 0.92 }}
+                game={game}
+                isVip={isVipGame}
+                vipUnlimited={isUnlimitedVipGame}
+                trialsLeft={trialsLeft}
+                dailyGameId={dailyGameId}
+                itemVariants={itemVariants}
                 onClick={() => handleGameClick(game.path)}
-                variants={itemVariants}
-                className={clsx(
-                  "relative flex flex-col items-center gap-2 p-3 rounded-2xl min-h-[112px] transition-all duration-300",
-                  styles.isLight ? "hover:bg-slate-100 active:bg-slate-200" :
-                  styles.isBlue ? "hover:bg-blue-800/30 active:bg-blue-800/50" :
-                  styles.isGold ? "hover:bg-stone-800/50 active:bg-stone-800/70" :
-                  "hover:bg-zinc-800/50 active:bg-zinc-800"
-                )}
-              >
-                {isVipGame ? (
-                  <div className="absolute top-2 right-2 inline-flex items-center gap-1 rounded-full border border-amber-300/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-amber-300">
-                    <Crown size={10} />
-                    <span>VIP</span>
-                  </div>
-                ) : null}
-                <div className={clsx(
-                  "w-14 h-14 flex items-center justify-center rounded-2xl shadow-sm transition-colors duration-300",
-                  styles.cardClass
-                )}>
-                  <Icon size={26} className={styles.textAccent} />
-                </div>
-                <span className={clsx("text-sm text-center font-medium leading-tight", styles.textPrimary)}>{t(game.title)}</span>
-                {isVipGame ? (
-                  <span className={clsx("text-[11px] font-semibold text-center leading-tight", styles.textSecondary)}>
-                    {isUnlimitedVipGame ? 'Шексіз' : `Пробный: ${trialsLeft}/${VIP_TRIAL_LIMIT}`}
-                  </span>
-                ) : null}
-              </motion.button>
+              />
             );
           })}
         </motion.div>
