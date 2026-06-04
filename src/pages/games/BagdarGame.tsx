@@ -71,8 +71,8 @@ const LESSONS = [
   { id: 1, icon: '🧭', title: 'Бағыттар', concept: 'Компаста 8 негізгі бағыт бар. Солтүстік (С) әрқашан жоғарыда. Сағат тілімен: С → СШ → Ш → ОШ → О → ОБ → Б → СБ.', tip: 'С-жоғары, Ш-оң, О-төмен, Б-сол. Аралықтары — екеуінің атауын қосады (СШ = Солтүстік-Шығыс).' },
   { id: 2, icon: '🔢', title: 'Градустар', concept: 'Әр бағыттың градусы бар: С=0°, Ш=90°, О=180°, Б=270°. Аралықтары: СШ=45°, ОШ=135°, ОБ=225°, СБ=315°.', tip: 'Сағат тілімен 45°-тан өседі. 90°-қа бөлсеңіз — негізгі бағыт, ортасы — аралық.' },
   { id: 3, icon: '🎯', title: 'Азимут алу', concept: 'Азимут — мақсатқа бағыттың градусы. Компас инесін мақсатқа дәл бағыттап, градусты оқисыз.', tip: 'Денеңізді емес, инені (◀▶) мақсатқа бағыттаңыз. Сызық жасылданса — дәл.' },
-  { id: 4, icon: '🚶', title: 'Азимутпен жүру', concept: 'Азимут алғаннан кейін: 1) бағытты түзейсіз, 2) ине туралағанда алға жүресіз, 3) мақсатқа жетесіз.', tip: 'Денеңізбен бұрылыңыз (білекпен емес). 180° қателіктен сақтаныңыз — қарама-қарсы жүрмеңіз!' },
-  { id: 5, icon: '🏔', title: 'Толық сапар', concept: 'Нағыз сапар: бірнеше бекет. Әр бекетте азимутты қайта аласыз, түзейсіз, жүресіз. Адаспай жетіңіз!', tip: 'Әр бекеттен кейін жаңа азимут. Аз жүріспен — көп ұпай. Бұл — емтихан.' },
+  { id: 4, icon: '⛵', title: 'Теңіз сапары', concept: 'Кеме капитанысыз. Штурман бұйрық береді: «Азимут 90°, 3 миль жүз». Мақсат КӨРІНБЕЙДІ — тек бұйрықпен жүзесіз. Курсқа бұрылып, бұйрылған миль санын жүзіңіз.', tip: 'Алдымен бұйрылған азимутқа рульді бұрыңыз, «курста» болғанда ⛵ ЖҮЗУ басыңыз. Курстан тыс жүзу — миль санамайды!' },
+  { id: 5, icon: '🌊', title: 'Ұзақ сапар', concept: 'Нағыз теңіз сапары: 5 аяқ (leg). Әр аяқта жаңа штурман бұйрығы. Картада ештеңе көрінбейді — тек компас пен бұйрық. Портқа адаспай жетіңіз!', tip: 'Әр бұйрықты дәл орында. Курстан тыс жүзу ұпайды азайтады. Қатесіз жүзсеңіз — 3 жұлдыз. Бұл — емтихан.' },
 ];
 
 // ════════════════════════ Lesson 1 — Cardinal rose ════════════════════════
@@ -284,85 +284,144 @@ const Lesson3 = ({ onDone }: { onDone: (score: number, stars: number) => void })
   );
 };
 
-// ════════════ Lesson 4 & 5 — Follow a bearing / Full expedition ════════════
-const FollowExpedition = ({ checkpoints, onDone }: { checkpoints: number; onDone: (score: number, stars: number) => void }) => {
-  const WORLD = 360, STEP = 36, ROT = 15, TOL = 15, HIT = 38;
-  const newTarget = (px: number, py: number) => {
-    for (let i = 0; i < 40; i++) {
-      const x = 60 + Math.random() * (WORLD - 120), y = 60 + Math.random() * (WORLD - 120);
-      if (Math.hypot(x - px, y - py) > 130) return { x, y };
-    }
-    return { x: WORLD / 2 + 90, y: WORLD / 2 - 90 };
-  };
-  const [player, setPlayer] = useState({ x: WORLD / 2, y: WORLD / 2 });
+// ════════════ Lesson 4 & 5 — Ship voyage (blind navigation by orders) ════════════
+// No destination is shown on the map — like a real ship, you only get the
+// navigator's order (bearing + distance). Set the ordered heading, then sail
+// the required legs. Reach port after all legs.
+type Leg = { bearing: number; distance: number };
+const makeVoyage = (legs: number): Leg[] => {
+  const out: Leg[] = [];
+  let prev = -1;
+  for (let i = 0; i < legs; i++) {
+    let b = 0;
+    do { b = Math.floor(Math.random() * 8) * 45; } while (b === prev); // avoid repeating the same heading
+    prev = b;
+    out.push({ bearing: b, distance: 2 + Math.floor(Math.random() * 3) }); // 2–4 "miles"
+  }
+  return out;
+};
+
+const ShipVoyage = ({ legs, onDone }: { legs: number; onDone: (score: number, stars: number) => void }) => {
+  const WORLD = 360, STEP = 30, ROT = 15, TOL = 12;
+  const voyage = useMemo(() => makeVoyage(legs), [legs]);
+  const [ship, setShip] = useState({ x: WORLD / 2, y: WORLD - 50 });
   const [heading, setHeading] = useState(0);
-  const [target, setTarget] = useState(() => newTarget(WORLD / 2, WORLD / 2));
-  const [idx, setIdx] = useState(1);
+  const [legIdx, setLegIdx] = useState(0);
+  const [stepsLeft, setStepsLeft] = useState(voyage[0].distance);
   const [moves, setMoves] = useState(0);
+  const [offCourse, setOffCourse] = useState(0); // wrong-bearing sail attempts (penalty)
   const [score, setScore] = useState(0);
   const [done, setDone] = useState(false);
-  const [trail, setTrail] = useState<{ x: number; y: number }[]>([{ x: WORLD / 2, y: WORLD / 2 }]);
+  const [trail, setTrail] = useState<{ x: number; y: number }[]>([{ x: WORLD / 2, y: WORLD - 50 }]);
+  const [toast, setToast] = useState<string | null>('⚓ Портты тастап шықтыңыз. Штурман бұйрығын орындаңыз!');
 
-  const bearing = useMemo(() => bearingTo(player.x, player.y, target.x, target.y), [player, target]);
-  const delta = angleDiff(heading, bearing);
+  const order = voyage[legIdx];
+  const delta = angleDiff(heading, order.bearing);
   const aligned = Math.abs(delta) <= TOL;
   const px = (v: number) => `${(v / WORLD) * 100}%`;
 
-  const walk = () => {
-    if (done || !aligned) return;
+  const sail = () => {
+    if (done) return;
     setMoves((m) => m + 1);
     const rad = (heading * Math.PI) / 180;
-    setPlayer((p) => {
-      const nx = Math.max(20, Math.min(WORLD - 20, p.x + Math.sin(rad) * STEP));
-      const ny = Math.max(20, Math.min(WORLD - 20, p.y - Math.cos(rad) * STEP));
+    // The ship always moves in its heading — drifting off-course wastes a move
+    // and doesn't reduce the leg's remaining distance (teaches precision).
+    setShip((p) => {
+      const nx = Math.max(16, Math.min(WORLD - 16, p.x + Math.sin(rad) * STEP));
+      const ny = Math.max(16, Math.min(WORLD - 16, p.y - Math.cos(rad) * STEP));
       const next = { x: nx, y: ny };
-      setTrail((t) => [...t.slice(-30), next]);
-      if (Math.hypot(nx - target.x, ny - target.y) <= HIT) {
-        setScore((s) => s + 100);
-        if (idx >= checkpoints) {
-          setDone(true);
-          const eff = Math.max(0, checkpoints * 12 - moves) * 5;
-          const total = score + 100 + eff + 200;
-          const stars = moves <= checkpoints * 8 ? 3 : moves <= checkpoints * 12 ? 2 : 1;
-          setTimeout(() => onDone(total, stars), 1200);
-        } else { setIdx((c) => c + 1); setTarget(newTarget(nx, ny)); }
-      }
+      setTrail((t) => [...t.slice(-40), next]);
       return next;
     });
+    if (!aligned) {
+      setOffCourse((o) => o + 1);
+      setToast('⚠️ Курстан тыс! Алдымен бұйрылған азимутқа бұрылыңыз.');
+      setTimeout(() => setToast(null), 1400);
+      return;
+    }
+    const left = stepsLeft - 1;
+    setScore((s) => s + 25);
+    if (left <= 0) {
+      // Leg complete
+      if (legIdx + 1 >= voyage.length) {
+        setDone(true);
+        setToast('🏝 Портқа жеттіңіз!');
+        const accuracy = Math.max(0, 1 - offCourse / (legs * 3));
+        const eff = Math.round(accuracy * 300);
+        const stars = offCourse === 0 ? 3 : offCourse <= 2 ? 2 : 1;
+        setTimeout(() => onDone(score + 25 + eff + 200, stars), 1400);
+      } else {
+        const ni = legIdx + 1;
+        setLegIdx(ni);
+        setStepsLeft(voyage[ni].distance);
+        setToast(`✓ Аяқ ${legIdx + 1} аяқталды! Жаңа бұйрық.`);
+        setTimeout(() => setToast(null), 1400);
+      }
+    } else {
+      setStepsLeft(left);
+    }
   };
 
   return (
     <div className="flex flex-col items-center px-3 pb-4 max-w-md mx-auto">
       <div className="w-full flex justify-between text-xs mb-2">
-        <span className="text-stone-400">Бекет <b className="text-white">{idx}/{checkpoints}</b></span>
-        <span className="text-stone-400">Жүріс <b className="text-white">{moves}</b></span>
+        <span className="text-stone-400">Аяқ <b className="text-white">{legIdx + 1}/{voyage.length}</b></span>
+        <span className="text-stone-400">Жүзу <b className="text-white">{moves}</b></span>
         <span className="text-emerald-300 font-bold">🏆 {score}</span>
       </div>
-      <div className="relative w-full aspect-square rounded-2xl border-2 border-amber-700/30 overflow-hidden mb-3"
-        style={{ background: 'radial-gradient(ellipse at 30% 30%, #2d3a2f, #0e1815)' }}>
-        <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] font-black text-rose-300/80">С</div>
-        <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${WORLD} ${WORLD}`} preserveAspectRatio="none">
-          {trail.length > 1 && <polyline fill="none" stroke="#fde68a" strokeWidth="2" strokeDasharray="4 6" opacity="0.4" points={trail.map((p) => `${p.x},${p.y}`).join(' ')} />}
-          <line x1={player.x} y1={player.y} x2={target.x} y2={target.y} stroke={aligned ? '#34d399' : '#fb923c'} strokeWidth="1.5" strokeDasharray="3 4" opacity="0.4" />
-        </svg>
-        <div className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: px(target.x), top: px(target.y) }}>
-          <div className="text-2xl">⛳</div>
+
+      {/* Navigator's order — the ONLY guidance (no target on the map) */}
+      <div className="w-full rounded-2xl bg-gradient-to-r from-sky-700/40 to-indigo-700/30 border-2 border-sky-400/50 p-3 mb-3">
+        <div className="text-[10px] uppercase tracking-widest text-sky-300/80 mb-0.5">📜 Штурман бұйрығы</div>
+        <div className="text-base font-black text-white">
+          Азимут <span className="text-amber-300">{order.bearing}° ({DIR_KZ[bearingLabel(order.bearing)]})</span> · {stepsLeft} миль жүзіңіз
         </div>
-        <motion.div className="absolute -translate-x-1/2 -translate-y-1/2" animate={{ left: px(player.x), top: px(player.y) }} transition={{ type: 'spring', stiffness: 200, damping: 24 }}>
-          <motion.div animate={{ rotate: heading }} transition={{ type: 'spring', stiffness: 200, damping: 18 }}>
-            <div className="border-l-[9px] border-r-[9px] border-b-[16px] border-l-transparent border-r-transparent border-b-rose-400" style={{ filter: 'drop-shadow(0 0 5px rgba(244,63,94,0.6))' }} />
-          </motion.div>
+      </div>
+
+      {/* Ocean map — ship + wake only, NO destination marker */}
+      <div className="relative w-full aspect-square rounded-2xl border-2 border-sky-700/40 overflow-hidden mb-3"
+        style={{ background: 'linear-gradient(180deg, #0c4a6e 0%, #082f49 60%, #051f33 100%)' }}>
+        {/* Wave texture */}
+        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'repeating-linear-gradient(0deg, transparent 0 14px, rgba(255,255,255,0.15) 14px 15px)' }} />
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 text-[10px] font-black text-rose-300/80">С</div>
+        <div className="absolute bottom-1 left-1/2 -translate-x-1/2 text-[9px] text-sky-200/50">О</div>
+        <div className="absolute left-1 top-1/2 -translate-y-1/2 text-[9px] text-sky-200/50">Б</div>
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 text-[9px] text-sky-200/50">Ш</div>
+        <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${WORLD} ${WORLD}`} preserveAspectRatio="none">
+          {trail.length > 1 && <polyline fill="none" stroke="#7dd3fc" strokeWidth="2" strokeDasharray="3 5" opacity="0.5" points={trail.map((p) => `${p.x},${p.y}`).join(' ')} />}
+        </svg>
+        {/* Ship — rotated by heading */}
+        <motion.div className="absolute -translate-x-1/2 -translate-y-1/2 text-2xl" animate={{ left: px(ship.x), top: px(ship.y), rotate: heading }} transition={{ type: 'spring', stiffness: 200, damping: 22 }}>
+          🚢
         </motion.div>
+        {done && <div className="absolute inset-0 flex items-center justify-center text-5xl">🏝</div>}
       </div>
-      <div className="w-full grid grid-cols-3 gap-2 text-center text-xs mb-2">
-        <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-1.5"><div className="text-[9px] text-amber-300/70">МАҚСАТ</div><div className="font-black text-amber-200">{DIR_KZ[bearingLabel(bearing)]} {Math.round(bearing)}°</div></div>
-        <div className={clsx('rounded-lg p-1.5 border', aligned ? 'bg-emerald-500/15 border-emerald-400/50' : 'bg-rose-500/10 border-rose-500/30')}><div className="text-[9px] opacity-70">{aligned ? '✓ дайын' : (delta > 0 ? 'оңға' : 'солға')}</div><div className={clsx('font-black', aligned ? 'text-emerald-200' : 'text-rose-200')}>{aligned ? 'жүр' : `${Math.abs(Math.round(delta))}°`}</div></div>
-        <div className="rounded-lg bg-sky-500/10 border border-sky-500/30 p-1.5"><div className="text-[9px] text-sky-300/70">СІЗ</div><div className="font-black text-sky-200">{Math.round(heading)}°</div></div>
+
+      {/* Compass widget: your heading needle + ordered bearing (dotted) */}
+      <div className="w-full grid grid-cols-3 gap-2 text-center text-xs mb-2 items-center">
+        <div className="rounded-lg bg-amber-500/10 border border-amber-500/30 p-1.5">
+          <div className="text-[9px] text-amber-300/70">БҰЙРЫҚ</div>
+          <div className="font-black text-amber-200">{order.bearing}°</div>
+        </div>
+        <div className={clsx('rounded-lg p-1.5 border', aligned ? 'bg-emerald-500/15 border-emerald-400/50' : 'bg-rose-500/10 border-rose-500/30')}>
+          <div className="text-[9px] opacity-70">{aligned ? '✓ курста' : (delta > 0 ? 'оңға бұр' : 'солға бұр')}</div>
+          <div className={clsx('font-black', aligned ? 'text-emerald-200' : 'text-rose-200')}>{aligned ? 'жүзуге дайын' : `${Math.abs(Math.round(delta))}°`}</div>
+        </div>
+        <div className="rounded-lg bg-sky-500/10 border border-sky-500/30 p-1.5">
+          <div className="text-[9px] text-sky-300/70">КУРС</div>
+          <div className="font-black text-sky-200">{Math.round(heading)}°</div>
+        </div>
       </div>
+
+      {toast && <div className="text-xs text-sky-100 mb-2 text-center px-2">{toast}</div>}
+
       <div className="w-full grid grid-cols-3 gap-2">
-        <button onClick={() => !done && setHeading((h) => (h - ROT + 360) % 360)} className="py-4 rounded-xl bg-sky-500/40 border-2 border-sky-400 text-white font-bold text-xl">◀</button>
-        <button onClick={walk} disabled={done || !aligned} className={clsx('py-4 rounded-xl border-2 font-bold', aligned && !done ? 'bg-emerald-500 border-emerald-300 text-white animate-pulse' : 'bg-stone-800/40 border-stone-700 text-stone-500')}>⬆ ЖҮРУ</button>
-        <button onClick={() => !done && setHeading((h) => (h + ROT) % 360)} className="py-4 rounded-xl bg-sky-500/40 border-2 border-sky-400 text-white font-bold text-xl">▶</button>
+        <button onClick={() => !done && setHeading((h) => (h - ROT + 360) % 360)} className="py-4 rounded-xl bg-sky-500/40 border-2 border-sky-400 text-white font-bold text-xl">◀ руль</button>
+        <button onClick={sail} disabled={done} className={clsx('py-4 rounded-xl border-2 font-bold', aligned && !done ? 'bg-emerald-500 border-emerald-300 text-white animate-pulse' : 'bg-amber-600/40 border-amber-500 text-amber-100')}>⛵ ЖҮЗУ</button>
+        <button onClick={() => !done && setHeading((h) => (h + ROT) % 360)} className="py-4 rounded-xl bg-sky-500/40 border-2 border-sky-400 text-white font-bold text-xl">руль ▶</button>
+      </div>
+      <div className="text-[10px] text-stone-500 text-center mt-2">
+        💡 Мақсат картада көрінбейді — тек штурман бұйрығымен жүзесіз (нағыз теңіздегідей).
       </div>
     </div>
   );
@@ -386,8 +445,8 @@ const AcademyBoard = ({ onEnd, dailyMode }: { onEnd: (score: number, coins: numb
       if (selected === 1) return <Lesson1 onDone={done} />;
       if (selected === 2) return <Lesson2 onDone={done} />;
       if (selected === 3) return <Lesson3 onDone={done} />;
-      if (selected === 5) return <FollowExpedition checkpoints={5} onDone={done} />;
-      return <FollowExpedition checkpoints={3} onDone={done} />;
+      if (selected === 5) return <ShipVoyage legs={5} onDone={done} />;
+      return <ShipVoyage legs={3} onDone={done} />;
     };
     return <Exercise />;
   }
@@ -475,8 +534,8 @@ export default function BagdarGame() {
         '1️⃣ Бағыттар — С/Ш/О/Б және аралықтары\n' +
         '2️⃣ Градустар — 0°=С, 90°=Ш, 180°=О, 270°=Б\n' +
         '3️⃣ Азимут алу — мақсатқа бағытты оқу\n' +
-        '4️⃣ Азимутпен жүру — туралап, алға жүру\n' +
-        '5️⃣ Толық сапар — нағыз маршрут (емтихан)\n\n' +
+        '4️⃣ Теңіз сапары — штурман бұйрығымен жүзу (мақсат көрінбейді!)\n' +
+        '5️⃣ Ұзақ сапар — 5 аяқты маршрут (емтихан)\n\n' +
         '💡 Әр сабақ түсіндірмеден басталып, тапсырмамен бекітіледі. Жұлдыз жинап, келесі сабақты ашыңыз.',
       )}
     >
