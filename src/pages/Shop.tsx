@@ -519,7 +519,7 @@ const PaymentModal = ({
               <div className="text-sm font-semibold text-black">{t('pay_with_stars', 'Pay with Telegram Stars')}</div>
             </div>
             <div className="text-xs text-gray-700">
-              {planCode === 'basic' ? '140 ⭐' : planCode === 'pro' ? '175 ⭐' : '205 ⭐'} ·{' '}
+              {planCode === 'basic' ? '670 ⭐' : planCode === 'pro' ? '820 ⭐' : '950 ⭐'} ·{' '}
               {t('stars_fastpath', 'Instant unlock, no wallet required.')}
             </div>
             <button
@@ -1926,15 +1926,15 @@ const STARS_QUICK_BUY_PRODUCTS: Array<{
   highlight?: boolean;
 }> = [
   // === Monthly VIP (low barrier to entry) ===
-  { code: 'vip_basic_monthly',   label: 'BASIC / ай',    description: 'Айлық жазылым',                 stars: 15,  emoji: '🔹' },
-  { code: 'vip_pro_monthly',     label: 'PRO / ай',      description: 'Айлық жазылым',                 stars: 20,  emoji: '🔸' },
-  { code: 'vip_premium_monthly', label: 'PREMIUM / ай',  description: 'Айлық жазылым',                 stars: 25,  emoji: '⭐' },
+  { code: 'vip_basic_monthly',   label: 'BASIC / ай',    description: '≈ 990 ₸ айлық',                 stars: 90,  emoji: '🔹' },
+  { code: 'vip_pro_monthly',     label: 'PRO / ай',      description: '≈ 1 190 ₸ айлық',               stars: 110, emoji: '🔸' },
+  { code: 'vip_premium_monthly', label: 'PREMIUM / ай',  description: '≈ 1 390 ₸ айлық',               stars: 125, emoji: '⭐' },
   // === Family (highlighted) ===
-  { code: 'vip_family',          label: 'FAMILY жылдық', description: '4 адамға PREMIUM · −40%/орын',  stars: 360, emoji: '👨‍👩‍👧‍👦', highlight: true },
+  { code: 'vip_family',          label: 'FAMILY жылдық', description: '4 адамға PREMIUM · −40%/орын',  stars: 2300, emoji: '👨‍👩‍👧‍👦', highlight: true },
   // === Bundles (highlighted) ===
-  { code: 'bundle_starter',     label: 'Starter Pack',      description: 'VIP Basic + Rare Case + 100 $FOCUS · −17%', stars: 220, emoji: '🎁', highlight: true },
-  { code: 'bundle_pro',         label: 'Pro Pack',          description: 'VIP Pro + 3 Rare + 300 $FOCUS · −19%',     stars: 450, emoji: '🎁', highlight: true },
-  { code: 'bundle_legend',      label: 'Legend Pack',       description: 'VIP Premium + 5 Legendary + 500 $FOCUS · −20%', stars: 800, emoji: '👑', highlight: true },
+  { code: 'bundle_starter',     label: 'Starter Pack',      description: 'VIP Basic + Rare Case + 100 $FOCUS · −15%', stars: 750, emoji: '🎁', highlight: true },
+  { code: 'bundle_pro',         label: 'Pro Pack',          description: 'VIP Pro + 3 Rare + 300 $FOCUS · −18%',     stars: 1100, emoji: '🎁', highlight: true },
+  { code: 'bundle_legend',      label: 'Legend Pack',       description: 'VIP Premium + 5 Legendary + 500 $FOCUS · −20%', stars: 1500, emoji: '👑', highlight: true },
   // === Single items ===
   { code: 'case_basic',         label: 'Basic Case',        description: 'Mystery skin / booster',        stars: 25,  emoji: '📦' },
   { code: 'case_rare',          label: 'Rare Case',         description: 'Better odds',                   stars: 50,  emoji: '🎁' },

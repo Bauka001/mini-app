@@ -149,16 +149,18 @@ const TON_TOPUP_KZT_PER_TON = Math.max(1, Number(process.env.TON_TOPUP_KZT_PER_T
 // TON plan pricing. Corrected from the old 10/12.5/15 TON (which was ~4× the
 // KZT-equivalent at ~$5/TON and made TON payment uneconomical) to amounts that
 // roughly match the Stars/KZT price points. ~$5/TON → BASIC ≈ $20, PREMIUM ≈ $30.
+// TON amounts mirror the displayed tenge at ~$5/TON (~2 625 ₸/TON), so the
+// TON charge ≈ the same KZT value the user sees for the Stars price.
 const TON_PLAN_CATALOG = {
-  // Yearly
-  basic:   { tierCode: 'basic',   durationDays: 365, amountNano: 4_000_000_000, displayAmount: '4 TON' },
-  pro:     { tierCode: 'pro',     durationDays: 365, amountNano: 5_000_000_000, displayAmount: '5 TON' },
-  premium: { tierCode: 'premium', durationDays: 365, amountNano: 6_000_000_000, displayAmount: '6 TON' },
-  family:  { tierCode: 'premium', durationDays: 365, amountNano: 10_000_000_000, displayAmount: '10 TON', familySeats: 4 },
-  // Monthly (≈ 1/8 of yearly → yearly is the better deal, nudges annual)
-  basic_monthly:   { tierCode: 'basic',   durationDays: 30, amountNano: 600_000_000,   displayAmount: '0.6 TON' },
-  pro_monthly:     { tierCode: 'pro',     durationDays: 30, amountNano: 750_000_000,   displayAmount: '0.75 TON' },
-  premium_monthly: { tierCode: 'premium', durationDays: 30, amountNano: 900_000_000,   displayAmount: '0.9 TON' },
+  // Yearly — 6 990 / 8 590 / 9 990 ₸
+  basic:   { tierCode: 'basic',   durationDays: 365, amountNano: 2_700_000_000, displayAmount: '2.7 TON' },
+  pro:     { tierCode: 'pro',     durationDays: 365, amountNano: 3_300_000_000, displayAmount: '3.3 TON' },
+  premium: { tierCode: 'premium', durationDays: 365, amountNano: 3_800_000_000, displayAmount: '3.8 TON' },
+  family:  { tierCode: 'premium', durationDays: 365, amountNano: 9_000_000_000, displayAmount: '9 TON', familySeats: 4 },
+  // Monthly — 990 / 1 190 / 1 390 ₸
+  basic_monthly:   { tierCode: 'basic',   durationDays: 30, amountNano: 400_000_000, displayAmount: '0.4 TON' },
+  pro_monthly:     { tierCode: 'pro',     durationDays: 30, amountNano: 450_000_000, displayAmount: '0.45 TON' },
+  premium_monthly: { tierCode: 'premium', durationDays: 30, amountNano: 550_000_000, displayAmount: '0.55 TON' },
 };
 const DEFAULT_TON_PROMO_CODE_CATALOG = {
   STARTUP: { code: 'STARTUP', discountPercent: 10, planCodes: ['basic', 'pro', 'premium'], requiredStartParam: 'startup' },

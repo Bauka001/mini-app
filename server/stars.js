@@ -19,19 +19,22 @@
 
 const crypto = require('crypto');
 
+// Stars amounts are set so the real Telegram Stars cost (~10.5₸/⭐ retail)
+// roughly equals the tenge price displayed in the Shop. Customer pays the
+// full displayed tenge value in Stars (no 50₸/⭐ phantom markup).
 const STARS_PRODUCT_CATALOG = {
-  // === VIP plans (yearly) ===
-  vip_basic:    { kind: 'vip',      tierCode: 'basic',     durationDays: 365, amountStars: 140, label: 'BASIC Yearly',   description: 'BASIC VIP — 365 days' },
-  vip_pro:      { kind: 'vip',      tierCode: 'pro',       durationDays: 365, amountStars: 180, label: 'PRO Yearly',     description: 'PRO VIP — 365 days' },
-  vip_premium:  { kind: 'vip',      tierCode: 'premium',   durationDays: 365, amountStars: 200, label: 'PREMIUM Yearly', description: 'PREMIUM VIP — 365 days' },
+  // === VIP plans (yearly) — display: 6 990 / 8 590 / 9 990 ₸ ===
+  vip_basic:    { kind: 'vip',      tierCode: 'basic',     durationDays: 365, amountStars: 670, label: 'BASIC Yearly',   description: 'BASIC VIP — 365 days' },
+  vip_pro:      { kind: 'vip',      tierCode: 'pro',       durationDays: 365, amountStars: 820, label: 'PRO Yearly',     description: 'PRO VIP — 365 days' },
+  vip_premium:  { kind: 'vip',      tierCode: 'premium',   durationDays: 365, amountStars: 950, label: 'PREMIUM Yearly', description: 'PREMIUM VIP — 365 days' },
 
-  // === VIP plans (monthly) — lower barrier to entry; yearly shows "Save %" ===
-  vip_basic_monthly:   { kind: 'vip', tierCode: 'basic',   durationDays: 30, amountStars: 15, label: 'BASIC Monthly',   description: 'BASIC VIP — 30 days' },
-  vip_pro_monthly:     { kind: 'vip', tierCode: 'pro',     durationDays: 30, amountStars: 20, label: 'PRO Monthly',     description: 'PRO VIP — 30 days' },
-  vip_premium_monthly: { kind: 'vip', tierCode: 'premium', durationDays: 30, amountStars: 25, label: 'PREMIUM Monthly', description: 'PREMIUM VIP — 30 days' },
+  // === VIP plans (monthly) — display: 990 / 1 190 / 1 390 ₸ ===
+  vip_basic_monthly:   { kind: 'vip', tierCode: 'basic',   durationDays: 30, amountStars: 90,  label: 'BASIC Monthly',   description: 'BASIC VIP — 30 days' },
+  vip_pro_monthly:     { kind: 'vip', tierCode: 'pro',     durationDays: 30, amountStars: 110, label: 'PRO Monthly',     description: 'PRO VIP — 30 days' },
+  vip_premium_monthly: { kind: 'vip', tierCode: 'premium', durationDays: 30, amountStars: 125, label: 'PREMIUM Monthly', description: 'PREMIUM VIP — 30 days' },
 
-  // === Family plan (yearly) — one purchase, owner + up to 3 linked members ===
-  vip_family: { kind: 'vip', tierCode: 'premium', durationDays: 365, amountStars: 360, familySeats: 4, label: 'FAMILY Yearly', description: 'PREMIUM VIP for 4 (owner + 3) — 365 days, ~40% off per seat' },
+  // === Family plan (yearly) — display: 23 990 ₸ · 4 premium seats ===
+  vip_family: { kind: 'vip', tierCode: 'premium', durationDays: 365, amountStars: 2300, familySeats: 4, label: 'FAMILY Yearly', description: 'PREMIUM VIP for 4 (owner + 3) — 365 days, ~40% off per seat' },
 
   // === Mystery cases ===
   case_basic:     { kind: 'case', caseId: 'basic_case',     amountStars: 25,  label: 'Basic Case',     description: 'One Basic Mystery Case' },
@@ -55,8 +58,8 @@ const STARS_PRODUCT_CATALOG = {
   // === Bundle deals (multi-grant: VIP + cases + $FOCUS at a single discounted price) ===
   // Discount vs buying each item individually is shown in the UI as savedStars.
   bundle_starter: {
-    kind: 'bundle', amountStars: 220, label: 'Starter Pack',
-    description: 'Basic VIP (1 year) + 1 Rare Case + 100 $FOCUS — ~17% off',
+    kind: 'bundle', amountStars: 750, label: 'Starter Pack',
+    description: 'Basic VIP (1 year) + 1 Rare Case + 100 $FOCUS — ~15% off',
     grants: [
       { type: 'vip', tierCode: 'basic', durationDays: 365 },
       { type: 'case', caseId: 'rare_case', qty: 1 },
@@ -64,8 +67,8 @@ const STARS_PRODUCT_CATALOG = {
     ],
   },
   bundle_pro: {
-    kind: 'bundle', amountStars: 450, label: 'Pro Pack',
-    description: 'Pro VIP (1 year) + 3 Rare Cases + 300 $FOCUS — ~19% off',
+    kind: 'bundle', amountStars: 1100, label: 'Pro Pack',
+    description: 'Pro VIP (1 year) + 3 Rare Cases + 300 $FOCUS — ~18% off',
     grants: [
       { type: 'vip', tierCode: 'pro', durationDays: 365 },
       { type: 'case', caseId: 'rare_case', qty: 3 },
@@ -73,7 +76,7 @@ const STARS_PRODUCT_CATALOG = {
     ],
   },
   bundle_legend: {
-    kind: 'bundle', amountStars: 800, label: 'Legend Pack',
+    kind: 'bundle', amountStars: 1500, label: 'Legend Pack',
     description: 'Premium VIP (1 year) + 5 Legendary Cases + 500 $FOCUS — ~20% off',
     grants: [
       { type: 'vip', tierCode: 'premium', durationDays: 365 },
