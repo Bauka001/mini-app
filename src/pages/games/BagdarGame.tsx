@@ -390,9 +390,17 @@ const ShipVoyage = ({ legs, onDone }: { legs: number; onDone: (score: number, st
         <svg className="absolute inset-0 w-full h-full" viewBox={`0 0 ${WORLD} ${WORLD}`} preserveAspectRatio="none">
           {trail.length > 1 && <polyline fill="none" stroke="#7dd3fc" strokeWidth="2" strokeDasharray="3 5" opacity="0.5" points={trail.map((p) => `${p.x},${p.y}`).join(' ')} />}
         </svg>
-        {/* Ship — rotated by heading */}
-        <motion.div className="absolute -translate-x-1/2 -translate-y-1/2 text-2xl" animate={{ left: px(ship.x), top: px(ship.y), rotate: heading }} transition={{ type: 'spring', stiffness: 200, damping: 22 }}>
-          🚢
+        {/* Ship — a directional boat marker whose bow points the heading.
+            (An emoji can't convey heading; this SVG hull's pointed bow does.) */}
+        <motion.div className="absolute -translate-x-1/2 -translate-y-1/2" animate={{ left: px(ship.x), top: px(ship.y) }} transition={{ type: 'spring', stiffness: 200, damping: 22 }}>
+          <motion.svg width="34" height="34" viewBox="0 0 24 24" animate={{ rotate: heading }} transition={{ type: 'spring', stiffness: 200, damping: 18 }}
+            style={{ filter: 'drop-shadow(0 0 6px rgba(251,191,36,0.6))' }}>
+            {/* hull: pointed bow at top (heading), wide stern at bottom */}
+            <path d="M12 1 C15 6 17 12 16 21 L8 21 C7 12 9 6 12 1 Z" fill="#fbbf24" stroke="#78350f" strokeWidth="1.2" />
+            {/* wake/water line accent + cabin */}
+            <rect x="10" y="9" width="4" height="6" rx="1.5" fill="#78350f" />
+            <circle cx="12" cy="5" r="1.3" fill="#fff" opacity="0.8" />
+          </motion.svg>
         </motion.div>
         {done && <div className="absolute inset-0 flex items-center justify-center text-5xl">🏝</div>}
       </div>
