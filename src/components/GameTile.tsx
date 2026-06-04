@@ -29,6 +29,7 @@ export const GAME_DESIGN: Record<string, Design> = {
   '/game/2048':         { gradient: 'from-yellow-400 to-amber-600',   glow: 'shadow-yellow-500/40',  emoji: '🔟' },
   '/game/dala-tarih':   { gradient: 'from-amber-500 to-yellow-700',   glow: 'shadow-amber-600/40',   emoji: '🏛', isNew: true },
   '/game/bagdar':       { gradient: 'from-teal-400 to-cyan-600',      glow: 'shadow-teal-500/40',    emoji: '🧭', isNew: true },
+  '/game/tabigat':      { gradient: 'from-sky-400 to-indigo-600',     glow: 'shadow-sky-500/40',     emoji: '🌅', isNew: true },
 };
 
 // One shared daily-challenge fetch across all tiles (module-level cache).

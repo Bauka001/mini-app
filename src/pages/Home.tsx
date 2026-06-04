@@ -47,6 +47,7 @@ const gameButtons = [
   { title: 'game_2048', icon: Grid2x2, path: '/game/2048' },
   { title: 'game_dala_tarih', icon: Brain, path: '/game/dala-tarih' },
   { title: 'game_bagdar', icon: Eye, path: '/game/bagdar' },
+  { title: 'game_tabigat', icon: Eye, path: '/game/tabigat' },
 ];
 
 const vipGamePaths = new Set(['/game/schulte', '/game/stroop']);

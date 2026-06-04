@@ -5290,6 +5290,7 @@ const DAILY_GAMES = [
   { id: 'stroop',       label: 'Stroop' },
   { id: 'dala-tarih',   label: 'Дала тарихы' },
   { id: 'bagdar',       label: 'Бағдар' },
+  { id: 'tabigat',      label: 'Табиғи навигация' },
   { id: '2048',         label: '2048' },
   { id: 'pairs',        label: 'Жұптар' },
   { id: 'odd-one',      label: 'Артығын тап' },

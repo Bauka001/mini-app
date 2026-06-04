@@ -59,6 +59,7 @@ const PairsGame = lazyWithRetry(() => import('./pages/games/PairsGame'));
 const Merge2048Game = lazyWithRetry(() => import('./pages/games/Merge2048Game'));
 const DalaTarihGame = lazyWithRetry(() => import('./pages/games/DalaTarihGame'));
 const BagdarGame = lazyWithRetry(() => import('./pages/games/BagdarGame'));
+const TabigatGame = lazyWithRetry(() => import('./pages/games/TabigatGame'));
 
 type HistoryEntry = {
   gameId: string;
@@ -103,6 +104,7 @@ const workoutOnboardingGames: WorkoutOnboardingGame[] = [
   { id: '2048', routeId: '2048', historyIds: ['2048'] },
   { id: 'dala-tarih', routeId: 'dala-tarih', historyIds: ['dala-tarih'] },
   { id: 'bagdar', routeId: 'bagdar', historyIds: ['bagdar'] },
+  { id: 'tabigat', routeId: 'tabigat', historyIds: ['tabigat'] },
 ];
 
 const getTodayKey = () => new Date().toISOString().split('T')[0];
@@ -450,6 +452,7 @@ function AppRoutes() {
           <Route path="/game/2048" element={<Suspense fallback={<RouteFallback />}><Merge2048Game /></Suspense>} />
           <Route path="/game/dala-tarih" element={<Suspense fallback={<RouteFallback />}><DalaTarihGame /></Suspense>} />
           <Route path="/game/bagdar" element={<Suspense fallback={<RouteFallback />}><BagdarGame /></Suspense>} />
+          <Route path="/game/tabigat" element={<Suspense fallback={<RouteFallback />}><TabigatGame /></Suspense>} />
 
           <Route
             path="/admin"
