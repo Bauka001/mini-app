@@ -117,6 +117,26 @@ export interface FamilyStatus {
 }
 export const getFamilyStatus = () => getJson<FamilyStatus>('/family/status');
 
+// === Daily Challenge ===
+export interface DailyLeaderboardRow { rank: number; name: string; score: number; isMe: boolean }
+export interface DailyChallenge {
+  date: string;
+  gameId: string;
+  gameLabel: string;
+  played: boolean;
+  myScore: number | null;
+  myRank: number | null;
+  totalPlayers: number;
+  streak: number;
+  rewardFocus: number;
+  rewardCoins: number;
+  leaderboard: DailyLeaderboardRow[];
+}
+export const getDailyChallenge = () => getJson<DailyChallenge>('/daily-challenge/today');
+export const submitDailyChallenge = (score: number) =>
+  postJson<{ ok: true; firstToday: boolean; bestScore: number; streak: number; rewardedFocus: number; rewardedCoins: number }>(
+    '/daily-challenge/submit', { score });
+
 /**
  * Open Telegram's Stars invoice in the WebApp and poll status until paid/expired.
  * Returns the final status.

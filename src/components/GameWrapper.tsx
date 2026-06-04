@@ -207,6 +207,20 @@ export const GameWrapper: React.FC<GameWrapperProps> = ({ title, instructions, c
     setLastScore(score);
     setLastCoins(earnedCoins);
 
+    // Daily Challenge: if launched with ?daily=1, submit the numeric score to
+    // today's leaderboard. extractScore handles the mixed score format
+    // (numbers, '23.45s', etc.). Fire-and-forget — never blocks the result UI.
+    try {
+      const params = new URLSearchParams(location.search);
+      if (params.get('daily') === '1') {
+        import('./GameResult').then(({ extractScore }) => {
+          import('../utils/starsApi').then(({ submitDailyChallenge }) => {
+            submitDailyChallenge(extractScore(score)).catch(() => {});
+          });
+        });
+      }
+    } catch { /* non-fatal */ }
+
     if (earnedCoins > 0) {
       hapticFeedback.notification('success');
       soundManager.playWin();

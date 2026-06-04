@@ -14,6 +14,7 @@ import { clsx } from 'clsx';
 import { DailyRewardModal } from '../components/DailyRewardModal';
 import { NotificationsModal } from '../components/NotificationsModal';
 import { GuestBanner } from '../components/GuestBanner';
+import { DailyChallengeCard } from '../components/DailyChallengeCard';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { hapticFeedback } from '../utils/telegram';
 import type { Variants } from 'framer-motion';
@@ -813,6 +814,9 @@ const Home = () => {
         transition={{ delay: 0.1 }}
         className="px-4 pt-4 space-y-3"
       >
+        {/* Daily Challenge — primary daily-retention hook (self-contained mx-4) */}
+        <div className="-mx-4"><DailyChallengeCard /></div>
+
         {/* Premium prize banner from upstream */}
         <motion.button
           whileTap={{ scale: 0.98 }}

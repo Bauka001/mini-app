@@ -5279,6 +5279,164 @@ app.get('/family/status', readLimiter, async (req, res) => {
   }
 });
 
+// === Daily Challenge ===
+// One designated game per day (deterministic from the date), a fair daily
+// leaderboard, +50 $FOCUS / +200 coins on first completion, and a
+// consecutive-day streak computed from the score rows themselves.
+const DAILY_GAMES = [
+  { id: 'schulte',      label: 'Schulte 5×5' },
+  { id: 'math',         label: 'Математика' },
+  { id: 'memory',       label: 'Есте сақтау' },
+  { id: 'stroop',       label: 'Stroop' },
+  { id: 'sozkoman',     label: 'Сөзкоман' },
+  { id: 'dala-tarih',   label: 'Дала тарихы' },
+  { id: 'togyzkumalak', label: 'Тоғызқұмалақ' },
+  { id: 'bagdar',       label: 'Бағдар' },
+  { id: '2048',         label: '2048' },
+  { id: 'pairs',        label: 'Жұптар' },
+  { id: 'odd-one',      label: 'Артығын тап' },
+];
+const DAILY_REWARD_FOCUS = 50;
+const DAILY_REWARD_COINS = 200;
+
+// Almaty (UTC+5, no DST) day boundary so the challenge resets at local midnight.
+const almatyToday = () => new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10);
+const dailyGameForDate = (dateStr) => {
+  const days = Math.floor(Date.parse(dateStr + 'T00:00:00Z') / 86_400_000);
+  const idx = ((days % DAILY_GAMES.length) + DAILY_GAMES.length) % DAILY_GAMES.length;
+  return DAILY_GAMES[idx];
+};
+const computeDailyStreak = (datesDesc) => {
+  if (!datesDesc || !datesDesc.length) return 0;
+  const set = new Set(datesDesc.map((d) => `${d}`.slice(0, 10)));
+  const today = almatyToday();
+  const yesterday = new Date(Date.now() + 5 * 3600_000 - 86_400_000).toISOString().slice(0, 10);
+  if (!set.has(today) && !set.has(yesterday)) return 0;
+  let cursor = new Date((set.has(today) ? today : yesterday) + 'T00:00:00Z');
+  let streak = 0;
+  while (set.has(cursor.toISOString().slice(0, 10))) {
+    streak++;
+    cursor = new Date(cursor.getTime() - 86_400_000);
+  }
+  return streak;
+};
+
+app.get('/daily-challenge/today', readLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+    const uid = Number(access.identity.userId);
+    const date = almatyToday();
+    const game = dailyGameForDate(date);
+
+    const { data: mine } = await supabase
+      .from('daily_challenge_scores')
+      .select('score').eq('user_telegram_id', uid).eq('challenge_date', date).maybeSingle();
+
+    const { data: board } = await supabase
+      .from('daily_challenge_scores')
+      .select('user_telegram_id, score').eq('challenge_date', date)
+      .order('score', { ascending: false }).limit(10);
+
+    const ids = (board || []).map((b) => Number(b.user_telegram_id));
+    const names = {};
+    if (ids.length) {
+      const { data: us } = await supabase.from('users').select('telegram_id, first_name, username').in('telegram_id', ids);
+      (us || []).forEach((u) => { names[Number(u.telegram_id)] = u.username ? '@' + u.username : (u.first_name || 'User'); });
+    }
+    const leaderboard = (board || []).map((b, i) => ({
+      rank: i + 1,
+      name: names[Number(b.user_telegram_id)] || `Player`,
+      score: b.score,
+      isMe: Number(b.user_telegram_id) === uid,
+    }));
+
+    const { count: totalPlayers } = await supabase
+      .from('daily_challenge_scores').select('id', { count: 'exact', head: true }).eq('challenge_date', date);
+    let myRank = null;
+    if (mine) {
+      const { count: better } = await supabase
+        .from('daily_challenge_scores').select('id', { count: 'exact', head: true })
+        .eq('challenge_date', date).gt('score', mine.score);
+      myRank = (better || 0) + 1;
+    }
+
+    const { data: hist } = await supabase
+      .from('daily_challenge_scores').select('challenge_date')
+      .eq('user_telegram_id', uid).order('challenge_date', { ascending: false }).limit(90);
+    const streak = computeDailyStreak((hist || []).map((h) => h.challenge_date));
+
+    return res.json({
+      date, gameId: game.id, gameLabel: game.label,
+      played: !!mine, myScore: mine?.score ?? null, myRank,
+      totalPlayers: totalPlayers || 0, streak,
+      rewardFocus: DAILY_REWARD_FOCUS, rewardCoins: DAILY_REWARD_COINS,
+      leaderboard,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'daily_today_error' });
+  }
+});
+
+app.post('/daily-challenge/submit', writeLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) return;
+    const access = await resolveRequestAccess(req, res);
+    if (!access) return;
+    const uid = Number(access.identity.userId);
+    const score = Math.max(0, Math.floor(Number(req.body?.score) || 0));
+    const date = almatyToday();
+    const game = dailyGameForDate(date);
+    const nowIso = new Date().toISOString();
+
+    const { data: existing } = await supabase
+      .from('daily_challenge_scores')
+      .select('id, score').eq('user_telegram_id', uid).eq('challenge_date', date).maybeSingle();
+
+    const firstToday = !existing;
+    let bestScore = score;
+    if (existing) {
+      bestScore = Math.max(existing.score, score);
+      if (score > existing.score) {
+        await supabase.from('daily_challenge_scores').update({ score, updated_at: nowIso }).eq('id', existing.id);
+      }
+    } else {
+      await supabase.from('daily_challenge_scores').insert({
+        user_telegram_id: uid, challenge_date: date, game_id: game.id, score,
+      });
+    }
+
+    // Reward only on the first completion of the day.
+    let rewardedFocus = 0, rewardedCoins = 0;
+    if (firstToday) {
+      try {
+        await supabase.from('focus_token_ledger').insert({
+          user_telegram_id: uid, delta: DAILY_REWARD_FOCUS, reason: 'daily_challenge',
+          reference_id: `daily:${date}`, metadata: { gameId: game.id },
+        });
+        rewardedFocus = DAILY_REWARD_FOCUS;
+      } catch (e) { if (!isMissingTableError(e)) console.warn('[daily] focus reward failed', e?.message); }
+      try {
+        const { data: u } = await supabase.from('users').select('coins').eq('telegram_id', uid).maybeSingle();
+        if (u) {
+          await supabase.from('users').update({ coins: (u.coins || 0) + DAILY_REWARD_COINS, updated_at: nowIso }).eq('telegram_id', uid);
+          rewardedCoins = DAILY_REWARD_COINS;
+        }
+      } catch (e) { if (!isMissingTableError(e)) console.warn('[daily] coin reward failed', e?.message); }
+    }
+
+    const { data: hist } = await supabase
+      .from('daily_challenge_scores').select('challenge_date')
+      .eq('user_telegram_id', uid).order('challenge_date', { ascending: false }).limit(90);
+    const streak = computeDailyStreak((hist || []).map((h) => h.challenge_date));
+
+    return res.json({ ok: true, firstToday, bestScore, streak, rewardedFocus, rewardedCoins });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'daily_submit_error' });
+  }
+});
+
 // Mount Admin Panel V2 (browser-based: /api/admin-v2/*)
 try {
   const registerAdminV2 = require("./admin-v2");
