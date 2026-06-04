@@ -57,9 +57,7 @@ const MemoryGame = lazyWithRetry(() => import('./pages/games/MemoryGame'));
 const OddOneOutGame = lazyWithRetry(() => import('./pages/games/OddOneOutGame'));
 const PairsGame = lazyWithRetry(() => import('./pages/games/PairsGame'));
 const Merge2048Game = lazyWithRetry(() => import('./pages/games/Merge2048Game'));
-const SozkomanGame = lazyWithRetry(() => import('./pages/games/SozkomanGame'));
 const DalaTarihGame = lazyWithRetry(() => import('./pages/games/DalaTarihGame'));
-const TogyzkumalakGame = lazyWithRetry(() => import('./pages/games/TogyzkumalakGame'));
 const BagdarGame = lazyWithRetry(() => import('./pages/games/BagdarGame'));
 
 type HistoryEntry = {
@@ -103,9 +101,7 @@ const workoutOnboardingGames: WorkoutOnboardingGame[] = [
   { id: 'odd-one', routeId: 'odd-one', historyIds: ['odd_one_out'] },
   { id: 'stroop', routeId: 'stroop', historyIds: ['stroop'] },
   { id: '2048', routeId: '2048', historyIds: ['2048'] },
-  { id: 'sozkoman', routeId: 'sozkoman', historyIds: ['sozkoman'] },
   { id: 'dala-tarih', routeId: 'dala-tarih', historyIds: ['dala-tarih'] },
-  { id: 'togyzkumalak', routeId: 'togyzkumalak', historyIds: ['togyzkumalak'] },
   { id: 'bagdar', routeId: 'bagdar', historyIds: ['bagdar'] },
 ];
 
@@ -452,9 +448,7 @@ function AppRoutes() {
           <Route path="/game/odd-one" element={<Suspense fallback={<RouteFallback />}><OddOneOutGame /></Suspense>} />
           <Route path="/game/pairs" element={<Suspense fallback={<RouteFallback />}><PairsGame /></Suspense>} />
           <Route path="/game/2048" element={<Suspense fallback={<RouteFallback />}><Merge2048Game /></Suspense>} />
-          <Route path="/game/sozkoman" element={<Suspense fallback={<RouteFallback />}><SozkomanGame /></Suspense>} />
           <Route path="/game/dala-tarih" element={<Suspense fallback={<RouteFallback />}><DalaTarihGame /></Suspense>} />
-          <Route path="/game/togyzkumalak" element={<Suspense fallback={<RouteFallback />}><TogyzkumalakGame /></Suspense>} />
           <Route path="/game/bagdar" element={<Suspense fallback={<RouteFallback />}><BagdarGame /></Suspense>} />
 
           <Route

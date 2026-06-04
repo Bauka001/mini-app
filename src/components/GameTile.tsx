@@ -27,9 +27,7 @@ export const GAME_DESIGN: Record<string, Design> = {
   '/game/pairs':        { gradient: 'from-pink-400 to-rose-600',      glow: 'shadow-pink-500/40',    emoji: '🃏' },
   '/game/odd-one':      { gradient: 'from-cyan-400 to-sky-600',       glow: 'shadow-cyan-500/40',    emoji: '🔍' },
   '/game/2048':         { gradient: 'from-yellow-400 to-amber-600',   glow: 'shadow-yellow-500/40',  emoji: '🔟' },
-  '/game/sozkoman':     { gradient: 'from-blue-400 to-indigo-600',    glow: 'shadow-blue-500/40',    emoji: '🔠', isNew: true },
   '/game/dala-tarih':   { gradient: 'from-amber-500 to-yellow-700',   glow: 'shadow-amber-600/40',   emoji: '🏛', isNew: true },
-  '/game/togyzkumalak': { gradient: 'from-orange-400 to-amber-700',   glow: 'shadow-orange-500/40',  emoji: '🪨', isNew: true },
   '/game/bagdar':       { gradient: 'from-teal-400 to-cyan-600',      glow: 'shadow-teal-500/40',    emoji: '🧭', isNew: true },
 };
 
