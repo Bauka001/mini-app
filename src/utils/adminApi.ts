@@ -358,7 +358,7 @@ export const submitGameResult = (payload: GameSubmitPayload) =>
 
 export const getUserMe = () => postJson<UsersMeResponse>('/users/me');
 
-export const joinTournamentRecord = (paymentMethod: 'vip' | 'stars' | 'ton') =>
+export const joinTournamentRecord = (paymentMethod: 'vip' | 'stars' | 'ton' | 'free') =>
   postJson<TournamentJoinResponse>('/tournaments/join', { paymentMethod });
 
 export const syncUserToServer = (user: Record<string, any>) =>

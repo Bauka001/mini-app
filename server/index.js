@@ -2416,14 +2416,9 @@ app.post('/tournaments/join', writeLimiter, async (req, res) => {
     }
 
     const userTelegramId = access.identity.userId;
-    const paymentMethod =
-      req.body?.paymentMethod === 'vip'
-        ? 'vip'
-        : req.body?.paymentMethod === 'ton'
-          ? 'ton'
-          : req.body?.paymentMethod === 'stars'
-            ? 'stars'
-            : null;
+    const paymentMethod = ['vip', 'ton', 'stars', 'free'].includes(req.body?.paymentMethod)
+      ? req.body.paymentMethod
+      : null;
 
     if (!paymentMethod) {
       return res.status(400).json({ error: 'Invalid paymentMethod' });
@@ -2449,47 +2444,33 @@ app.post('/tournaments/join', writeLimiter, async (req, res) => {
 
     const weekKey = getServerTournamentWeek();
 
-    if (paymentMethod === 'vip') {
-      if (userRow.plan !== VIP_TOURNAMENT_PLAN || !isPlanActive(userRow)) {
-        return res.status(403).json({
-          error: 'VIP free entry requires an active premium plan',
-          reason: 'plan_inactive',
-        });
-      }
-
-      const { data: existing, error: existingError } = await supabase
-        .from('tournament_entries')
-        .select('id')
-        .eq('user_telegram_id', userTelegramId)
-        .eq('week_key', weekKey)
-        .eq('payment_method', 'vip')
-        .maybeSingle();
-
-      if (existingError && !isMissingTableError(existingError)) {
-        throw existingError;
-      }
-      if (existing) {
-        return res.status(409).json({
-          error: 'VIP free entry already used for this week',
-          reason: 'already_joined',
-        });
-      }
-
-      const { error: insertError } = await supabase.from('tournament_entries').insert({
-        user_telegram_id: userTelegramId,
-        week_key: weekKey,
-        payment_method: 'vip',
+    // VIP free entry remains a premium perk — require an active plan for it.
+    // 'free'/'stars'/'ton' are open to everyone (skill-based league).
+    if (paymentMethod === 'vip' && (userRow.plan !== VIP_TOURNAMENT_PLAN || !isPlanActive(userRow))) {
+      return res.status(403).json({
+        error: 'VIP free entry requires an active premium plan',
+        reason: 'plan_inactive',
       });
-
-      if (insertError && !isMissingTableError(insertError)) {
-        throw insertError;
-      }
-
-      return res.json({ ok: true, weekKey, paymentMethod: 'vip' });
     }
 
-    // Paid methods (stars/ton): record the entry. Settlement is out of scope —
-    // a separate payment webhook would mark it confirmed.
+    // Idempotent: one entry per user per week regardless of method. Use limit(1)
+    // (not maybeSingle) so any legacy duplicate rows don't make this throw, and
+    // a repeated join is a harmless no-op instead of creating duplicates (which
+    // would later break the maybeSingle-style lookup in /games/submit).
+    const { data: existingRows, error: existingError } = await supabase
+      .from('tournament_entries')
+      .select('id')
+      .eq('user_telegram_id', userTelegramId)
+      .eq('week_key', weekKey)
+      .limit(1);
+
+    if (existingError && !isMissingTableError(existingError)) {
+      throw existingError;
+    }
+    if (existingRows && existingRows.length > 0) {
+      return res.json({ ok: true, weekKey, paymentMethod, alreadyJoined: true });
+    }
+
     const { error: insertError } = await supabase.from('tournament_entries').insert({
       user_telegram_id: userTelegramId,
       week_key: weekKey,
@@ -2649,16 +2630,16 @@ app.post('/games/submit', writeLimiter, async (req, res) => {
     let tournamentRecorded = false;
     try {
       const weekKey = getServerTournamentWeek();
-      const { data: tournamentEntry, error: entryError } = await supabase
+      const { data: entryRows, error: entryError } = await supabase
         .from('tournament_entries')
         .select('id')
         .eq('user_telegram_id', userTelegramId)
         .eq('week_key', weekKey)
-        .maybeSingle();
+        .limit(1);
 
       if (entryError && !isMissingTableError(entryError)) {
         console.error('[Tournaments] entry lookup failed:', entryError);
-      } else if (tournamentEntry) {
+      } else if (entryRows && entryRows.length > 0) {
         const { count, error: countError } = await supabase
           .from('tournament_scores')
           .select('*', { count: 'exact', head: true })

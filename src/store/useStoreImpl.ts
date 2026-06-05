@@ -968,7 +968,7 @@ export const useStore = create<UserState>()(
         // optimistic local join and surface the reason. Ticket-based entries
         // are validated locally only (no server endpoint for ticket join).
         if (isSupabaseConfigured && state.user.id && paymentMethod !== 'ticket') {
-          void joinTournamentRecord(paymentMethod as 'vip' | 'ton')
+          void joinTournamentRecord(paymentMethod as 'vip' | 'ton' | 'free')
             .catch((err) => {
               console.error('[Tournaments] Join rejected by server:', err);
               const message = err instanceof Error ? err.message : 'Tournament join rejected';

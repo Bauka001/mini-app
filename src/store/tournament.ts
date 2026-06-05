@@ -1,30 +1,33 @@
 import { calculateBrainScoreMetrics } from '../utils/brainScore';
 import type { TournamentPaymentMethod, TournamentState, UserState } from './useStore';
-import { toDateKey } from './analytics';
 
 export const TOURNAMENT_ENTRY_FEE = 50;
 export const TOURNAMENT_GAMES_LIMIT = 3;
 const VIP_TOURNAMENT_PLAN: UserState['plan'] = 'premium';
 
+// Weekly league: Monday 00:00 → Sunday 23:59 (UTC), open ALL week. The week key
+// is the Monday ISO date and MUST match the server's getServerTournamentWeek
+// (server/index.js) so client join-state, score recording and the leaderboard
+// all key off the same week. (Previously the client keyed to Friday and only
+// opened Fri–Sun, which never matched the server's Monday key — a real bug.)
 export const getTournamentSchedule = (now = new Date()) => {
-  const friday = new Date(now);
-  friday.setHours(0, 0, 0, 0);
-  friday.setDate(friday.getDate() - ((friday.getDay() + 2) % 7));
-
-  const sunday = new Date(friday);
-  sunday.setDate(friday.getDate() + 2);
-  sunday.setHours(23, 59, 59, 999);
-
-  const nextFriday = new Date(now);
-  nextFriday.setHours(0, 0, 0, 0);
-  nextFriday.setDate(nextFriday.getDate() + (((5 - now.getDay() + 7) % 7) || 7));
+  const d = new Date(now);
+  const day = d.getUTCDay(); // 0=Sun .. 6=Sat
+  const mondayUTC = new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((day + 6) % 7))
+  );
+  const sundayEnd = new Date(mondayUTC);
+  sundayEnd.setUTCDate(mondayUTC.getUTCDate() + 6);
+  sundayEnd.setUTCHours(23, 59, 59, 999);
+  const nextMonday = new Date(mondayUTC);
+  nextMonday.setUTCDate(mondayUTC.getUTCDate() + 7);
 
   return {
-    weekKey: toDateKey(friday),
-    isOpen: now >= friday && now <= sunday,
-    startsAtISO: friday.toISOString(),
-    endsAtISO: sunday.toISOString(),
-    nextStartsAtISO: nextFriday.toISOString(),
+    weekKey: mondayUTC.toISOString().slice(0, 10),
+    isOpen: true, // the league runs the whole week
+    startsAtISO: mondayUTC.toISOString(),
+    endsAtISO: sundayEnd.toISOString(),
+    nextStartsAtISO: nextMonday.toISOString(),
   };
 };
 
@@ -36,7 +39,8 @@ export const normalizeTournamentState = (
   paymentMethod:
     tournament?.paymentMethod === 'ton' ||
     tournament?.paymentMethod === 'vip' ||
-    tournament?.paymentMethod === 'ticket'
+    tournament?.paymentMethod === 'ticket' ||
+    tournament?.paymentMethod === 'free'
       ? tournament.paymentMethod
       : null,
   games: Array.isArray(tournament?.games)
@@ -148,9 +152,17 @@ export const buildJoinTournamentOutcome = (
     };
   }
 
+  if (paymentMethod === 'free') {
+    return {
+      success: true,
+      message: 'Тегін қатысу белсендірілді! Апта ішінде 3 ойын ойнап, ұпай жинаңыз.',
+      statePatch: { tournament },
+    };
+  }
+
   return {
     success: true,
-    message: `${TOURNAMENT_ENTRY_FEE} TON арқылы кіру дайын. Енді 3 ойын ойнаңыз.`,
+    message: 'Қатысу дайын. Енді апта ішінде 3 ойын ойнаңыз.',
     statePatch: { tournament },
   };
 };
