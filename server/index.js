@@ -2489,6 +2489,80 @@ app.post('/tournaments/join', writeLimiter, async (req, res) => {
   }
 });
 
+// ───────── App-visit tracking ─────────
+// Records EVERY mini-app entry — verified Telegram users AND anonymous
+// visitors (no id / opened outside Telegram). Public + best-effort: it must
+// NEVER fail the client. The Telegram identity is verified from initData when
+// present, so 'tg:<id>' rows are trustworthy; everyone else is stored under
+// their client-persisted 'anon:<uuid>'.
+app.post('/track/visit', authLimiter, async (req, res) => {
+  try {
+    if (!supabase) return res.json({ ok: false, reason: 'no_db' });
+
+    let verifiedId = null;
+    try {
+      const identity = await resolveIdentity(getInitData(req));
+      if (identity?.ok && identity.userId) verifiedId = String(identity.userId);
+    } catch {
+      /* anonymous visitor — keep going */
+    }
+
+    const b = req.body || {};
+    const clip = (v, n = 120) => (typeof v === 'string' && v.length ? v.slice(0, n) : null);
+    const anonId = clip(b.anonId, 64);
+    const key = verifiedId ? `tg:${verifiedId}` : anonId ? `anon:${anonId}` : null;
+    if (!key) return res.json({ ok: false, reason: 'no_key' });
+
+    const meta = {
+      telegram_id: verifiedId ? Number(verifiedId) : null,
+      anon_id: anonId,
+      is_verified: Boolean(verifiedId),
+      username: clip(b.username, 64),
+      first_name: clip(b.firstName, 64),
+      last_name: clip(b.lastName, 64),
+      language_code: clip(b.languageCode, 12),
+      platform: clip(b.platform, 24),
+      app_version: clip(b.appVersion, 40),
+      start_param: clip(b.startParam, 64),
+      is_premium: typeof b.isPremium === 'boolean' ? b.isPremium : null,
+      referrer: clip(b.referrer, 200),
+    };
+
+    const nowIso = new Date().toISOString();
+    const { data: existing, error: selErr } = await supabase
+      .from('app_visitors')
+      .select('id, visit_count')
+      .eq('visitor_key', key)
+      .maybeSingle();
+
+    if (selErr) {
+      if (isMissingTableError(selErr)) return res.json({ ok: false, reason: 'no_table' });
+      throw selErr;
+    }
+
+    if (existing) {
+      // Bump the counter; only overwrite known meta with fresh non-null values
+      // so a later anonymous re-visit can't wipe a previously-captured name.
+      const setFields = { visit_count: (existing.visit_count || 0) + 1, last_seen_at: nowIso };
+      for (const [k, v] of Object.entries(meta)) {
+        if (v !== null && v !== undefined) setFields[k] = v;
+      }
+      await supabase.from('app_visitors').update(setFields).eq('id', existing.id);
+    } else {
+      const { error: insErr } = await supabase
+        .from('app_visitors')
+        .insert({ visitor_key: key, ...meta, visit_count: 1, first_seen_at: nowIso, last_seen_at: nowIso });
+      // 23505 = a concurrent insert won the race; harmless no-op.
+      if (insErr && insErr.code !== '23505' && !isMissingTableError(insErr)) throw insErr;
+    }
+
+    return res.json({ ok: true });
+  } catch (error) {
+    // Tracking must NEVER break the app — swallow and report softly.
+    return res.json({ ok: false, reason: error instanceof Error ? error.message : 'track_error' });
+  }
+});
+
 app.post('/games/submit', writeLimiter, async (req, res) => {
   try {
     if (!ensureSupabase(res)) {
@@ -3177,6 +3251,68 @@ app.post('/admin/dashboard', adminLimiter, async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'dashboard_error' });
+  }
+});
+
+app.post('/admin/visitors', adminLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+    const access = await resolveRequestAccess(req, res, { adminOnly: true });
+    if (!access) {
+      return;
+    }
+
+    const since24 = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const since7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const [totalVisitors, verified, anonymous, registeredUsers, active24, active7, recentRes] =
+      await Promise.all([
+        countRows('app_visitors'),
+        countRows('app_visitors', (q) => q.eq('is_verified', true)),
+        countRows('app_visitors', (q) => q.eq('is_verified', false)),
+        countRows('users'),
+        countRows('app_visitors', (q) => q.gte('last_seen_at', since24)),
+        countRows('app_visitors', (q) => q.gte('last_seen_at', since7)),
+        supabase
+          .from('app_visitors')
+          .select(
+            'visitor_key, telegram_id, is_verified, username, first_name, language_code, platform, app_version, start_param, is_premium, visit_count, first_seen_at, last_seen_at'
+          )
+          .order('last_seen_at', { ascending: false })
+          .limit(100),
+      ]);
+
+    const recent = recentRes?.error
+      ? isMissingTableError(recentRes.error)
+        ? []
+        : (() => {
+            throw recentRes.error;
+          })()
+      : (recentRes.data || []).map((r) => ({
+          visitorKey: r.visitor_key,
+          telegramId: r.telegram_id,
+          isVerified: r.is_verified,
+          username: r.username,
+          firstName: r.first_name,
+          languageCode: r.language_code,
+          platform: r.platform,
+          appVersion: r.app_version,
+          startParam: r.start_param,
+          isPremium: r.is_premium,
+          visitCount: r.visit_count,
+          firstSeenAt: r.first_seen_at,
+          lastSeenAt: r.last_seen_at,
+        }));
+
+    return res.json({
+      ok: true,
+      stats: { totalVisitors, verified, anonymous, registeredUsers, active24, active7 },
+      recent,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'visitors_error' });
   }
 });
 

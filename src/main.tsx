@@ -57,6 +57,10 @@ registerPwa();
 // available to tag events. No-ops when VITE_SENTRY_DSN is unset.
 import('./utils/monitoring').then(({ initMonitoring }) => initMonitoring());
 
+// Record this app entry — who opened the mini app (verified Telegram users and
+// anonymous visitors alike). Deferred + best-effort; never blocks the boot path.
+import('./utils/visitTracker').then(({ trackVisitOnce }) => trackVisitOnce()).catch(() => {});
+
 // === Chunk-load self-healer ==================================================
 // After a deploy, the index.html the user has cached in Telegram WebView still
 // references the previous build's chunk hashes (e.g. /assets/Shop-DsHpx8cu.js).

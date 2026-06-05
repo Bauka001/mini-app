@@ -20,6 +20,7 @@ const AdminLayout = lazy(() => import('./components/admin/AdminLayout').then((m)
 const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard').then((m) => ({ default: m.AdminDashboard })));
 const AdminUsers = lazyWithRetry(() => import('./pages/admin/AdminUsers').then((m) => ({ default: m.AdminUsers })));
 const AdminGames = lazyWithRetry(() => import('./pages/admin/AdminGames').then((m) => ({ default: m.AdminGames })));
+const AdminVisitors = lazyWithRetry(() => import('./pages/admin/AdminVisitors').then((m) => ({ default: m.AdminVisitors })));
 const AdminTasks = lazyWithRetry(() => import('./pages/admin/AdminTasks'));
 const AdminSettings = lazyWithRetry(() => import('./pages/admin/AdminSettings'));
 const AdminPanel = lazyWithRetry(() => import('./pages/AdminPanel'));
@@ -467,6 +468,7 @@ function AppRoutes() {
             <Route index element={<Suspense fallback={<AdminFallback />}><AdminDashboard /></Suspense>} />
             <Route path="users" element={<Suspense fallback={<AdminFallback />}><AdminUsers /></Suspense>} />
             <Route path="games" element={<Suspense fallback={<AdminFallback />}><AdminGames /></Suspense>} />
+            <Route path="visitors" element={<Suspense fallback={<AdminFallback />}><AdminVisitors /></Suspense>} />
             <Route path="tasks" element={<Suspense fallback={<AdminFallback />}><AdminTasks /></Suspense>} />
             <Route path="settings" element={<Suspense fallback={<AdminFallback />}><AdminSettings /></Suspense>} />
             <Route path="tickets" element={<Suspense fallback={<AdminFallback />}><AdminPanel /></Suspense>} />

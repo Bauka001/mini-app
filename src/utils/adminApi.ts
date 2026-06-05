@@ -293,6 +293,42 @@ export const getAdminSession = () => postJson<AdminSession>('/admin/session');
 
 export const getAdminDashboard = () => postJson<AdminDashboardResponse>('/admin/dashboard');
 
+export interface AdminVisitorRow {
+  visitorKey: string;
+  telegramId: number | null;
+  isVerified: boolean;
+  username: string | null;
+  firstName: string | null;
+  languageCode: string | null;
+  platform: string | null;
+  appVersion: string | null;
+  startParam: string | null;
+  isPremium: boolean | null;
+  visitCount: number;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export interface AdminVisitorsResponse {
+  ok: boolean;
+  stats: {
+    totalVisitors: number;
+    verified: number;
+    anonymous: number;
+    registeredUsers: number;
+    active24: number;
+    active7: number;
+  };
+  recent: AdminVisitorRow[];
+}
+
+export const getAdminVisitors = () => postJson<AdminVisitorsResponse>('/admin/visitors');
+
+// Best-effort app-entry ping (fire-and-forget). initData is attached by
+// postJson, so the server can verify the Telegram identity when present.
+export const trackAppVisit = (payload: Record<string, unknown>) =>
+  postJson<{ ok: boolean }>('/track/visit', payload);
+
 export const getAdminUsers = () => postJson<AdminUsersResponse>('/admin/users');
 
 export const setUserBlockedState = (telegramId: number, blocked: boolean, reason?: string) =>
