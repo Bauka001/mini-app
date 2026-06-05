@@ -15,6 +15,7 @@ import { DailyRewardModal } from '../components/DailyRewardModal';
 import { NotificationsModal } from '../components/NotificationsModal';
 import { GuestBanner } from '../components/GuestBanner';
 import { DailyChallengeCard } from '../components/DailyChallengeCard';
+import { WatchAdCard } from '../components/WatchAdCard';
 import { GameTile, useDailyGameId } from '../components/GameTile';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { hapticFeedback } from '../utils/telegram';
@@ -248,8 +249,6 @@ const Home = () => {
   const gems = useStore(state => state.gems);
   const streak = useStore(state => state.streak);
   const history = useStore(state => state.history);
-  const _watchAd = useStore(state => state.watchAd);
-  void _watchAd;
   const dailyRewardStreak = useStore(state => state.dailyRewardStreak);
   const weeklyChallenge = useStore(state => state.weeklyChallenge);
   const weekendEvent = useStore(state => state.weekendEvent);
@@ -817,6 +816,9 @@ const Home = () => {
       >
         {/* Daily Challenge — primary daily-retention hook (self-contained mx-4) */}
         <div className="-mx-4"><DailyChallengeCard /></div>
+
+        {/* Rewarded ad — earn free coins (biggest mini-app monetization lever) */}
+        <WatchAdCard />
 
         {/* Premium prize banner from upstream */}
         <motion.button

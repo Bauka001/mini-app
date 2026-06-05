@@ -4,6 +4,7 @@ import { Heart, PlayCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { useStore } from '../../store/useStoreImpl';
 import { useTranslation } from 'react-i18next';
 import { payWithStars } from '../../utils/starsApi';
+import { showRewardedAd } from '../../utils/ads';
 import WebApp from '@twa-dev/sdk';
 
 interface ReviveModalProps {
@@ -54,24 +55,21 @@ export const ReviveModal: React.FC<ReviveModalProps> = ({
     }
   };
 
-  const handleWatchAd = () => {
+  const handleWatchAd = async () => {
     setIsWatchingAd(true);
-    // Simulate Ad duration
-    setTimeout(() => {
+    try {
+      // Show a real rewarded ad (Adsgram). Only restore + revive when the user
+      // actually watched it to the reward point; a skip/close grants nothing.
+      const result = await showRewardedAd();
+      if (result.done) {
+        restoreHp(10);
+        onRevive();
+      } else {
+        WebApp.HapticFeedback?.notificationOccurred?.('warning');
+      }
+    } finally {
       setIsWatchingAd(false);
-      restoreHp(10); // Full restore or just enough? User said "10 hp берсін"
-      // Optionally auto-revive or let user click revive now that they have HP
-      // Let's auto revive if they were out of HP, or just give HP.
-      // User said "get recovery by watching ad".
-      // Let's give HP and then call onRevive? 
-      // Or just give HP and let them choose?
-      // "hp лар жеңілген кезде восттановлениеге көмектеседі" implies HP is currency.
-      // So ad gives HP. Then they spend HP to revive.
-      // But for better UX, if they watch ad specifically in this modal, maybe we just revive them for free?
-      // Or give them HP and revive.
-      // Let's give 10 HP as requested and revive immediately.
-      onRevive();
-    }, 3000);
+    }
   };
 
   if (!isOpen) return null;
