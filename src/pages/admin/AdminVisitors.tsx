@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { clsx } from 'clsx';
-import { RefreshCcw, Users, UserCheck, UserX, Activity, CalendarDays, Crown, Megaphone, Send } from 'lucide-react';
+import { RefreshCcw, Users, UserCheck, UserX, Activity, CalendarDays, Crown, Megaphone, Send, UserPlus } from 'lucide-react';
 import { getAdminVisitors, AdminVisitorsResponse, AdminVisitorRow, adminMessageUser, adminBroadcast } from '../../utils/adminApi';
+
+// A visitor is "new" if we first saw them within the last 24h.
+const isNew = (firstSeenIso: string) => {
+  const t = new Date(firstSeenIso).getTime();
+  return Number.isFinite(t) && Date.now() - t < 24 * 60 * 60 * 1000;
+};
 
 const fmtDate = (iso: string) => {
   try {
@@ -153,6 +159,8 @@ export const AdminVisitors = () => {
         <StatCard icon={Crown} label="Тіркелген" value={s?.registeredUsers ?? 0} tone="bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300" />
         <StatCard icon={Activity} label="Белсенді (24с)" value={s?.active24 ?? 0} tone="bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" />
         <StatCard icon={CalendarDays} label="Белсенді (7к)" value={s?.active7 ?? 0} tone="bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300" />
+        <StatCard icon={UserPlus} label="🆕 Жаңа (24с)" value={s?.newToday ?? 0} tone="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" />
+        <StatCard icon={UserPlus} label="🆕 Жаңа (7к)" value={s?.new7d ?? 0} tone="bg-lime-100 text-lime-700 dark:bg-lime-900/40 dark:text-lime-300" />
       </div>
 
       {/* Recent visitors */}
@@ -189,6 +197,9 @@ export const AdminVisitors = () => {
                       <div className="font-semibold text-gray-900 dark:text-white">
                         {v.firstName || v.username || (v.isVerified ? `ID ${v.telegramId}` : 'Аноним')}
                         {v.isPremium && <span title="Telegram Premium"> ⭐</span>}
+                        {isNew(v.firstSeenAt) && (
+                          <span className="ml-1.5 rounded bg-green-500/20 px-1.5 py-0.5 text-[10px] font-black text-green-600 dark:text-green-400">🆕 ЖАҢА</span>
+                        )}
                       </div>
                       <div className="text-xs text-gray-400">
                         {v.username ? `@${v.username}` : v.isVerified ? `tg:${v.telegramId}` : 'no id'}

@@ -3330,7 +3330,7 @@ app.post('/admin/visitors', adminLimiter, async (req, res) => {
     const since24 = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const since7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    const [totalVisitors, verified, anonymous, registeredUsers, active24, active7, recentRes] =
+    const [totalVisitors, verified, anonymous, registeredUsers, active24, active7, newToday, new7d, recentRes] =
       await Promise.all([
         countRows('app_visitors'),
         countRows('app_visitors', (q) => q.eq('is_verified', true)),
@@ -3338,6 +3338,9 @@ app.post('/admin/visitors', adminLimiter, async (req, res) => {
         countRows('users'),
         countRows('app_visitors', (q) => q.gte('last_seen_at', since24)),
         countRows('app_visitors', (q) => q.gte('last_seen_at', since7)),
+        // NEW accounts = first time we ever saw them in this window.
+        countRows('app_visitors', (q) => q.gte('first_seen_at', since24)),
+        countRows('app_visitors', (q) => q.gte('first_seen_at', since7)),
         supabase
           .from('app_visitors')
           .select(
@@ -3371,7 +3374,7 @@ app.post('/admin/visitors', adminLimiter, async (req, res) => {
 
     return res.json({
       ok: true,
-      stats: { totalVisitors, verified, anonymous, registeredUsers, active24, active7 },
+      stats: { totalVisitors, verified, anonymous, registeredUsers, active24, active7, newToday, new7d },
       recent,
     });
   } catch (error) {

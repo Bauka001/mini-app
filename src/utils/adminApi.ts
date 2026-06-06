@@ -318,6 +318,8 @@ export interface AdminVisitorsResponse {
     registeredUsers: number;
     active24: number;
     active7: number;
+    newToday: number;
+    new7d: number;
   };
   recent: AdminVisitorRow[];
 }
