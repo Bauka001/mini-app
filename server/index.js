@@ -24,7 +24,7 @@ const {
   optionalHttpUrl,
   handleValidationError,
 } = require('./lib/validate');
-const { sendMessage, answerPreCheckoutQuery } = require('./lib/telegramApi');
+const { sendMessage, answerPreCheckoutQuery, callBotApi } = require('./lib/telegramApi');
 const {
   PLAN_CATALOGUE,
   parseInvoicePayload,
@@ -1294,7 +1294,9 @@ app.post('/telegram/webhook', async (req, res) => {
       const isStart = text.trim().split(/\s+/)[0] === '/start';
       const playButton = { text: '🚀 Запустить', web_app: { url: miniAppUrl } };
       if (isStart) {
-        await sendMessage(
+        // Send the welcome with the launch button, then PIN it so it stays at
+        // the top/middle of the chat every time the user opens the bot.
+        const sent = await sendMessage(
           chatId,
           [
             '🧠 <b>Focus</b> — миыңды күнде 5 минут жаттықтыр!',
@@ -1305,7 +1307,17 @@ app.post('/telegram/webhook', async (req, res) => {
             'Төмендегі батырманы бас 👇',
           ].join('\n'),
           { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[playButton]] } }
-        ).catch((err) => console.warn('[telegram webhook] /start sendMessage failed:', err.message));
+        ).catch((err) => {
+          console.warn('[telegram webhook] /start sendMessage failed:', err.message);
+          return null;
+        });
+        if (sent?.message_id) {
+          await callBotApi('pinChatMessage', {
+            chat_id: chatId,
+            message_id: sent.message_id,
+            disable_notification: true,
+          }).catch((err) => console.warn('[telegram webhook] pin failed:', err.message));
+        }
       } else {
         // Any other text → a short nudge with the same launch button.
         await sendMessage(
