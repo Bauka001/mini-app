@@ -324,6 +324,25 @@ export interface AdminVisitorsResponse {
 
 export const getAdminVisitors = () => postJson<AdminVisitorsResponse>('/admin/visitors');
 
+export const adminMessageUser = (telegramId: number | string, text: string) =>
+  postJson<{ ok: boolean; error?: string; code?: number | null }>('/admin/message-user', { telegramId, text });
+
+export interface AdminBroadcastResponse {
+  ok: boolean;
+  total: number;
+  attempted: number;
+  sent: number;
+  unreachable: number;
+  failed: number;
+  capped: boolean;
+}
+export const adminBroadcast = (text: string, opts?: { pin?: boolean; button?: boolean }) =>
+  postJson<AdminBroadcastResponse>('/admin/broadcast', {
+    text,
+    pin: opts?.pin ?? false,
+    button: opts?.button ?? true,
+  });
+
 // Best-effort app-entry ping (fire-and-forget). initData is attached by
 // postJson, so the server can verify the Telegram identity when present.
 export const trackAppVisit = (payload: Record<string, unknown>) =>

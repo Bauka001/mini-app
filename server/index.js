@@ -1174,6 +1174,48 @@ async function getFeedbackById(feedbackId) {
   return feedbacks.find((item) => item.id === feedbackId) || null;
 }
 
+// Record anyone who interacts with the BOT (sent any message / pressed Start)
+// into app_visitors as a verified 'tg:<id>' row, so the admin "Кірулер" list
+// includes everyone who entered the bot — not only those who opened the app.
+// Best-effort; never throws into the webhook.
+async function recordBotEntry(from) {
+  if (!supabase || !from || !from.id) return;
+  try {
+    const key = `tg:${from.id}`;
+    const nowIso = new Date().toISOString();
+    const clip = (v, n) => (typeof v === 'string' && v.length ? v.slice(0, n) : null);
+    const meta = {
+      telegram_id: Number(from.id),
+      is_verified: true,
+      username: clip(from.username, 64),
+      first_name: clip(from.first_name, 64),
+      last_name: clip(from.last_name, 64),
+      language_code: clip(from.language_code, 12),
+      is_premium: typeof from.is_premium === 'boolean' ? from.is_premium : null,
+      platform: 'bot',
+    };
+    const { data: existing } = await supabase
+      .from('app_visitors')
+      .select('id, visit_count')
+      .eq('visitor_key', key)
+      .maybeSingle();
+    if (existing) {
+      const setFields = { visit_count: (existing.visit_count || 0) + 1, last_seen_at: nowIso };
+      for (const [k, v] of Object.entries(meta)) if (v !== null && v !== undefined) setFields[k] = v;
+      await supabase.from('app_visitors').update(setFields).eq('id', existing.id);
+    } else {
+      const { error } = await supabase
+        .from('app_visitors')
+        .insert({ visitor_key: key, ...meta, visit_count: 1, first_seen_at: nowIso, last_seen_at: nowIso });
+      if (error && error.code !== '23505' && !isMissingTableError(error)) {
+        console.warn('[bot entry] insert failed:', error.message);
+      }
+    }
+  } catch (e) {
+    console.warn('[bot entry] record failed:', e && e.message ? e.message : e);
+  }
+}
+
 // Telegram bot webhook. Telegram POSTs every update here when the webhook is
 // registered with `setWebhook`. Auth is by `secret_token` — Telegram sends it
 // in the X-Telegram-Bot-Api-Secret-Token header on every call. No initData,
@@ -1289,6 +1331,8 @@ app.post('/telegram/webhook', async (req, res) => {
     // button that launches the Mini App. Telegram recommends responding to /start.
     const text = update.message?.text;
     const chatId = update.message?.chat?.id;
+    // Save EVERY person who interacts with the bot (even once) → admin list.
+    if (update.message?.from?.id) void recordBotEntry(update.message.from);
     if (typeof text === 'string' && chatId) {
       const miniAppUrl = process.env.MINI_APP_URL || 'https://focus-game-omega.vercel.app';
       const isStart = text.trim().split(/\s+/)[0] === '/start';
@@ -3332,6 +3376,105 @@ app.post('/admin/visitors', adminLimiter, async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ error: error instanceof Error ? error.message : 'visitors_error' });
+  }
+});
+
+// Send a direct message to one user from the admin panel.
+app.post('/admin/message-user', adminLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+    const access = await resolveRequestAccess(req, res, { adminOnly: true });
+    if (!access) {
+      return;
+    }
+    const targetId = `${req.body?.telegramId || ''}`.trim();
+    const text = `${req.body?.text || ''}`.trim().slice(0, 4000);
+    if (!targetId || !text) {
+      return res.status(400).json({ error: 'telegramId and text are required' });
+    }
+    try {
+      // Plain text (no parse_mode) so arbitrary admin input can't break parsing.
+      await sendMessage(targetId, text);
+      await writeAuditLog(access.identity.userId, 'admin', 'message_user', 'user', targetId, { length: text.length }).catch(() => {});
+      return res.json({ ok: true });
+    } catch (e) {
+      // 403 = user never started the bot / blocked it.
+      return res.json({ ok: false, error: (e.response && e.response.description) || e.message, code: e.statusCode || null });
+    }
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'message_user_error' });
+  }
+});
+
+// Broadcast to all bot users from the admin panel. Synchronous + capped to stay
+// within the serverless time budget; for larger audiences use scripts/broadcast.mjs.
+app.post('/admin/broadcast', adminLimiter, async (req, res) => {
+  try {
+    if (!ensureSupabase(res)) {
+      return;
+    }
+    const access = await resolveRequestAccess(req, res, { adminOnly: true });
+    if (!access) {
+      return;
+    }
+    const text = `${req.body?.text || ''}`.trim().slice(0, 4000);
+    if (!text) {
+      return res.status(400).json({ error: 'text is required' });
+    }
+    const pin = Boolean(req.body?.pin);
+    const withButton = req.body?.button !== false;
+    const miniAppUrl =
+      process.env.MINI_APP_URL && `${process.env.MINI_APP_URL}`.startsWith('https')
+        ? process.env.MINI_APP_URL
+        : 'https://focus-game-omega.vercel.app';
+    const extra = withButton
+      ? { reply_markup: { inline_keyboard: [[{ text: '🚀 Запустить', web_app: { url: miniAppUrl } }]] } }
+      : {};
+
+    const ids = new Set();
+    const [visRes, usrRes] = await Promise.all([
+      supabase.from('app_visitors').select('telegram_id').eq('is_verified', true),
+      supabase.from('users').select('telegram_id'),
+    ]);
+    for (const r of visRes?.data || []) if (r.telegram_id) ids.add(String(r.telegram_id));
+    for (const r of usrRes?.data || []) if (r.telegram_id) ids.add(String(r.telegram_id));
+    const list = [...ids];
+
+    const CAP = 50;
+    const slice = list.slice(0, CAP);
+    let sent = 0;
+    let blocked = 0;
+    let failed = 0;
+    for (const id of slice) {
+      try {
+        const msg = await sendMessage(id, text, extra);
+        sent++;
+        if (pin && msg && msg.message_id) {
+          await callBotApi('pinChatMessage', {
+            chat_id: id,
+            message_id: msg.message_id,
+            disable_notification: true,
+          }).catch(() => {});
+        }
+      } catch (e) {
+        if (e.statusCode === 403) blocked++;
+        else failed++;
+      }
+    }
+    await writeAuditLog(access.identity.userId, 'admin', 'broadcast', 'all', null, { attempted: slice.length, sent }).catch(() => {});
+    return res.json({
+      ok: true,
+      total: list.length,
+      attempted: slice.length,
+      sent,
+      unreachable: blocked,
+      failed,
+      capped: list.length > CAP,
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error instanceof Error ? error.message : 'broadcast_error' });
   }
 });
 
