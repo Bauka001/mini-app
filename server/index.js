@@ -1285,27 +1285,34 @@ app.post('/telegram/webhook', async (req, res) => {
       return;
     }
 
-    // /start (and any plain text message) — friendly English welcome with a
-    // link to launch the Mini App. Telegram recommends responding to /start.
+    // /start (and any plain text message) — Kazakh welcome with a big inline
+    // button that launches the Mini App. Telegram recommends responding to /start.
     const text = update.message?.text;
     const chatId = update.message?.chat?.id;
     if (typeof text === 'string' && chatId) {
+      const miniAppUrl = process.env.MINI_APP_URL || 'https://focus-game-omega.vercel.app';
       const isStart = text.trim().split(/\s+/)[0] === '/start';
+      const playButton = { text: '🎮 Ойынды бастау', web_app: { url: miniAppUrl } };
       if (isStart) {
-        const miniAppUrl = process.env.MINI_APP_URL || 'https://focus-game-nine.vercel.app';
         await sendMessage(
           chatId,
           [
-            'Welcome to Focus — a daily brain-training Mini App.',
+            '🧠 <b>Focus</b> — миыңды күнде 5 минут жаттықтыр!',
             '',
-            `Tap below to launch: ${miniAppUrl}`,
+            '🎯 10 ойын · 🏆 Чемпиондар лигасы · 🎁 Күнделікті сыйлық',
+            '🔥 Streak жина, рейтингте көтеріл, жүлде ұт!',
+            '',
+            'Төмендегі батырманы бас 👇',
           ].join('\n'),
-          {
-            reply_markup: {
-              inline_keyboard: [[{ text: 'Open Focus', web_app: { url: miniAppUrl } }]],
-            },
-          }
+          { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[playButton]] } }
         ).catch((err) => console.warn('[telegram webhook] /start sendMessage failed:', err.message));
+      } else {
+        // Any other text → a short nudge with the same launch button.
+        await sendMessage(
+          chatId,
+          '🎮 Ойнау үшін батырманы бас 👇',
+          { reply_markup: { inline_keyboard: [[playButton]] } }
+        ).catch((err) => console.warn('[telegram webhook] reply sendMessage failed:', err.message));
       }
     }
   } catch (err) {

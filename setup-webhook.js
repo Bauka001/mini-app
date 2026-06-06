@@ -64,3 +64,28 @@ try {
   console.error('❌ Network error:', error.message);
   process.exit(1);
 }
+
+// Persistent "Launch game" menu button — the button next to the message input
+// that every user sees; tapping it opens the Mini App directly.
+const MINI_APP_URL = loadEnv('MINI_APP_URL') || '';
+if (MINI_APP_URL) {
+  try {
+    const mb = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setChatMenuButton`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        menu_button: { type: 'web_app', text: '🎮 Ойнау', web_app: { url: MINI_APP_URL } },
+      }),
+    });
+    const mbData = await mb.json();
+    if (mbData.ok) {
+      console.log(`✅ Menu button set → "🎮 Ойнау" opens ${MINI_APP_URL}`);
+    } else {
+      console.error('❌ setChatMenuButton failed:', mbData.description);
+    }
+  } catch (error) {
+    console.error('❌ Menu button network error:', error.message);
+  }
+} else {
+  console.warn('⚠️  MINI_APP_URL not set — skipping persistent menu button');
+}
