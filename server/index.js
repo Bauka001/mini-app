@@ -1292,7 +1292,7 @@ app.post('/telegram/webhook', async (req, res) => {
     if (typeof text === 'string' && chatId) {
       const miniAppUrl = process.env.MINI_APP_URL || 'https://focus-game-omega.vercel.app';
       const isStart = text.trim().split(/\s+/)[0] === '/start';
-      const playButton = { text: '🎮 Ойынды бастау', web_app: { url: miniAppUrl } };
+      const playButton = { text: '🚀 Запустить', web_app: { url: miniAppUrl } };
       if (isStart) {
         await sendMessage(
           chatId,
