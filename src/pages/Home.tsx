@@ -16,6 +16,7 @@ import { NotificationsModal } from '../components/NotificationsModal';
 import { GuestBanner } from '../components/GuestBanner';
 import { DailyChallengeCard } from '../components/DailyChallengeCard';
 import { WatchAdCard } from '../components/WatchAdCard';
+import { LanguageGate, LanguageSwitcher } from '../components/LanguagePicker';
 import { GameTile, useDailyGameId } from '../components/GameTile';
 import { useThemeStyles } from '../hooks/useThemeStyles';
 import { hapticFeedback } from '../utils/telegram';
@@ -375,6 +376,7 @@ const Home = () => {
             </button>
 
             <div className="flex items-center gap-1">
+              <LanguageSwitcher buttonClass="hover:bg-[#F0EEE6]" />
               <button
                 onClick={() => { hapticFeedback.click(); setShowNotifications(true); }}
                 className="relative w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-[#F0EEE6]"
@@ -412,7 +414,8 @@ const Home = () => {
           </div>
         </motion.header>
 
-        <GuestBanner />
+        <LanguageGate />
+      <GuestBanner />
 
         {/* Daily Workout — hero "feature article" */}
         <motion.section
@@ -778,6 +781,7 @@ const Home = () => {
           </button>
 
           <div className="flex items-center gap-1.5">
+            <LanguageSwitcher buttonClass={clsx(styles.cardClass, textPrimary)} />
             <motion.button
               whileTap={{ scale: 0.9 }}
               onClick={() => { hapticFeedback.click(); setShowNotifications(true); }}
@@ -806,6 +810,7 @@ const Home = () => {
         </div>
       </motion.header>
 
+      <LanguageGate />
       <GuestBanner />
 
       <motion.div
